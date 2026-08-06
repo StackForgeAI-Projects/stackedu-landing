@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# StackEDU Landing
 
-## Getting Started
+Marketing website for [StackEDU](https://stackedu.africa) — school management software for Rwanda and Africa.
 
-First, run the development server:
+Built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS 4**, **GSAP**, and **Resend** (contact form).
+
+---
+
+## Requirements
+
+- Node.js 20+
+- npm
+
+---
+
+## Local setup
+
+```bash
+git clone git@github.com:StackForgeAI-Projects/stackedu-landing.git
+cd stackedu-landing
+npm install
+cp .env.example .env.local
+```
+
+Edit `.env.local` with your keys (see below), then:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment variables
 
-## Learn More
+Copy `.env.example` to `.env.local`. Never commit `.env` or `.env.local`.
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Required | Description |
+|---|---|---|
+| `RESEND_API_KEY` | Yes (prod) | Resend API key for the Book a Demo form |
+| `CONTACT_TO_EMAIL` | Yes (prod) | Inbox that receives form submissions |
+| `CONTACT_FROM_EMAIL` | Yes (prod) | Verified sender in Resend (e.g. `StackEDU <hello@stackedu.africa>`) |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Optional | Cloudinary cloud name for hero demo video |
+| `NEXT_PUBLIC_HERO_VIDEO_ID` | Optional | Cloudinary public ID for hero demo video |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For local testing without Resend, the form returns a configuration error until `RESEND_API_KEY` is set. Use `onboarding@resend.dev` as sender only for Resend sandbox testing.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Run production build locally |
+| `npm run lint` | ESLint |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Project structure
+
+```
+src/
+├── app/                 # Next.js App Router (pages, API routes)
+│   └── api/contact/     # Book a Demo → Resend
+├── components/landing/  # Landing page sections
+├── components/ui/       # Shared UI pieces
+├── hooks/               # GSAP scroll reveals
+└── lib/
+    ├── i18n/            # EN / FR / RW translations
+    ├── assets.ts        # Image paths
+    └── content.ts       # Shared constants
+public/images/           # Static assets
+```
+
+---
+
+## Deployment (Vercel)
+
+1. Push this repo to GitHub (`StackForgeAI-Projects/stackedu-landing`).
+2. In [Vercel](https://vercel.com/new), import the GitHub repo.
+3. Framework preset: **Next.js** (auto-detected).
+4. Add environment variables from the table above under **Project → Settings → Environment Variables**.
+5. Deploy.
+
+**Custom domains:** add `stackedu.africa` and `stackedu.rw` in Vercel → Domains, then point DNS at Vercel. Verify both domains in Resend before using them as `CONTACT_FROM_EMAIL` senders.
+
+---
+
+## What is not in this repo
+
+Excluded via `.gitignore`:
+
+- `node_modules/`, `.next/`, build output
+- `.env`, `.env*.local` (secrets)
+- `stackedu-design/` — local Lovable/design reference only
+- Editor folders (`.cursor/`, `.vscode/`, `.idea/`)
+
+---
+
+## License
+
+Private — StackForge AI.
