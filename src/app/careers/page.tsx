@@ -1,11 +1,29 @@
 import type { Metadata } from "next";
 import { ComingSoonPage } from "@/components/ComingSoonPage";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { getStaticPageSeo } from "@/lib/seo/config";
+import { buildPageMetadata } from "@/lib/seo/metadata";
+import { getRequestMarket } from "@/lib/seo/request-market";
+import { buildSimplePageJsonLd } from "@/lib/seo/schema";
 
-export const metadata: Metadata = {
-  title: "Careers — StackEDU",
-  description: "StackEDU careers — coming soon.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const market = await getRequestMarket();
+  return buildPageMetadata(market, getStaticPageSeo(market, "/careers"));
+}
 
-export default function CareersPage() {
-  return <ComingSoonPage title="Careers" />;
+export default async function CareersPage() {
+  const market = await getRequestMarket();
+  const page = getStaticPageSeo(market, "/careers");
+
+  return (
+    <>
+      <JsonLd
+        data={buildSimplePageJsonLd(market, page.path, page.title, page.description, [
+          { name: "Home", path: "/" },
+          { name: "Careers", path: "/careers" },
+        ])}
+      />
+      <ComingSoonPage title="Careers" />
+    </>
+  );
 }

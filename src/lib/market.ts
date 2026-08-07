@@ -6,7 +6,7 @@ const LOCAL_DEV_HOSTS = ["localhost", "127.0.0.1"] as const;
 
 /** Crawlers that must stay on the requested hostname (SEO, Search Console, previews). */
 const SEARCH_ENGINE_UA =
-  /googlebot|google-inspectiontool|storebot-google|bingbot|slurp|duckduckbot|baiduspider|yandexbot|applebot|facebookexternalhit|twitterbot|linkedinbot|semrushbot|ahrefsbot|mj12bot|dotbot|petalbot/i;
+  /googlebot|google-inspectiontool|storebot-google|google-extended|bingbot|slurp|duckduckbot|baiduspider|yandexbot|applebot|applebot-extended|facebookexternalhit|twitterbot|linkedinbot|semrushbot|ahrefsbot|mj12bot|dotbot|petalbot|gptbot|chatgpt-user|claudebot|anthropic-ai|perplexitybot|bytespider|ccbot|oai-searchbot/i;
 
 export function isSearchEngineCrawler(userAgent: string) {
   return SEARCH_ENGINE_UA.test(userAgent);
