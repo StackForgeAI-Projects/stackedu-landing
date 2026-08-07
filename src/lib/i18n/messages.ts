@@ -273,7 +273,7 @@ const en = {
     eyebrow: "Community Impact",
     title: "StackForgeNext",
     paragraph1:
-      "An initiative to give back to the people and youth of Rwanda. We partner with schools, universities, and community organizations to provide free tech training and digital skills development.",
+      "A community initiative for Rwanda's youth. We partner with schools, universities, and community organizations to provide free tech training and digital skills development.",
     paragraph2:
       "We're committed to growing the local tech ecosystem alongside our business — in line with Rwanda's national development vision.",
     cta: "Learn more",
