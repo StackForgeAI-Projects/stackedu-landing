@@ -23,7 +23,7 @@ export default async function CareersPage() {
           { name: "Careers", path: "/careers" },
         ])}
       />
-      <ComingSoonPage title="Careers" />
+      <ComingSoonPage market={market} title="Careers" />
     </>
   );
 }

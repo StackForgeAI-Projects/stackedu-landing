@@ -23,7 +23,7 @@ export default async function BlogPage() {
           { name: "Blog", path: "/blog" },
         ])}
       />
-      <ComingSoonPage title="Blog" />
+      <ComingSoonPage market={market} title="Blog" />
     </>
   );
 }

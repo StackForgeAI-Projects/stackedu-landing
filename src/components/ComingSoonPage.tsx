@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { MarketingPageShell } from "@/components/landing/MarketingPageShell";
+import type { Market } from "@/lib/market";
 
-export function ComingSoonPage({ title }: { title: string }) {
+export function ComingSoonPage({ market, title }: { market: Market; title: string }) {
   return (
-    <main className="min-h-screen bg-background px-6 py-24">
+    <MarketingPageShell market={market}>
       <div className="mx-auto max-w-2xl text-center sm:text-left">
         <Link href="/" className="text-sm font-semibold text-primary hover:underline">
           ← Back to StackEDU
@@ -15,6 +17,6 @@ export function ComingSoonPage({ title }: { title: string }) {
           We&apos;re working on this page. Please check back later.
         </p>
       </div>
-    </main>
+    </MarketingPageShell>
   );
 }

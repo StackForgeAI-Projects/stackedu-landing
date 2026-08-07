@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MarketingPageShell } from "@/components/landing/MarketingPageShell";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getPublicContactEmail } from "@/lib/market";
 import { getStaticPageSeo } from "@/lib/seo/config";
@@ -25,7 +26,7 @@ export default async function PrivacyPage() {
           { name: "Privacy Policy", path: "/privacy" },
         ])}
       />
-      <main className="min-h-screen bg-background px-6 py-24">
+      <MarketingPageShell market={market}>
         <div className="mx-auto max-w-2xl">
           <Link href="/" className="text-sm font-semibold text-primary hover:underline">
             ← Back to StackEDU
@@ -39,7 +40,7 @@ export default async function PrivacyPage() {
             .
           </p>
         </div>
-      </main>
+      </MarketingPageShell>
     </>
   );
 }
