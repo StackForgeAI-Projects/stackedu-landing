@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { buildContactEmailHtml, buildContactEmailText } from "@/lib/contact-email";
 import { getContactEmailConfig, getMarketFromHost } from "@/lib/market";
 
 type ContactBody = {
@@ -12,15 +13,6 @@ type ContactBody = {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 export async function POST(request: Request) {
@@ -64,6 +56,29 @@ export async function POST(request: Request) {
     );
   }
 
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    "Unknown";
+  const userAgent = request.headers.get("user-agent") || "Unknown";
+  const visitorCountry = request.headers.get("x-vercel-ip-country") || undefined;
+  const siteHost = host.split(":")[0] || "stackedu.africa";
+  const submittedAt = new Date().toUTCString();
+
+  const emailPayload = {
+    name,
+    institution,
+    email,
+    phone,
+    message,
+    market,
+    siteHost,
+    submittedAt,
+    ip,
+    userAgent,
+    visitorCountry,
+  };
+
   const resend = new Resend(apiKey);
 
   try {
@@ -72,25 +87,8 @@ export async function POST(request: Request) {
       to: [to],
       replyTo: email,
       subject: `StackEDU demo request — ${name} · ${institution}`,
-      html: `
-        <h2>New StackEDU demo request</h2>
-        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
-        <p><strong>Institution:</strong> ${escapeHtml(institution)}</p>
-        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p><strong>Phone / WhatsApp:</strong> ${escapeHtml(phone)}</p>
-        <p><strong>Message:</strong></p>
-        <p>${escapeHtml(message).replaceAll("\n", "<br />")}</p>
-      `,
-      text: `New StackEDU demo request
-
-Name: ${name}
-Institution: ${institution}
-Email: ${email}
-Phone / WhatsApp: ${phone}
-
-Message:
-${message}
-`,
+      html: buildContactEmailHtml(emailPayload),
+      text: buildContactEmailText(emailPayload),
     });
 
     if (error) {
