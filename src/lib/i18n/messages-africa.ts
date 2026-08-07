@@ -196,6 +196,7 @@ export const africaMessagesEn: AfricaOverrides = {
     imageAlt: "Young African tech students learning in a computer lab",
   },
   contact: {
+    email: "hello@stackedu.africa",
     location: "Serving institutions across Africa · HQ in Kigali, Rwanda",
     placeholders: {
       email: "you@university.ac",
@@ -274,6 +275,7 @@ export const africaMessagesFr: AfricaOverrides = {
     trustedBy: "Approuvé par des institutions à travers l'Afrique",
   },
   contact: {
+    email: "hello@stackedu.africa",
     location: "Au service des institutions à travers l'Afrique · Siège à Kigali, Rwanda",
   },
   footer: {
@@ -336,6 +338,7 @@ export const africaMessagesRw: AfricaOverrides = {
     trustedBy: "Byizewe n'amashuri mu Afrika",
   },
   contact: {
+    email: "hello@stackedu.africa",
     location: "Dukorera amashuri mu Afrika yose · HQ i Kigali, Rwanda",
   },
   footer: {

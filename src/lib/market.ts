@@ -20,6 +20,15 @@ export function getMarketFromHost(host: string): Market {
   return "africa";
 }
 
+export const PUBLIC_CONTACT_EMAIL: Record<Market, string> = {
+  rw: "hello@stackedu.rw",
+  africa: "hello@stackedu.africa",
+};
+
+export function getPublicContactEmail(market: Market) {
+  return PUBLIC_CONTACT_EMAIL[market];
+}
+
 /** Plain inbox address for Resend `to` (handles `<email>` and stray spaces). */
 function normalizeRecipientEmail(value: string | undefined): string {
   if (!value) return "";
