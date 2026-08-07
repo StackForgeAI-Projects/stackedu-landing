@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { ComingSoonPage } from "@/components/ComingSoonPage";
+import { MarketingPageShell } from "@/components/landing/MarketingPageShell";
+import { SecondaryPageContent } from "@/components/landing/SecondaryPageContent";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getStaticPageSeo } from "@/lib/seo/config";
 import { buildPageMetadata } from "@/lib/seo/metadata";
@@ -23,7 +24,9 @@ export default async function BlogPage() {
           { name: "Blog", path: "/blog" },
         ])}
       />
-      <ComingSoonPage market={market} title="Blog" />
+      <MarketingPageShell market={market}>
+        <SecondaryPageContent page="blog" />
+      </MarketingPageShell>
     </>
   );
 }

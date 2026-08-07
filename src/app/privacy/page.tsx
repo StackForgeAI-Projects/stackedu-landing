@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { MarketingPageShell } from "@/components/landing/MarketingPageShell";
+import { SecondaryPageContent } from "@/components/landing/SecondaryPageContent";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getPublicContactEmail } from "@/lib/market";
 import { getStaticPageSeo } from "@/lib/seo/config";
 import { buildPageMetadata } from "@/lib/seo/metadata";
 import { getRequestMarket } from "@/lib/seo/request-market";
@@ -15,7 +14,6 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PrivacyPage() {
   const market = await getRequestMarket();
-  const email = getPublicContactEmail(market);
   const page = getStaticPageSeo(market, "/privacy");
 
   return (
@@ -27,19 +25,7 @@ export default async function PrivacyPage() {
         ])}
       />
       <MarketingPageShell market={market}>
-        <div className="mx-auto max-w-2xl">
-          <Link href="/" className="text-sm font-semibold text-primary hover:underline">
-            ← Back to StackEDU
-          </Link>
-          <h1 className="mt-8 text-3xl font-extrabold tracking-tight text-ink">Privacy Policy</h1>
-          <p className="mt-4 text-muted-foreground leading-relaxed">
-            Our full privacy policy will be published here. For questions, contact{" "}
-            <a href={`mailto:${email}`} className="text-primary font-medium hover:underline">
-              {email}
-            </a>
-            .
-          </p>
-        </div>
+        <SecondaryPageContent page="privacy" />
       </MarketingPageShell>
     </>
   );

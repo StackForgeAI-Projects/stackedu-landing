@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { MarketingPageShell } from "@/components/landing/MarketingPageShell";
+import { SecondaryPageContent } from "@/components/landing/SecondaryPageContent";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getPublicContactEmail } from "@/lib/market";
 import { getStaticPageSeo } from "@/lib/seo/config";
 import { buildPageMetadata } from "@/lib/seo/metadata";
 import { getRequestMarket } from "@/lib/seo/request-market";
@@ -15,7 +14,6 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function TermsPage() {
   const market = await getRequestMarket();
-  const email = getPublicContactEmail(market);
   const page = getStaticPageSeo(market, "/terms");
 
   return (
@@ -27,21 +25,7 @@ export default async function TermsPage() {
         ])}
       />
       <MarketingPageShell market={market}>
-        <div className="mx-auto max-w-2xl">
-          <Link href="/" className="text-sm font-semibold text-primary hover:underline">
-            ← Back to StackEDU
-          </Link>
-          <h1 className="mt-8 text-3xl font-extrabold tracking-tight text-ink">
-            Terms and Conditions
-          </h1>
-          <p className="mt-4 text-muted-foreground leading-relaxed">
-            Our full terms and conditions will be published here. For questions, contact{" "}
-            <a href={`mailto:${email}`} className="text-primary font-medium hover:underline">
-              {email}
-            </a>
-            .
-          </p>
-        </div>
+        <SecondaryPageContent page="terms" />
       </MarketingPageShell>
     </>
   );

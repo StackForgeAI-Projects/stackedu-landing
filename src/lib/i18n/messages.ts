@@ -313,6 +313,15 @@ const en = {
       network: "Network error. Please check your connection and try again.",
     },
   },
+  secondaryPages: {
+    backToStackedu: "← Back to StackEDU",
+    comingSoon: "Coming soon",
+    comingSoonMessage: "We're working on this page. Please check back later.",
+    privacyIntroBefore: "Our full privacy policy will be published here. For questions, contact ",
+    privacyIntroAfter: ".",
+    termsIntroBefore: "Our full terms and conditions will be published here. For questions, contact ",
+    termsIntroAfter: ".",
+  },
   footer: {
     blurb:
       "The unified operating system for Rwanda's tertiary institutions. Built in Kigali by StackForgeAI.",
@@ -651,6 +660,15 @@ const fr = {
       network: "Erreur réseau. Vérifiez votre connexion et réessayez.",
     },
   },
+  secondaryPages: {
+    backToStackedu: "← Retour à StackEDU",
+    comingSoon: "Bientôt disponible",
+    comingSoonMessage: "Cette page est en cours de préparation. Revenez bientôt.",
+    privacyIntroBefore: "Notre politique de confidentialité complète sera publiée ici. Pour toute question, contactez ",
+    privacyIntroAfter: ".",
+    termsIntroBefore: "Nos conditions générales complètes seront publiées ici. Pour toute question, contactez ",
+    termsIntroAfter: ".",
+  },
   footer: {
     blurb:
       "Le système d'exploitation unifié pour les institutions tertiaires du Rwanda. Conçu à Kigali par StackForgeAI.",
@@ -988,6 +1006,15 @@ const rw = {
       generic: "Hari ikintu kitagenze neza. Ongera ugerageze.",
       network: "Ikibazo cya interineti. Reba interineti yawe wongere ugerageze.",
     },
+  },
+  secondaryPages: {
+    backToStackedu: "← Subira kuri StackEDU",
+    comingSoon: "Biraza vuba",
+    comingSoonMessage: "Turimo gukora iyi paji. Subira nyuma.",
+    privacyIntroBefore: "Politiki y'ibanga yuzuye izashyirwa hano. Kubibazo, wandikire ",
+    privacyIntroAfter: ".",
+    termsIntroBefore: "Amategeko yuzuye azashyirwa hano. Kubibazo, wandikire ",
+    termsIntroAfter: ".",
   },
   footer: {
     blurb:
