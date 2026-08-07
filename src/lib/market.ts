@@ -53,6 +53,9 @@ export const GOOGLE_SITE_VERIFICATION_AFRICA =
 /** Google Search Console HTML file verification for stackedu.rw (served from /public). */
 export const GOOGLE_SITE_VERIFICATION_FILE_RW = "google63477aeb3b4ade3c.html";
 
+/** Google Analytics 4 measurement ID for stackedu.rw */
+export const GA_MEASUREMENT_ID_RW = "G-9CSS7SSMHH";
+
 export function getStackeduSiteUrl(market: Market) {
   return STACKEDU_SITE_URL[market];
 }
