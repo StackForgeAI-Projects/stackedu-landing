@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { getContactEmailConfig, getMarketFromHost } from "@/lib/market";
 
 type ContactBody = {
   name?: string;
@@ -45,7 +46,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Please provide a valid email address." }, { status: 400 });
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  const market = getMarketFromHost(host);
+  const { apiKey, from } = getContactEmailConfig(market);
+
   if (!apiKey) {
     return NextResponse.json(
       { error: "Email service is not configured. Please try again later." },
@@ -54,7 +58,6 @@ export async function POST(request: Request) {
   }
 
   const to = process.env.CONTACT_TO_EMAIL || "hello@stackedu.africa";
-  const from = process.env.CONTACT_FROM_EMAIL || "StackEDU <onboarding@resend.dev>";
 
   const resend = new Resend(apiKey);
 
