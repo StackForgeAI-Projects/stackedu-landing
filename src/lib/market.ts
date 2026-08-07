@@ -46,11 +46,12 @@ export const STACKEDU_SITE_URL: Record<Market, string> = {
   africa: "https://stackedu.africa",
 };
 
-/** Google Search Console HTML tag verification (one token per domain). */
-export const GOOGLE_SITE_VERIFICATION: Record<Market, string> = {
-  rw: "d7sK_-Cy4vdB4zgadAt0WDt18bUzqi84rgT6Muhtq3g",
-  africa: "T6OA2x11TPWG-yTzWda-yPNQxhFq5C2gKvnAXQV2_Lc",
-};
+/** Google Search Console HTML tag verification for stackedu.africa. */
+export const GOOGLE_SITE_VERIFICATION_AFRICA =
+  "T6OA2x11TPWG-yTzWda-yPNQxhFq5C2gKvnAXQV2_Lc";
+
+/** Google Search Console HTML file verification for stackedu.rw (served from /public). */
+export const GOOGLE_SITE_VERIFICATION_FILE_RW = "google63477aeb3b4ade3c.html";
 
 export function getStackeduSiteUrl(market: Market) {
   return STACKEDU_SITE_URL[market];

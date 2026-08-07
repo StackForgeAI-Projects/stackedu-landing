@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import { getMarketFromHost, GOOGLE_SITE_VERIFICATION } from "@/lib/market";
+import { getMarketFromHost, GOOGLE_SITE_VERIFICATION_AFRICA } from "@/lib/market";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -37,10 +37,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
   const market = getMarketFromHost(host);
 
+  if (market !== "africa") {
+    return baseMetadata;
+  }
+
   return {
     ...baseMetadata,
     verification: {
-      google: GOOGLE_SITE_VERIFICATION[market],
+      google: GOOGLE_SITE_VERIFICATION_AFRICA,
     },
   };
 }
