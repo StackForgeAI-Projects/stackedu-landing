@@ -12,6 +12,7 @@ export function getMarketFromHost(host: string): Market {
 export function getContactEmailConfig(market: Market) {
   const legacyKey = process.env.RESEND_API_KEY?.trim();
   const legacyFrom = process.env.CONTACT_FROM_EMAIL?.trim();
+  const legacyTo = process.env.CONTACT_TO_EMAIL?.trim();
 
   if (market === "rw") {
     return {
@@ -20,6 +21,10 @@ export function getContactEmailConfig(market: Market) {
         process.env.CONTACT_FROM_EMAIL_RW?.trim() ||
         legacyFrom ||
         "StackEDU <hello@stackedu.rw>",
+      to:
+        process.env.CONTACT_TO_EMAIL_RW?.trim() ||
+        legacyTo ||
+        "hello@stackedu.africa",
     };
   }
 
@@ -29,5 +34,9 @@ export function getContactEmailConfig(market: Market) {
       process.env.CONTACT_FROM_EMAIL_AFRICA?.trim() ||
       legacyFrom ||
       "StackEDU <hello@stackedu.africa>",
+    to:
+      process.env.CONTACT_TO_EMAIL_AFRICA?.trim() ||
+      legacyTo ||
+      "hello@stackedu.africa",
   };
 }

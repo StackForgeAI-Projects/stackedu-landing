@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
   const market = getMarketFromHost(host);
-  const { apiKey, from } = getContactEmailConfig(market);
+  const { apiKey, from, to } = getContactEmailConfig(market);
 
   if (!apiKey) {
     return NextResponse.json(
@@ -57,7 +57,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const to = process.env.CONTACT_TO_EMAIL || "hello@stackedu.africa";
+  if (!to) {
+    return NextResponse.json(
+      { error: "Email service is not configured. Please try again later." },
+      { status: 500 },
+    );
+  }
 
   const resend = new Resend(apiKey);
 
