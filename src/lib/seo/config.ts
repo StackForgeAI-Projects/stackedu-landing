@@ -29,6 +29,20 @@ export type MarketSeoProfile = {
   category: string;
 };
 
+function mergeKeywords(...groups: readonly (readonly string[])[]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const group of groups) {
+    for (const keyword of group) {
+      if (!seen.has(keyword)) {
+        seen.add(keyword);
+        merged.push(keyword);
+      }
+    }
+  }
+  return merged;
+}
+
 const SHARED_KEYWORDS = [
   "StackEDU",
   "StackEdu",
@@ -57,8 +71,69 @@ const SHARED_KEYWORDS = [
   "training management system",
 ] as const;
 
-const RW_KEYWORDS = [
-  ...SHARED_KEYWORDS,
+/** StackEDU primary keyword targets — shared across both markets. */
+const STACKEDU_KEYWORDS_SHARED = [
+  "StackEDU",
+  "Academic records management software",
+  "Student data management system",
+  "Academic administration platform",
+  "Institution data management system",
+  "Student lifecycle management software",
+  "Academic transcript management system",
+  "Centralized student database system",
+  "Student attendance tracking software",
+  "Student finance management system",
+  "Tuition and fees management software",
+  "Staff management software for universities",
+  "Student performance tracking system",
+  "Digital gradebook software",
+  "Academic calendar management software",
+  "Student admission tracking system",
+  "Multi campus management software",
+] as const;
+
+/** Rwanda-only keyword targets for stackedu.rw. */
+const STACKEDU_KEYWORDS_RW = [
+  "Educational management system Rwanda",
+  "Student information system Rwanda",
+  "Tertiary institution software Rwanda",
+  "College administration software Rwanda",
+  "Higher education software Rwanda",
+  "Student enrollment software Rwanda",
+  "School management system Rwanda",
+  "Education ERP Rwanda",
+  "University software Kigali",
+  "Academic records software Rwanda",
+  "Student portal software Rwanda",
+  "Digital campus management Rwanda",
+  "Faculty management software Rwanda",
+  "Education technology Rwanda",
+  "University digital transformation Rwanda",
+  "Admissions management software Rwanda",
+  "Education administration software Kigali",
+  "Grading management system Rwanda",
+  "Course management system Rwanda",
+  "Timetable management software Rwanda",
+  "Alumni management system Rwanda",
+  "Learning management system Rwanda",
+  "Institutional reporting software Rwanda",
+  "Online student portal Rwanda",
+  "University data analytics Rwanda",
+  "Higher education CRM Rwanda",
+  "Education compliance software Rwanda",
+] as const;
+
+/** Africa-only keyword targets for stackedu.africa. */
+const STACKEDU_KEYWORDS_AFRICA = [
+  "University management system Africa",
+  "Campus management system Africa",
+  "Student registration system Africa",
+  "Education management platform Africa",
+  "EdTech software Africa",
+  "Exam management software Africa",
+] as const;
+
+const RW_SUPPLEMENTAL_KEYWORDS = [
   "education in Rwanda",
   "edtech Rwanda",
   "education Kigali",
@@ -81,8 +156,7 @@ const RW_KEYWORDS = [
   "stackedu.rw",
 ] as const;
 
-const AFRICA_KEYWORDS = [
-  ...SHARED_KEYWORDS,
+const AFRICA_SUPPLEMENTAL_KEYWORDS = [
   "education in Africa",
   "edtech Africa",
   "African universities",
@@ -100,6 +174,20 @@ const AFRICA_KEYWORDS = [
   "StackEDU Africa",
   "stackedu.africa",
 ] as const;
+
+const RW_KEYWORDS = mergeKeywords(
+  SHARED_KEYWORDS,
+  STACKEDU_KEYWORDS_SHARED,
+  STACKEDU_KEYWORDS_RW,
+  RW_SUPPLEMENTAL_KEYWORDS,
+);
+
+const AFRICA_KEYWORDS = mergeKeywords(
+  SHARED_KEYWORDS,
+  STACKEDU_KEYWORDS_SHARED,
+  STACKEDU_KEYWORDS_AFRICA,
+  AFRICA_SUPPLEMENTAL_KEYWORDS,
+);
 
 const profiles: Record<Market, MarketSeoProfile> = {
   rw: {

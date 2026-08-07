@@ -61,7 +61,7 @@ function organizationSchema(market: Market): JsonLd {
       },
     ],
     sameAs,
-    knowsAbout: seo.keywords.slice(0, 20),
+    knowsAbout: seo.keywords.slice(0, 30),
   };
 }
 
@@ -113,11 +113,19 @@ function softwareSchema(market: Market): JsonLd {
     },
     provider: { "@id": `${seo.siteUrl}/#organization` },
     featureList: [
-      "Admissions & onboarding",
-      "Student records & transcripts",
+      "Admissions & student enrollment",
+      "Student records, transcripts & academic calendar",
       "Fee payment with mobile money",
-      "E-learning",
+      "E-learning & learning management",
       "E-library",
+      "Exam, grading & digital gradebook",
+      "Timetable & course management",
+      "Faculty & staff management",
+      "Student attendance & performance tracking",
+      "Alumni management",
+      "Institutional reporting & analytics",
+      "Multi-campus administration",
+      "Education compliance reporting",
       "AI at-risk alerts",
       "Role-based access control",
       "Audit logs",
@@ -240,10 +248,14 @@ function serviceSchema(market: Market): JsonLd {
     "@type": "Service",
     "@id": `${seo.siteUrl}/#service`,
     name: "Institutional school management platform",
-    serviceType: "Education technology / school management system",
+    serviceType:
+      market === "rw"
+        ? "Educational management system · student information system · education ERP Rwanda"
+        : "University management system · campus management · edtech software Africa",
     provider: { "@id": `${seo.siteUrl}/#organization` },
     areaServed: market === "rw" ? "Rwanda" : "Africa",
     description: seo.description,
+    keywords: seo.keywords.slice(0, 20).join(", "),
     hasOfferCatalog: {
       "@type": "OfferCatalog",
       name: "StackEDU plans",
