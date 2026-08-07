@@ -1,4 +1,4 @@
-import type { Market } from "@/lib/market";
+import { getPublicContactEmail, type Market } from "@/lib/market";
 import type { Locale } from "@/lib/i18n/locales";
 import { getNextFooterCompanyLinks } from "@/lib/content";
 
@@ -229,7 +229,7 @@ const enRw: StackForgeNextContent = {
     submitting: "Sending…",
     footerNote: "We reply within 24 hours · hello@stackforgeai.africa",
     capacityError: "Please select at least one way you'd like to partner.",
-    success: "Thank you. Our Kigali team will be in touch within 24 hours.",
+    success: "Thank you. Our team will get back to you within 24 hours.",
     errors: {
       generic: "Something went wrong. Please try again.",
       network: "Network error. Please check your connection and try again.",
@@ -368,7 +368,7 @@ const africaOverridesEn: Partial<StackForgeNextContent> = {
     submitting: "Sending…",
     footerNote: "We reply within 24 hours · hello@stackforgeai.africa",
     capacityError: "Please select at least one way you'd like to partner.",
-    success: "Thank you. Our team will be in touch within 24 hours.",
+    success: "Thank you. Our team will get back to you within 24 hours.",
     errors: {
       generic: "Something went wrong. Please try again.",
       network: "Network error. Please check your connection and try again.",
@@ -443,6 +443,35 @@ function resolveFooterLinks(content: StackForgeNextContent, stackeduUrl: string)
         }
         return col;
       }),
+    },
+  };
+}
+
+function applyMarketContactEmail(
+  content: StackForgeNextContent,
+  contactEmail: string,
+): StackForgeNextContent {
+  const footerNoteLead = content.form.footerNote.includes(" · ")
+    ? content.form.footerNote.split(" · ")[0]!
+    : content.form.footerNote;
+
+  return {
+    ...content,
+    partner: { ...content.partner, email: contactEmail },
+    form: {
+      ...content.form,
+      footerNote: `${footerNoteLead} · ${contactEmail}`,
+    },
+    footer: {
+      ...content.footer,
+      columns: content.footer.columns.map((col) => ({
+        ...col,
+        links: col.links.map((link) =>
+          link.href.startsWith("mailto:")
+            ? { label: contactEmail, href: `mailto:${contactEmail}` }
+            : link,
+        ),
+      })),
     },
   };
 }
@@ -579,7 +608,7 @@ const byLocale: Record<Locale, StackForgeNextContent> = {
       submitting: "Envoi…",
       footerNote: "Réponse sous 24 h · hello@stackforgeai.africa",
       capacityError: "Veuillez sélectionner au moins un mode de partenariat.",
-      success: "Merci. Notre équipe à Kigali vous contactera sous 24 heures.",
+      success: "Merci. Notre équipe vous répondra sous 24 heures.",
       errors: {
         generic: "Une erreur s'est produite. Veuillez réessayer.",
         network: "Erreur réseau. Vérifiez votre connexion et réessayez.",
@@ -723,7 +752,7 @@ const byLocale: Record<Locale, StackForgeNextContent> = {
       submitting: "Birimo koherezwa…",
       footerNote: "Tuzagusubiza mu masaha 24 · hello@stackforgeai.africa",
       capacityError: "Hitamo byibuze uburyo bumwe bwo gufatana.",
-      success: "Murakoze. Itsinda ryacu i Kigali rizaba ritumanaho mu masaha 24.",
+      success: "Murakoze. Itsinda ryacu rizaba ritumanaho mu masaha 24.",
       errors: {
         generic: "Hari ikintu kitagenze neza. Ongera ugerageze.",
         network: "Ikibazo cya interineti. Reba interineti yawe wongere ugerageze.",
@@ -823,7 +852,7 @@ const africaByLocale: Partial<Record<Locale, ContentOverrides>> = {
       phonePlaceholder: "+234 ...",
       consent:
         "J'accepte d'être contacté(e) par StackForgeAI au sujet de ce partenariat, conformément aux lois applicables sur la protection des données.",
-      success: "Merci. Notre équipe vous contactera sous 24 heures.",
+      success: "Merci. Notre équipe vous répondra sous 24 heures.",
     },
     footer: {
       blurb:
@@ -950,5 +979,8 @@ export function getStackForgeNextContent(
     market === "africa"
       ? mergeContent(base, africaByLocale[locale] ?? africaOverridesEn)
       : base;
-  return resolveFooterLinks(merged, stackeduUrl);
+  return applyMarketContactEmail(
+    resolveFooterLinks(merged, stackeduUrl),
+    getPublicContactEmail(market),
+  );
 }
