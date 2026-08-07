@@ -1,5 +1,25 @@
 export type Market = "rw" | "africa";
 
+export const RW_HOSTS = ["stackedu.rw", "www.stackedu.rw"] as const;
+export const AFRICA_HOSTS = ["stackedu.africa", "www.stackedu.africa"] as const;
+
+export function isKnownMarketHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().split(":")[0] ?? "";
+  return (
+    (RW_HOSTS as readonly string[]).includes(host) ||
+    (AFRICA_HOSTS as readonly string[]).includes(host)
+  );
+}
+
+/** Resolve market from request host (stackedu.rw vs stackedu.africa). */
+export function getMarketFromHost(host: string): Market {
+  const hostname = host.toLowerCase().split(":")[0] ?? "";
+  if ((RW_HOSTS as readonly string[]).includes(hostname)) {
+    return "rw";
+  }
+  return "africa";
+}
+
 /** Plain inbox address for Resend `to` (handles `<email>` and stray spaces). */
 function normalizeRecipientEmail(value: string | undefined): string {
   if (!value) return "";
@@ -16,15 +36,6 @@ function normalizeSenderEmail(value: string | undefined): string {
   const bareBracket = trimmed.match(/^<\s*([^>]+)\s*>$/);
   if (bareBracket) return bareBracket[1]!.trim();
   return trimmed;
-}
-
-/** Resolve market from request host (stackedu.rw vs stackedu.africa). */
-export function getMarketFromHost(host: string): Market {
-  const hostname = host.toLowerCase().split(":")[0] ?? "";
-  if (hostname === "stackedu.rw" || hostname === "www.stackedu.rw") {
-    return "rw";
-  }
-  return "africa";
 }
 
 export function getContactEmailConfig(market: Market) {

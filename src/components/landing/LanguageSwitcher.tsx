@@ -2,14 +2,15 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown, Globe } from "lucide-react";
-import { LOCALES, useLocale, type Locale } from "@/lib/i18n";
+import { getLocalesForMarket, useLocale, type Locale } from "@/lib/i18n";
 
 export function LanguageSwitcher({ className }: { className?: string }) {
-  const { locale, setLocale } = useLocale();
+  const { locale, market, setLocale } = useLocale();
+  const locales = getLocalesForMarket(market);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const active = LOCALES.find((l) => l.code === locale) ?? LOCALES[0];
+  const active = locales.find((l) => l.code === locale) ?? locales[0];
 
   useEffect(() => {
     if (!open) return;
@@ -61,7 +62,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
           aria-label="Languages"
           className="absolute right-0 top-[calc(100%+0.4rem)] z-[60] min-w-[10.5rem] overflow-hidden rounded-2xl border border-border bg-white py-1 shadow-lift"
         >
-          {LOCALES.map(({ code, short, label }) => {
+          {locales.map(({ code, short, label }) => {
             const selected = locale === code;
             return (
               <li key={code} role="option" aria-selected={selected}>

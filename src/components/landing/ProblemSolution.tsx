@@ -6,7 +6,7 @@ import { SOLUTION_POSITIONS } from "@/lib/content";
 import { useLocale } from "@/lib/i18n";
 
 export function ProblemSolution() {
-  const { t } = useLocale();
+  const { t, market } = useLocale();
 
   return (
     <section id="about" className="py-24">
@@ -19,7 +19,11 @@ export function ProblemSolution() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={ABOUT_IMAGE}
-              alt="Rwandan student using StackEDU on mobile"
+              alt={
+                market === "rw"
+                  ? "Rwandan student using StackEDU on mobile"
+                  : "African student using StackEDU on mobile"
+              }
               className="absolute inset-0 w-full h-full object-cover rounded-3xl shadow-lift"
               loading="lazy"
             />

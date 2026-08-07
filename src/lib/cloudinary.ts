@@ -4,7 +4,12 @@
  * Never put API secrets in the frontend.
  */
 
+import type { Locale } from "@/lib/i18n/locales";
+
 const VIDEO_EXT = /\.(mp4|webm|mov)$/i;
+
+const DEFAULT_HERO_VIDEO_URL_FR =
+  "https://res.cloudinary.com/iikwn37o/video/upload/v1786066360/StackEDU_Demo_French_tnqdsv.mp4";
 
 function stripVideoExt(value: string) {
   return value.replace(VIDEO_EXT, "");
@@ -22,15 +27,7 @@ function buildDeliveryUrl(cloud: string, publicId: string) {
   return `https://res.cloudinary.com/${cloud}/video/upload/f_auto:video,q_auto/${id}`;
 }
 
-/**
- * Accepts a public ID or a full Cloudinary delivery URL and returns a playable URL.
- */
-export function getHeroVideoUrl(): string {
-  const direct = process.env.NEXT_PUBLIC_HERO_VIDEO_URL?.trim();
-  const rawId = process.env.NEXT_PUBLIC_HERO_VIDEO_ID?.trim();
-  const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
-
-  const input = direct || rawId || "";
+function resolveVideoUrl(input: string, cloudName?: string): string {
   if (!input) return "";
 
   if (/^https?:\/\//i.test(input) || input.includes("https://res.cloudinary.com/")) {
@@ -41,7 +38,6 @@ export function getHeroVideoUrl(): string {
     if (!parsed) return url;
 
     const [, urlCloud, path] = parsed;
-    // Keep version + public id; drop any existing transform segments (contain , or :).
     const deliveryPath = stripVideoExt(path)
       .split("/")
       .filter((segment) => !segment.includes(",") && !segment.includes(":"))
@@ -50,6 +46,33 @@ export function getHeroVideoUrl(): string {
     return buildDeliveryUrl(urlCloud, deliveryPath || path);
   }
 
-  if (!cloud) return "";
-  return buildDeliveryUrl(cloud, input);
+  if (!cloudName) return "";
+  return buildDeliveryUrl(cloudName, input);
+}
+
+function getDefaultEnglishVideoInput() {
+  return (
+    process.env.NEXT_PUBLIC_HERO_VIDEO_URL?.trim() ||
+    process.env.NEXT_PUBLIC_HERO_VIDEO_ID?.trim() ||
+    ""
+  );
+}
+
+function getFrenchVideoInput() {
+  return (
+    process.env.NEXT_PUBLIC_HERO_VIDEO_URL_FR?.trim() ||
+    process.env.NEXT_PUBLIC_HERO_VIDEO_ID_FR?.trim() ||
+    DEFAULT_HERO_VIDEO_URL_FR
+  );
+}
+
+/** Returns a playable hero demo URL for the active locale. */
+export function getHeroVideoUrl(locale: Locale = "en"): string {
+  const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
+
+  if (locale === "fr") {
+    return resolveVideoUrl(getFrenchVideoInput(), cloud);
+  }
+
+  return resolveVideoUrl(getDefaultEnglishVideoInput(), cloud);
 }

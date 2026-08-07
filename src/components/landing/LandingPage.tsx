@@ -1,6 +1,7 @@
 "use client";
 
 import { LanguageProvider } from "@/lib/i18n";
+import type { Market } from "@/lib/market";
 import { useRef } from "react";
 import { useGsapReveals } from "@/hooks/useGsapReveals";
 import { Nav } from "@/components/landing/Nav";
@@ -44,9 +45,9 @@ function LandingContent() {
   );
 }
 
-export function LandingPage() {
+export function LandingPage({ market }: { market: Market }) {
   return (
-    <LanguageProvider>
+    <LanguageProvider market={market}>
       <LandingContent />
     </LanguageProvider>
   );

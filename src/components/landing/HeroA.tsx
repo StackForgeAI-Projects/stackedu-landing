@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ArrowRight, Check, Play, Star, Volume2, VolumeX, X } from "lucide-react";
@@ -12,21 +12,21 @@ import { scrollToContact } from "@/lib/scroll";
 
 gsap.registerPlugin(useGSAP);
 
-const HERO_VIDEO_URL = getHeroVideoUrl();
-
 export function HeroA() {
-  const { t, locale } = useLocale();
+  const { t, locale, market } = useLocale();
+  const heroVideoUrl = useMemo(() => getHeroVideoUrl(locale), [locale]);
   const stageRef = useRef<HTMLDivElement>(null);
   const playBtnRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const modalVideoRef = useRef<HTMLVideoElement>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
 
   const openModal = useCallback(() => {
-    if (!HERO_VIDEO_URL) return;
+    if (!heroVideoUrl) return;
+    setMuted(false);
     setModalOpen(true);
-  }, []);
+  }, [heroVideoUrl]);
 
   const closeModal = useCallback(() => {
     const video = modalVideoRef.current;
@@ -36,6 +36,17 @@ export function HeroA() {
     }
     setModalOpen(false);
   }, []);
+
+  useEffect(() => {
+    const video = modalVideoRef.current;
+    if (!modalOpen || !video || !heroVideoUrl) return;
+    if (video.getAttribute("src") !== heroVideoUrl) {
+      video.src = heroVideoUrl;
+    }
+    video.muted = false;
+    video.load();
+    void video.play().catch(() => {});
+  }, [modalOpen, heroVideoUrl]);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -201,7 +212,11 @@ export function HeroA() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={HERO_IMAGE}
-              alt="Rwandan university student using StackEDU"
+              alt={
+                market === "rw"
+                  ? "Rwandan university student using StackEDU"
+                  : "African university student using StackEDU"
+              }
               className="absolute inset-0 h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-tr from-ink/60 via-ink/10 to-transparent" />
@@ -232,8 +247,12 @@ export function HeroA() {
                 <Check className="size-3 sm:size-4" strokeWidth={3} />
               </div>
               <div className="min-w-0">
-                <div className="text-[8px] sm:text-[10px] text-white/60 truncate">MTN MoMo · Tuition</div>
-                <div className="font-bold text-xs sm:text-base text-white">750,000 RWF</div>
+                <div className="text-[8px] sm:text-[10px] text-white/60 truncate">
+                  {market === "rw" ? "MTN MoMo · Tuition" : "Mobile Money · Tuition"}
+                </div>
+                <div className="font-bold text-xs sm:text-base text-white">
+                  {market === "rw" ? "750,000 RWF" : "$599 USD"}
+                </div>
               </div>
             </div>
           </FragmentCard>
@@ -278,7 +297,7 @@ export function HeroA() {
         </div>
       </div>
 
-      {modalOpen && HERO_VIDEO_URL && (
+      {modalOpen && heroVideoUrl && (
         <div
           ref={modalRef}
           className="hero-video-modal fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-10"
@@ -297,7 +316,7 @@ export function HeroA() {
             <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/15 bg-ink shadow-2xl aspect-video">
               <video
                 ref={modalVideoRef}
-                src={HERO_VIDEO_URL}
+                src={heroVideoUrl}
                 className="h-full w-full object-contain"
                 muted={muted}
                 playsInline
@@ -316,6 +335,7 @@ export function HeroA() {
               <button
                 type="button"
                 onClick={toggleMute}
+                aria-label={muted ? "Unmute video" : "Mute video"}
                 className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 inline-flex items-center gap-2 bg-white/95 text-ink text-[11px] sm:text-xs font-medium px-3 sm:px-4 py-2 rounded-full shadow-lift"
               >
                 {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
