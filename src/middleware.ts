@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AFRICA_HOSTS, RW_HOSTS, isKnownMarketHost } from "@/lib/market";
+import { AFRICA_HOSTS, RW_HOSTS, isKnownMarketHost, isSearchEngineCrawler } from "@/lib/market";
 
 export function middleware(request: NextRequest) {
   const hostname = request.nextUrl.hostname.toLowerCase();
@@ -10,6 +10,10 @@ export function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   if (pathname.startsWith("/api") || pathname.startsWith("/_next")) {
+    return NextResponse.next();
+  }
+
+  if (isSearchEngineCrawler(request.headers.get("user-agent") ?? "")) {
     return NextResponse.next();
   }
 

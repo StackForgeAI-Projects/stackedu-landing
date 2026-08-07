@@ -4,6 +4,14 @@ export const RW_HOSTS = ["stackedu.rw", "www.stackedu.rw"] as const;
 export const AFRICA_HOSTS = ["stackedu.africa", "www.stackedu.africa"] as const;
 const LOCAL_DEV_HOSTS = ["localhost", "127.0.0.1"] as const;
 
+/** Crawlers that must stay on the requested hostname (SEO, Search Console, previews). */
+const SEARCH_ENGINE_UA =
+  /googlebot|google-inspectiontool|storebot-google|bingbot|slurp|duckduckbot|baiduspider|yandexbot|applebot|facebookexternalhit|twitterbot|linkedinbot|semrushbot|ahrefsbot|mj12bot|dotbot|petalbot/i;
+
+export function isSearchEngineCrawler(userAgent: string) {
+  return SEARCH_ENGINE_UA.test(userAgent);
+}
+
 export function isKnownMarketHost(hostname: string): boolean {
   const host = hostname.toLowerCase().split(":")[0] ?? "";
   return (
