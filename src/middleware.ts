@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AFRICA_HOSTS, RW_HOSTS, isKnownMarketHost, isSearchEngineCrawler } from "@/lib/market";
+import {
+  AFRICA_HOSTS,
+  RW_HOSTS,
+  isKnownMarketHost,
+  shouldBypassGeoRedirect,
+} from "@/lib/market";
 
 export function middleware(request: NextRequest) {
   const hostname = request.nextUrl.hostname.toLowerCase();
@@ -13,7 +18,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isSearchEngineCrawler(request.headers.get("user-agent") ?? "")) {
+  if (shouldBypassGeoRedirect(request.headers)) {
     return NextResponse.next();
   }
 

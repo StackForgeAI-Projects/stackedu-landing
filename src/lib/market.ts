@@ -8,8 +8,43 @@ const LOCAL_DEV_HOSTS = ["localhost", "127.0.0.1"] as const;
 const SEARCH_ENGINE_UA =
   /googlebot|google-inspectiontool|storebot-google|google-extended|bingbot|slurp|duckduckbot|baiduspider|yandexbot|applebot|applebot-extended|facebookexternalhit|twitterbot|linkedinbot|semrushbot|ahrefsbot|mj12bot|dotbot|petalbot|gptbot|chatgpt-user|claudebot|anthropic-ai|perplexitybot|bytespider|ccbot|oai-searchbot/i;
 
+/** Google tag / analytics verification and measurement fetchers (not full browser navigations). */
+const GOOGLE_TAG_SERVICE_UA =
+  /adsbot-google|mediapartners-google|google-adwords|google-publisher|google-read-aloud|googleother|feedfetcher-google|apis-google|google-safety|google-structured-data|googleassociation|google-pagerenderer|tagassistant|google-tag|gtm-/i;
+
 export function isSearchEngineCrawler(userAgent: string) {
   return SEARCH_ENGINE_UA.test(userAgent);
+}
+
+export function isGoogleTagServiceAgent(userAgent: string) {
+  return GOOGLE_TAG_SERVICE_UA.test(userAgent);
+}
+
+/**
+ * Geo redirects must not run for crawlers, Google tag verification, or non-document
+ * fetches — otherwise GA/GSC checks on stackedu.rw get sent to .africa (no rw GA tag).
+ */
+export function shouldBypassGeoRedirect(headers: Headers) {
+  const userAgent = headers.get("user-agent") ?? "";
+  if (isSearchEngineCrawler(userAgent) || isGoogleTagServiceAgent(userAgent)) {
+    return true;
+  }
+
+  const secFetchDest = headers.get("sec-fetch-dest");
+  if (secFetchDest === null) {
+    return true;
+  }
+
+  if (secFetchDest !== "document") {
+    return true;
+  }
+
+  const accept = headers.get("accept") ?? "";
+  if (accept && !accept.includes("text/html")) {
+    return true;
+  }
+
+  return false;
 }
 
 export function isKnownMarketHost(hostname: string): boolean {
