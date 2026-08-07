@@ -1,23 +1,20 @@
-import Script from "next/script";
-
-/** Google tag (gtag.js) — pass the GA4 measurement ID for the active market. */
+/** Google tag (gtag.js) — raw scripts in <head> for GA / Tag Assistant detection. */
 export function GoogleAnalytics({ measurementId }: { measurementId: string }) {
   if (!measurementId) return null;
 
   return (
     <>
-      <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}
-        strategy="afterInteractive"
+      <script async src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`} />
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${measurementId}');
+          `.trim(),
+        }}
       />
-      <Script id={`gtag-${measurementId}`} strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', '${measurementId}');
-        `}
-      </Script>
     </>
   );
 }
