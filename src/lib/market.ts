@@ -2,6 +2,7 @@ export type Market = "rw" | "africa";
 
 export const RW_HOSTS = ["stackedu.rw", "www.stackedu.rw"] as const;
 export const AFRICA_HOSTS = ["stackedu.africa", "www.stackedu.africa"] as const;
+const LOCAL_DEV_HOSTS = ["localhost", "127.0.0.1"] as const;
 
 export function isKnownMarketHost(hostname: string): boolean {
   const host = hostname.toLowerCase().split(":")[0] ?? "";
@@ -17,6 +18,9 @@ export function getMarketFromHost(host: string): Market {
   if ((RW_HOSTS as readonly string[]).includes(hostname)) {
     return "rw";
   }
+  if ((LOCAL_DEV_HOSTS as readonly string[]).includes(hostname)) {
+    return "rw";
+  }
   return "africa";
 }
 
@@ -27,6 +31,15 @@ export const PUBLIC_CONTACT_EMAIL: Record<Market, string> = {
 
 export function getPublicContactEmail(market: Market) {
   return PUBLIC_CONTACT_EMAIL[market];
+}
+
+export const STACKEDU_SITE_URL: Record<Market, string> = {
+  rw: "https://stackedu.rw",
+  africa: "https://stackedu.africa",
+};
+
+export function getStackeduSiteUrl(market: Market) {
+  return STACKEDU_SITE_URL[market];
 }
 
 /** Plain inbox address for Resend `to` (handles `<email>` and stray spaces). */

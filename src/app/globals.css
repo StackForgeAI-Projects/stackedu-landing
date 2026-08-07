@@ -71,6 +71,29 @@
   --border: oklch(0.14 0.03 240 / 0.08);
   --input: oklch(0.14 0.03 240 / 0.1);
   --ring: oklch(0.62 0.22 145);
+
+  --gradient-hero: radial-gradient(
+      120% 90% at 8% -10%,
+      oklch(0.62 0.22 145 / 0.14) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      90% 70% at 100% 0%,
+      oklch(0.86 0.32 140 / 0.12) 0%,
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--surface) 0%, var(--background) 70%);
+  --gradient-ink: radial-gradient(
+      100% 80% at 10% 0%,
+      oklch(0.62 0.22 145 / 0.22) 0%,
+      transparent 55%
+    ),
+    linear-gradient(
+      160deg,
+      oklch(0.16 0.03 160) 0%,
+      oklch(0.11 0.02 240) 55%,
+      oklch(0.09 0.01 240) 100%
+    );
 }
 
 @layer base {
@@ -117,8 +140,35 @@
   background-size: 44px 44px;
 }
 
+@utility surface-hero {
+  background-image: var(--gradient-hero);
+}
+
+@utility surface-ink {
+  background-image: var(--gradient-ink);
+}
+
+@utility dot-grid {
+  background-image: radial-gradient(oklch(0.14 0.03 240 / 0.1) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@utility underline-brush {
+  background-image: linear-gradient(
+    to top,
+    oklch(0.86 0.32 140 / 0.7) 0 0.28em,
+    transparent 0.28em
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
 @utility shadow-soft {
   box-shadow: var(--shadow-soft);
+}
+
+@utility shadow-glow {
+  box-shadow: var(--shadow-glow);
 }
 
 @utility shadow-lift {

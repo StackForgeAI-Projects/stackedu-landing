@@ -9,6 +9,14 @@ export const DASHBOARD_IMAGE = "/images/stackedu-dashboard.png";
 
 export const STACKFORGE_NEXT_IMAGE = "/images/stackforgenext/computer-lab.jpg";
 
+export const STACKFORGENEXT = {
+  logo: "/images/stackforgenext/sfnext-logo.png",
+  hero: "/images/stackforgenext/hero-training.jpg",
+  mentorship: "/images/stackforgenext/mentorship.jpg",
+  workshop: "/images/stackforgenext/workshop.jpg",
+  skyline: "/images/stackforgenext/kigali-rwanda-city.webp",
+} as const;
+
 export const STUDENTS = {
   student1: "/images/students/student-1.jpg",
   student2: "/images/students/student-2.jpg",

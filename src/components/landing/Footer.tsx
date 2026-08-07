@@ -1,7 +1,7 @@
 "use client";
 
 import { LOGO, LOGO_CLASS } from "@/lib/assets";
-import { WHATSAPP_URL } from "@/lib/content";
+import { STACKEDU_FOOTER_COMPANY_LINKS, WHATSAPP_URL } from "@/lib/content";
 import { FooterCol } from "@/components/ui/FooterCol";
 import { useLocale } from "@/lib/i18n";
 
@@ -49,12 +49,13 @@ export function Footer() {
           />
           <FooterCol
             title={t.footer.company}
-            links={[
-              { label: "StackForgeAI", href: "https://stackforgeai.africa" },
-              { label: t.footer.about, href: "#about" },
-              { label: t.footer.otherProducts, href: "https://stackforgeai.africa" },
-              { label: t.footer.communityImpact, href: "#" },
-            ]}
+            links={STACKEDU_FOOTER_COMPANY_LINKS.map((link) =>
+              link.label === "Blog"
+                ? { label: t.footer.blog, href: link.href }
+                : link.label === "Careers"
+                  ? { label: t.footer.careers, href: link.href }
+                  : link,
+            )}
           />
           <FooterCol
             title={t.footer.getInTouch}

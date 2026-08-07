@@ -1,10 +1,9 @@
 "use client";
 
 import { ArrowRight, Heart, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { STACKFORGE_NEXT_IMAGE } from "@/lib/assets";
 import { useLocale } from "@/lib/i18n";
-
-const STACKFORGE_NEXT_URL = "https://stackforgeai.africa";
 
 export function StackForgeNextSection() {
   const { t } = useLocale();
@@ -31,15 +30,13 @@ export function StackForgeNextSection() {
             <p className="mt-4 text-muted-foreground leading-relaxed max-w-xl">
               {t.stackForgeNext.paragraph2}
             </p>
-            <a
-              href={STACKFORGE_NEXT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/next/"
               className="mt-8 inline-flex items-center gap-2 bg-ink text-white font-bold px-6 py-3.5 rounded-full hover:bg-primary transition-colors"
             >
               {t.stackForgeNext.cta}
               <ArrowRight className="size-4" />
-            </a>
+            </Link>
           </div>
 
           <div className="relative reveal mt-10 lg:mt-0">
