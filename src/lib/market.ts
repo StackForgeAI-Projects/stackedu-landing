@@ -88,8 +88,15 @@ export const GOOGLE_SITE_VERIFICATION_AFRICA =
 /** Google Search Console HTML file verification for stackedu.rw (served from /public). */
 export const GOOGLE_SITE_VERIFICATION_FILE_RW = "google63477aeb3b4ade3c.html";
 
-/** Google Analytics 4 measurement ID for stackedu.rw */
-export const GA_MEASUREMENT_ID_RW = "G-9CSS7SSMHH";
+/** Google Analytics 4 measurement IDs per market. */
+export const GA_MEASUREMENT_ID: Record<Market, string> = {
+  rw: "G-9CSS7SSMHH",
+  africa: "G-B5WKVFMRBN",
+};
+
+export function getGaMeasurementId(market: Market) {
+  return GA_MEASUREMENT_ID[market];
+}
 
 export function getStackeduSiteUrl(market: Market) {
   return STACKEDU_SITE_URL[market];

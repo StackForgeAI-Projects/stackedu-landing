@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { GoogleAnalytics } from "@/components/seo/GoogleAnalytics";
-import { GA_MEASUREMENT_ID_RW } from "@/lib/market";
+import { getGaMeasurementId } from "@/lib/market";
 import { buildRootMetadata } from "@/lib/seo/metadata";
 import { getRequestMarket } from "@/lib/seo/request-market";
 import "./globals.css";
@@ -28,7 +28,7 @@ export default async function RootLayout({
   return (
     <html lang={lang} className={`${plusJakarta.variable} h-full`}>
       <head>
-        {market === "rw" ? <GoogleAnalytics measurementId={GA_MEASUREMENT_ID_RW} /> : null}
+        <GoogleAnalytics measurementId={getGaMeasurementId(market)} />
       </head>
       <body className="min-h-full antialiased">{children}</body>
     </html>
