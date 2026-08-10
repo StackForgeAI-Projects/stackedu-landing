@@ -3,7 +3,7 @@ import { getRequestMarket } from "@/lib/seo/request-market";
 
 export async function GET() {
   const market = await getRequestMarket();
-  const body = buildLlmsTxt(market);
+  const body = await buildLlmsTxt(market);
 
   return new Response(body, {
     headers: {

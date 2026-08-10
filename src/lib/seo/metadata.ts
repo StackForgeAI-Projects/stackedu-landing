@@ -6,6 +6,7 @@ import {
   getMarketSeo,
   type PageSeoCopy,
 } from "@/lib/seo/config";
+import { getMarketKeywords } from "@/lib/seo/keywords";
 
 function languageAlternates(path: string) {
   const normalized = path === "/" ? "/" : path;
@@ -19,11 +20,12 @@ function languageAlternates(path: string) {
   };
 }
 
-export function buildPageMetadata(market: Market, page: PageSeoCopy): Metadata {
+export async function buildPageMetadata(market: Market, page: PageSeoCopy): Promise<Metadata> {
   const seo = getMarketSeo(market);
   const canonical = absoluteUrl(market, page.path);
   const ogImage = absoluteUrl(market, seo.ogImage);
-  const keywords = [...(page.keywords ?? []), ...seo.keywords].filter(
+  const marketKeywords = await getMarketKeywords(market);
+  const keywords = [...(page.keywords ?? []), ...marketKeywords].filter(
     (value, index, arr) => arr.indexOf(value) === index,
   );
 
@@ -94,13 +96,12 @@ export function buildPageMetadata(market: Market, page: PageSeoCopy): Metadata {
   };
 }
 
-export function buildRootMetadata(market: Market): Metadata {
+export async function buildRootMetadata(market: Market): Promise<Metadata> {
   const seo = getMarketSeo(market);
-  const pageMeta = buildPageMetadata(market, {
+  const pageMeta = await buildPageMetadata(market, {
     title: seo.titleDefault,
     description: seo.description,
     path: "/",
-    keywords: seo.keywords,
   });
 
   return {

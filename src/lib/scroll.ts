@@ -1,3 +1,8 @@
 export function scrollToContact() {
-  document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
+  const el = document.getElementById("contact");
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth" });
+    return;
+  }
+  window.location.href = "/#contact";
 }

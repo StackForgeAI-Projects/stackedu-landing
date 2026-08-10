@@ -1,7 +1,7 @@
 "use client";
 
 import { LOGO, LOGO_CLASS } from "@/lib/assets";
-import { STACKEDU_FOOTER_COMPANY_LINKS, WHATSAPP_URL } from "@/lib/content";
+import { STACKEDU_FOOTER_COMPANY_LINKS, WHATSAPP_URL, homeSectionHref } from "@/lib/content";
 import { FooterCol } from "@/components/ui/FooterCol";
 import { useLocale } from "@/lib/i18n";
 
@@ -40,11 +40,11 @@ export function Footer() {
           <FooterCol
             title={t.footer.product}
             links={[
-              { label: t.footer.features, href: "#modules" },
-              { label: t.footer.about, href: "#about" },
-              { label: t.footer.howItWorks, href: "#product" },
-              { label: t.footer.pricing, href: "#pricing" },
-              { label: t.footer.contact, href: "#contact" },
+              { label: t.footer.features, href: homeSectionHref("#modules") },
+              { label: t.footer.about, href: homeSectionHref("#about") },
+              { label: t.footer.howItWorks, href: homeSectionHref("#product") },
+              { label: t.footer.pricing, href: homeSectionHref("#pricing") },
+              { label: t.footer.contact, href: homeSectionHref("#contact") },
             ]}
           />
           <FooterCol
@@ -63,7 +63,7 @@ export function Footer() {
               { label: t.contact.email, href: `mailto:${t.contact.email}` },
               { label: "+250 799 486 531", href: "tel:+250799486531" },
               { label: "WhatsApp", href: WHATSAPP_URL },
-              { label: t.footer.bookFreeDemo, href: "#contact" },
+              { label: t.footer.bookFreeDemo, href: homeSectionHref("#contact") },
             ]}
           />
         </div>

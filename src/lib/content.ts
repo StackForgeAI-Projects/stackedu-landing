@@ -36,13 +36,18 @@ export const MODULE_ICONS: LucideIcon[] = [
 ];
 
 export const NAV_HREFS = [
-  "#about",
-  "#roles",
-  "#modules",
-  "#pricing",
-  "#stackforgenext",
-  "#contact",
+  "/#about",
+  "/#roles",
+  "/#modules",
+  "/#pricing",
+  "/#stackforgenext",
+  "/#contact",
 ] as const;
+
+/** Root-relative landing section links (work from /privacy, /terms, etc.). */
+export function homeSectionHref(hash: `#${string}`): string {
+  return `/${hash}`;
+}
 
 export const PARTNERS = ["Crescent University", "ADECOM College"] as const;
 

@@ -29,7 +29,7 @@ export type MarketSeoProfile = {
   category: string;
 };
 
-function mergeKeywords(...groups: readonly (readonly string[])[]): string[] {
+export function mergeKeywords(...groups: readonly (readonly string[])[]): string[] {
   const seen = new Set<string>();
   const merged: string[] = [];
   for (const group of groups) {
@@ -90,6 +90,9 @@ const STACKEDU_KEYWORDS_SHARED = [
   "Academic calendar management software",
   "Student admission tracking system",
   "Multi campus management software",
+  "education management information system",
+  "university management information system",
+  "student self-service portal",
 ] as const;
 
 /** Rwanda-only keyword targets for stackedu.rw. */
@@ -121,6 +124,17 @@ const STACKEDU_KEYWORDS_RW = [
   "University data analytics Rwanda",
   "Higher education CRM Rwanda",
   "Education compliance software Rwanda",
+  "school management software Rwanda",
+  "TVET management system Rwanda",
+  "school fee payment system Rwanda",
+  "digital school management Rwanda",
+  "student attendance management Rwanda",
+  "academic performance tracking Rwanda",
+  "Education Management Information System Rwanda",
+  "EMIS Rwanda",
+  "polytechnic management software Rwanda",
+  "university management information system Rwanda",
+  "automated school reporting Rwanda",
 ] as const;
 
 /** Africa-only keyword targets for stackedu.africa. */
@@ -131,6 +145,17 @@ const STACKEDU_KEYWORDS_AFRICA = [
   "Education management platform Africa",
   "EdTech software Africa",
   "Exam management software Africa",
+  "Education Management Information System Africa",
+  "EMIS Africa",
+  "university ERP Africa",
+  "campus ERP software Africa",
+  "student self-service portal Africa",
+  "online admissions Africa",
+  "digital transformation higher education Africa",
+  "integrated campus management system Africa",
+  "polytechnic management system Africa",
+  "tertiary institution ERP Africa",
+  "national EMIS platform Africa",
 ] as const;
 
 const RW_SUPPLEMENTAL_KEYWORDS = [

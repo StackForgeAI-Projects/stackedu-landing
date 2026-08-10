@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { LOGO, LOGO_CLASS } from "@/lib/assets";
 import { NAV_HREFS } from "@/lib/content";
@@ -40,10 +41,10 @@ export function Nav() {
     <>
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-          <a href="#" className="flex items-center gap-2" onClick={close}>
+          <Link href="/" className="flex items-center gap-2" onClick={close}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={LOGO} alt="StackEdu" className={LOGO_CLASS} />
-          </a>
+          </Link>
 
           <div className="hidden lg:flex items-center gap-9 text-sm font-semibold text-foreground/70">
             {NAV_HREFS.map((href, i) => (
