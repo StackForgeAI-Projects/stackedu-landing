@@ -46,6 +46,15 @@ next-env.d.ts
 /stackedu-design/
 /stackforgenext-main/
 
+# EMS monorepo — secrets and local artifacts (also covered by app/.gitignore)
+/app/.env
+/app/.env.local
+/app/.data/
+/app/node_modules/
+/app/**/node_modules/
+/app/**/dist/
+/app/**/.turbo/
+
 # editor / IDE
 .cursor/
 .vscode/

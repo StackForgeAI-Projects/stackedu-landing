@@ -1,0 +1,23 @@
+services:
+  postgres:
+    # pgvector is required by the AI layer (plan section 11) and by the
+    # resource_embeddings table, so local dev must match production.
+    image: pgvector/pgvector:pg17
+    container_name: stackedu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stackedu
+      POSTGRES_PASSWORD: stackedu
+      POSTGRES_DB: stackedu_platform
+    ports:
+      - "5433:5432"
+    volumes:
+      - stackedu-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stackedu -d stackedu_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  stackedu-pgdata:

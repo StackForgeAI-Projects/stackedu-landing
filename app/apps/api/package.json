@@ -1,0 +1,36 @@
+{
+  "name": "@stackedu/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "check-types": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate --config=drizzle/platform.config.ts && drizzle-kit generate --config=drizzle/institution.config.ts",
+    "db:migrate": "tsx src/db/cli/migrate.ts",
+    "db:seed": "tsx src/db/cli/seed.ts",
+    "institution:create": "tsx src/db/cli/create-institution.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1108.0",
+    "@aws-sdk/s3-request-presigner": "^3.1108.0",
+    "@hono/node-server": "^1.14",
+    "@stackedu/shared": "workspace:*",
+    "drizzle-orm": "^0.44",
+    "hono": "^4",
+    "postgres": "^3.4",
+    "zod": "^3"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "drizzle-kit": "^0.31",
+    "tsup": "^8",
+    "tsx": "^4",
+    "typescript": "^5.8",
+    "vitest": "^3"
+  }
+}
