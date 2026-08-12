@@ -65,3 +65,6 @@ Thumbs.db
 
 # Office lock files
 ~\$*
+
+# Local planning docs — keep off the main repo
+/docs/
