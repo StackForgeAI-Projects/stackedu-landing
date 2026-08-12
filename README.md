@@ -4,7 +4,9 @@ Marketing website for [StackEDU](https://stackedu.africa) — school management 
 
 Built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS 4**, **GSAP**, and **Resend** (contact form).
 
-The **Educational Management System** (product app) lives in [`app/`](./app/README.md) — Bun monorepo (`apps/web` + `apps/api`). Deploy it separately to [app.stackedu.rw](https://app.stackedu.rw) / `api.stackedu.rw`. See [`app/README.md`](./app/README.md) for local setup and deploy steps.
+The **Educational Management System** (product app) lives in [`ems/`](./ems/README.md) — Bun monorepo (`apps/web` + `apps/api`). Deploy it separately to [app.stackedu.rw](https://app.stackedu.rw) / `api.stackedu.rw`. See [`ems/README.md`](./ems/README.md) for local setup and deploy steps.
+
+The folder is named **`ems/`** (not `app/`) so it does not conflict with the Next.js App Router at `src/app`.
 
 ---
 

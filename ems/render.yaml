@@ -4,8 +4,8 @@
 # app.stackedu.africa. This file provisions the backend that both of those
 # domains talk to.
 #
-# When this monorepo lives inside stackedu-landing as `app/`, set the Render
-# service Root Directory to `app` so `rootDir: .` below means this folder.
+# When this monorepo lives inside stackedu-landing as `ems/`, set the Render
+# service Root Directory to `ems` so `rootDir: .` below means this folder.
 #
 # Frankfurt is chosen because the database lives there too. Keeping the API and
 # the database in the same region matters far more than moving the API closer

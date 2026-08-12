@@ -3,15 +3,17 @@
 The product application for Rwandan tertiary institutions: admissions, portals,
 fees, and academic administration.
 
+This folder is named **`ems/`** on purpose — not `app/` — because the marketing Next.js site already uses `src/app` for the App Router. A root `app/` folder would break the landing deploy on Vercel.
+
 This folder is a **Bun / Turborepo monorepo**. It lives inside the
-`stackedu-landing` GitHub repository as `app/`, alongside the marketing site
+`stackedu-landing` GitHub repository as `ems/`, alongside the marketing site
 at the repo root. Deploy the marketing site and this EMS as **two separate
 projects** (different Vercel/Render roots).
 
 | Live URL | Role |
 | --- | --- |
-| [app.stackedu.rw](https://app.stackedu.rw) | Web app (Vercel → `app/apps/web`) |
-| `api.stackedu.rw` | API (Render → `app/`) |
+| [app.stackedu.rw](https://app.stackedu.rw) | Web app (Vercel → `ems/apps/web`) |
+| `api.stackedu.rw` | API (Render → `ems/`) |
 | [stackedu.rw](https://stackedu.rw) / [stackedu.africa](https://stackedu.africa) | Marketing (repo root, Next.js) |
 
 ---
@@ -41,7 +43,7 @@ Supporting files: `docker-compose.yml` (Postgres + pgvector), `render.yaml`
 ## Local setup
 
 ```bash
-cd app
+cd ems
 bun install
 cp .env.example .env
 cp apps/web/.env.example apps/web/.env.local
@@ -161,7 +163,7 @@ root directories.
 ### 1. Web — Vercel → `app.stackedu.rw`
 
 1. Vercel → **Add New Project** → import `stackedu-landing`
-2. **Root Directory:** `app/apps/web`
+2. **Root Directory:** `ems/apps/web`
 3. Framework: Vite (auto)
 4. Environment variable:
 
@@ -177,7 +179,7 @@ root directories.
 ### 2. API — Render → `api.stackedu.rw`
 
 1. Render → Blueprint or Web Service from the same repo
-2. **Root Directory:** `app` (this monorepo)
+2. **Root Directory:** `ems` (this monorepo)
 3. Build / start (also in `render.yaml`):
 
    ```text
@@ -228,7 +230,7 @@ separate Resend account for `app.stackedu.rw`. Send from e.g.
 
 ---
 
-## Scripts (from `app/`)
+## Scripts (from `ems/`)
 
 | Command | Purpose |
 | --- | --- |
@@ -246,20 +248,20 @@ separate Resend account for `app.stackedu.rw`. Send from e.g.
 ## Repo layout (this folder)
 
 ```text
-app/
+ems/
 ├── apps/
 │   ├── web/          # Vercel root for app.stackedu.rw
 │   └── api/          # Hono API source
 ├── packages/shared/  # Zod contracts
 ├── design_system/    # UI kit reference
 ├── docker-compose.yml
-├── render.yaml       # Render Blueprint (use with Root Directory = app)
+├── render.yaml       # Render Blueprint (use with Root Directory = ems)
 ├── .env.example
 └── README.md         # This file
 ```
 
 Marketing Next.js code stays at the **repository root** (`src/`, etc.), not
-here. Next.js uses `src/app` for the marketing App Router, so this `app/`
+here. Next.js uses `src/app` for the marketing App Router, so this `ems/`
 directory does not conflict with it.
 
 ---
