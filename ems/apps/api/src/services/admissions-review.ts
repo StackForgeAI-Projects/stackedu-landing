@@ -17,6 +17,7 @@ import {
 } from '../db/institution/schema/admissions'
 import { programmes } from '../db/institution/schema/academic'
 import { badRequest, conflict, notFound } from '../lib/errors'
+import { notifyApplicationDecision } from '../lib/admissions-email'
 import { createDownloadUrl } from '../lib/storage'
 import { confirmPayment } from './admissions'
 
@@ -254,7 +255,18 @@ export async function reviewApplication(
     })
     .where(eq(applications.id, applicationId))
 
-  return getApplicationForReview(institutionId, applicationId)
+  const updated = await getApplicationForReview(institutionId, applicationId)
+
+  await notifyApplicationDecision({
+    institutionId,
+    to: updated.email,
+    fullName: updated.fullName,
+    reference: updated.reference,
+    decision: input.decision,
+    comments: input.comments,
+  })
+
+  return updated
 }
 
 export async function confirmApplicationPayment(

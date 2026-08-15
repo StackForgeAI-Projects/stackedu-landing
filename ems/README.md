@@ -6,7 +6,7 @@ fees, and academic administration.
 This folder is named **`ems/`** on purpose — not `app/` — because the marketing Next.js site already uses `src/app` for the App Router. A root `app/` folder would break the landing deploy on Vercel.
 
 This folder is a **Bun / Turborepo monorepo**. It lives inside the
-`stackedu-landing` GitHub repository as `ems/`, alongside the marketing site
+`stackedu-prod` GitHub repository as `ems/`, alongside the marketing site
 at the repo root. Deploy the marketing site and this EMS as **two separate
 projects** (different Vercel/Render roots).
 
@@ -97,6 +97,10 @@ Passwords and identifiers are defined in the API seed. Typical pattern:
 | `R2_*` | Required when `STORAGE_DRIVER=r2` |
 | `APPLICATION_FEE_RWF` | Application fee in whole RWF (default `10000`) |
 | `PAYMENT_MODE` | `sandbox` (MoMo/Airtel complete immediately) or `live` |
+| `RESEND_API_KEY` | Optional; admissions emails via Resend |
+| `EMAIL_FROM` | Required with the key, e.g. `StackEDU Admissions <admissions@stackedu.rw>` |
+| `EMAIL_REPLY_TO` | Optional |
+| `WEB_APP_URL` | Track links in email (default `https://app.stackedu.rw`) |
 
 Never commit `.env`. `.data/` uploads are gitignored.
 
@@ -150,19 +154,20 @@ Wired end-to-end for live testing:
 5. Academic Admin inbox reviews real applications; Track reflects status
 
 Still external (needs provider keys): live MoMo/Airtel/DPO webhooks, production
-R2 CORS, transactional email/SMS, OTP.
+R2 CORS (if using R2), SMS, OTP. Admissions email (submit + decision) uses Resend
+when `RESEND_API_KEY` + `EMAIL_FROM` are set.
 
 ---
 
 ## Deploy for live tests
 
-Use the **same** GitHub repo (`StackForgeAI-Projects/stackedu-landing`). Do
+Use the **same** GitHub repo (`StackForgeAI-Projects/stackedu-prod`). Do
 **not** create a second repo. Create separate hosting projects with different
 root directories.
 
 ### 1. Web — Vercel → `app.stackedu.rw`
 
-1. Vercel → **Add New Project** → import `stackedu-landing`
+1. Vercel → **Add New Project** → import `stackedu-prod`
 2. **Root Directory:** `ems/apps/web`
 3. Framework: Vite (auto)
 4. Environment variable:
@@ -200,14 +205,20 @@ root directories.
    | `STORAGE_DRIVER` | `local` for early tests, or `r2` |
    | `PAYMENT_MODE` | `sandbox` for early tests; `live` when gateways are ready |
    | `STORAGE_SIGNING_SECRET` | Long random string if using local storage |
+   | `RESEND_API_KEY` | Resend key for admissions emails |
+   | `EMAIL_FROM` | e.g. `StackEDU Admissions <admissions@stackedu.rw>` |
+   | `EMAIL_REPLY_TO` | Optional reply address |
+   | `WEB_APP_URL` | `https://app.stackedu.rw` (Track links in email) |
 
 6. Custom domain: `api.stackedu.rw`
 
 ### 3. Resend (email)
 
 Verify the **root** domain `stackedu.rw` in Resend once. You do **not** need a
-separate Resend account for `app.stackedu.rw`. Send from e.g.
-`noreply@stackedu.rw` / `admissions@stackedu.rw` when the API sends mail.
+separate Resend account for `app.stackedu.rw`. Set `RESEND_API_KEY` and
+`EMAIL_FROM` on Render (e.g. `admissions@stackedu.rw`). The API emails the
+applicant when an application is **submitted** and when academic staff
+**records a decision**.
 
 ### 4. Smoke checklist
 

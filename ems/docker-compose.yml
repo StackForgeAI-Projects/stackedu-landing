@@ -1,9 +1,11 @@
+name: stackedu-app
+
 services:
   postgres:
     # pgvector is required by the AI layer (plan section 11) and by the
     # resource_embeddings table, so local dev must match production.
     image: pgvector/pgvector:pg17
-    container_name: stackedu-postgres
+    container_name: stackedu-app
     restart: unless-stopped
     environment:
       POSTGRES_USER: stackedu

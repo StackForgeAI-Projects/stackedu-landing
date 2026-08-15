@@ -22,6 +22,7 @@ import {
 } from '../db/institution/schema/admissions'
 import { programmes } from '../db/institution/schema/academic'
 import { badRequest, conflict, notFound } from '../lib/errors'
+import { notifyApplicationSubmitted } from '../lib/admissions-email'
 import {
   buildFileKey,
   createDownloadUrl,
@@ -690,6 +691,16 @@ export async function submitApplication(
     .set({ status: 'Submitted', submittedAt: new Date().toISOString() })
     .where(eq(applications.id, current.id))
 
-  return getApplicationFor(institutionId, applicantUserId)
+  const submitted = await getApplicationFor(institutionId, applicantUserId)
+
+  await notifyApplicationSubmitted({
+    institutionId,
+    to: submitted.email,
+    fullName: submitted.fullName,
+    reference: submitted.reference,
+    programmeName: submitted.programme?.name ?? null,
+  })
+
+  return submitted
 }
 

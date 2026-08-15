@@ -82,6 +82,16 @@ const envSchema = z
      * `live` records Pending and waits for a gateway webhook / staff confirm.
      */
     PAYMENT_MODE: z.enum(['sandbox', 'live']).default('sandbox'),
+
+    /**
+     * Transactional email (admissions submit + decision). Optional — when unset,
+     * notifications are skipped and the API still succeeds.
+     */
+    RESEND_API_KEY: z.string().min(1).optional(),
+    EMAIL_FROM: z.string().min(3).optional(),
+    EMAIL_REPLY_TO: z.string().email().optional(),
+    /** Public web app origin for Track links in emails. */
+    WEB_APP_URL: z.string().url().default('https://app.stackedu.rw'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === 'production' && !value.COOKIE_DOMAIN) {

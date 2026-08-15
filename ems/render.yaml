@@ -4,7 +4,7 @@
 # app.stackedu.africa. This file provisions the backend that both of those
 # domains talk to.
 #
-# When this monorepo lives inside stackedu-landing as `ems/`, set the Render
+# When this monorepo lives inside stackedu-prod as `ems/`, set the Render
 # service Root Directory to `ems` so `rootDir: .` below means this folder.
 #
 # Frankfurt is chosen because the database lives there too. Keeping the API and
@@ -51,6 +51,15 @@ services:
           type: web
           name: stackedu-api
           property: commit
+      # Set in the Render dashboard (Resend).
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
+      - key: WEB_APP_URL
+        value: https://app.stackedu.rw
 
   # Cache and rate limiting. On Render's private network in the same region, so
   # there is no public internet hop.

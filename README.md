@@ -20,8 +20,8 @@ The folder is named **`ems/`** (not `app/`) so it does not conflict with the Nex
 ## Local setup
 
 ```bash
-git clone git@github.com:StackForgeAI-Projects/stackedu-landing.git
-cd stackedu-landing
+git clone git@github.com:StackForgeAI-Projects/stackedu-prod.git
+cd stackedu-prod
 npm install
 cp .env.example .env.local
 ```
@@ -83,7 +83,7 @@ public/images/           # Static assets
 
 ## Deployment (Vercel)
 
-1. Push this repo to GitHub (`StackForgeAI-Projects/stackedu-landing`).
+1. Push this repo to GitHub (`StackForgeAI-Projects/stackedu-prod`).
 2. In [Vercel](https://vercel.com/new), import the GitHub repo.
 3. Framework preset: **Next.js** (auto-detected).
 4. Add environment variables from the table above under **Project → Settings → Environment Variables**.
