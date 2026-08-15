@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Search, Download, XCircle, X, Receipt as ReceiptIcon } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { Button } from '@/components/ui/button'
+import { DataTable } from '@/components/DataTable'
 import {
   Sheet, SheetContent,
 } from '@/components/ui/sheet'
@@ -30,30 +30,11 @@ export const Route = createFileRoute('/_auth/bursar/receipts')({
 
 function ReceiptsPage() {
   const [receipts, setReceipts]         = useState<BursarReceipt[]>(RECEIPTS)
-  const [search, setSearch]             = useState('')
   const [fromDate, setFromDate]         = useState('')
   const [toDate, setToDate]             = useState('')
-  const [page, setPage]                 = useState(1)
-  const [pageSize, setPageSize]         = useState(10)
   const [issueSheetOpen, setIssueOpen]  = useState(false)
   const [voidTarget, setVoidTarget]     = useState<BursarReceipt | null>(null)
   const [voidReason, setVoidReason]     = useState('')
-
-  const filtered = useMemo(() => {
-    return receipts.filter((r) => {
-      if (
-        search &&
-        !r.studentName.toLowerCase().includes(search.toLowerCase()) &&
-        !r.receiptNo.toLowerCase().includes(search.toLowerCase()) &&
-        !r.studentId.includes(search)
-      )
-        return false
-      return true
-    })
-  }, [receipts, search])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const paginated  = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   const handleVoid = () => {
     if (!voidTarget || !voidReason.trim()) {
@@ -112,198 +93,151 @@ function ReceiptsPage() {
             </button>
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-3 mb-6 flex-wrap">
-            <div
-              className="flex items-center gap-2 rounded-xl px-3 h-9 flex-1"
-              style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', minWidth: 200, maxWidth: 300 }}
-            >
-              <Search style={{ width: 14, height: 14, color: 'var(--muted-foreground)', flexShrink: 0 }} />
-              <input
-                type="text"
-                placeholder="Search by name, ID or receipt no…"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                className="flex-1 text-sm bg-transparent outline-none"
-                style={{ color: 'var(--foreground)' }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="t-caption" style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>From</label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="text-sm rounded-lg px-3 py-2 outline-none"
-                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '0.8125rem' }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="t-caption" style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>To</label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="text-sm rounded-lg px-3 py-2 outline-none"
-                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '0.8125rem' }}
-              />
-            </div>
-          </div>
-
-          {/* Receipts table */}
-          <div
-            style={{
-              backgroundColor: 'var(--card)',
-              borderRadius: 'var(--radius-xl)',
-              border: '1px solid var(--border)',
-              boxShadow: 'var(--shadow-sm)',
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ overflowX: 'auto', overflowY: 'visible' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Receipt No.', 'Student Name', 'Student ID', 'Issue Date', 'Description', 'Amount', 'Method', 'Status', 'Actions'].map((h) => (
-                      <th
-                        key={h}
-                        className="t-label text-left"
-                        style={{ color: 'var(--muted-foreground)', padding: '12px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}
+          <DataTable
+            rows={receipts}
+            rowKey={(receipt) => String(receipt.id)}
+            searchPlaceholder="Search by name, ID or receipt no…"
+            searchFilter={(r, query) =>
+              r.studentName.toLowerCase().includes(query) ||
+              r.receiptNo.toLowerCase().includes(query) ||
+              r.studentId.toLowerCase().includes(query)
+            }
+            empty="No receipts found."
+            defaultPageSize={10}
+            toolbar={
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="t-caption" style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>From</label>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="text-sm rounded-lg px-3 py-2 outline-none"
+                  style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '0.8125rem' }}
+                />
+                <label className="t-caption" style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>To</label>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="text-sm rounded-lg px-3 py-2 outline-none"
+                  style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '0.8125rem' }}
+                />
+              </div>
+            }
+            columns={[
+              {
+                id: 'receiptNo',
+                header: 'Receipt No.',
+                value: (receipt) => receipt.receiptNo,
+                cell: (receipt) => (
+                  <span
+                    className="t-mono"
+                    style={{
+                      color: 'var(--muted-foreground)',
+                      fontSize: 12,
+                      textDecoration: receipt.status === 'Voided' ? 'line-through' : 'none',
+                    }}
+                  >
+                    {receipt.receiptNo}
+                  </span>
+                ),
+              },
+              {
+                id: 'studentName',
+                header: 'Student Name',
+                value: (receipt) => receipt.studentName,
+                cell: (receipt) => (
+                  <span
+                    className="text-sm font-medium whitespace-nowrap"
+                    style={{
+                      color: 'var(--foreground)',
+                      textDecoration: receipt.status === 'Voided' ? 'line-through' : 'none',
+                    }}
+                  >
+                    {receipt.studentName}
+                  </span>
+                ),
+              },
+              {
+                id: 'studentId',
+                header: 'Student ID',
+                value: (receipt) => receipt.studentId,
+                cell: (receipt) => <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{receipt.studentId}</span>,
+              },
+              {
+                id: 'issueDate',
+                header: 'Issue Date',
+                value: (receipt) => receipt.issueDate,
+                cell: (receipt) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{receipt.issueDate}</span>,
+              },
+              {
+                id: 'description',
+                header: 'Description',
+                value: (receipt) => receipt.description,
+                cell: (receipt) => <span className="text-sm truncate block" style={{ color: 'var(--muted-foreground)', maxWidth: 180 }}>{receipt.description}</span>,
+              },
+              {
+                id: 'amount',
+                header: 'Amount',
+                value: (receipt) => receipt.amount,
+                cell: (receipt) => <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{formatCurrency(receipt.amount)}</span>,
+              },
+              {
+                id: 'method',
+                header: 'Method',
+                value: (receipt) => receipt.method,
+                cell: (receipt) => {
+                  const mc = methodColors(receipt.method)
+                  return <span className="t-label px-2 py-0.5" style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap', fontSize: 10 }}>{receipt.method}</span>
+                },
+              },
+              {
+                id: 'status',
+                header: 'Status',
+                value: (receipt) => receipt.status,
+                cell: (receipt) => {
+                  const isVoided = receipt.status === 'Voided'
+                  const sc = isVoided
+                    ? { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
+                    : { bg: 'var(--success-bg)', color: 'var(--success)' }
+                  return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{receipt.status}</span>
+                },
+              },
+              {
+                id: 'actions',
+                header: 'Actions',
+                cell: (receipt) => {
+                  const isVoided = receipt.status === 'Voided'
+                  return (
+                    <div className="flex items-center gap-1.5" style={{ opacity: isVoided ? 0.65 : 1 }}>
+                      <button
+                        onClick={() => toast.success(`Receipt ${receipt.receiptNo} download started.`)}
+                        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
+                        style={{ border: '1px solid var(--border)', color: 'var(--foreground)', background: 'var(--card)', cursor: 'pointer' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)' }}
                       >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((receipt, i) => {
-                    const mc  = methodColors(receipt.method)
-                    const isVoided = receipt.status === 'Voided'
-                    const sc = isVoided
-                      ? { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
-                      : { bg: 'var(--success-bg)', color: 'var(--success)' }
-                    return (
-                      <tr
-                        key={receipt.id}
-                        style={{
-                          borderBottom: i < paginated.length - 1 ? '1px solid var(--border)' : 'none',
-                          opacity: isVoided ? 0.65 : 1,
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                      >
-                        <td style={{ padding: '14px 16px' }}>
-                          <span
-                            className="t-mono"
-                            style={{
-                              color: 'var(--muted-foreground)',
-                              fontSize: 12,
-                              textDecoration: isVoided ? 'line-through' : 'none',
-                            }}
-                          >
-                            {receipt.receiptNo}
-                          </span>
-                        </td>
-                        <td
-                          className="text-sm"
-                          style={{
-                            color: 'var(--foreground)',
-                            padding: '14px 16px',
-                            fontWeight: 500,
-                            whiteSpace: 'nowrap',
-                            textDecoration: isVoided ? 'line-through' : 'none',
-                          }}
+                        <Download style={{ width: 12, height: 12 }} />
+                        Download
+                      </button>
+                      {!isVoided && (
+                        <button
+                          onClick={() => { setVoidTarget(receipt); setVoidReason('') }}
+                          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
+                          style={{ border: '1px solid var(--border)', color: 'var(--error)', background: 'var(--card)', cursor: 'pointer' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--error-bg)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)' }}
                         >
-                          {receipt.studentName}
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{receipt.studentId}</span>
-                        </td>
-                        <td className="t-caption" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                          {receipt.issueDate}
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', maxWidth: 180 }}>
-                          <span className="truncate block">{receipt.description}</span>
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {formatCurrency(receipt.amount)}
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span className="t-label px-2 py-0.5" style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap', fontSize: 10 }}>
-                            {receipt.method}
-                          </span>
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>
-                            {receipt.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => toast.success(`Receipt ${receipt.receiptNo} download started.`)}
-                              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
-                              style={{ border: '1px solid var(--border)', color: 'var(--foreground)', background: 'var(--card)', cursor: 'pointer' }}
-                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)' }}
-                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)' }}
-                            >
-                              <Download style={{ width: 12, height: 12 }} />
-                              Download
-                            </button>
-                            {!isVoided && (
-                              <button
-                                onClick={() => { setVoidTarget(receipt); setVoidReason('') }}
-                                className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
-                                style={{ border: '1px solid var(--border)', color: 'var(--error)', background: 'var(--card)', cursor: 'pointer' }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--error-bg)' }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)' }}
-                              >
-                                <XCircle style={{ width: 12, height: 12 }} />
-                                Void
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  {paginated.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="text-sm text-center py-12" style={{ color: 'var(--muted-foreground)' }}>
-                        No receipts found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-              <div className="flex items-center gap-2">
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Show</span>
-                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                  <SelectTrigger className="h-8 w-16 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>per page</span>
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>
-                  {filtered.length === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)}`} of {filtered.length} entries
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>Previous</Button>
-                <span className="t-caption px-1" style={{ color: 'var(--muted-foreground)' }}>{page} / {totalPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>Next</Button>
-              </div>
-            </div>
-          </div>
+                          <XCircle style={{ width: 12, height: 12 }} />
+                          Void
+                        </button>
+                      )}
+                    </div>
+                  )
+                },
+              },
+            ]}
+          />
 
         </div>
       </div>

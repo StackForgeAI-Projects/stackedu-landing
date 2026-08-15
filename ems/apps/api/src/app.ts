@@ -8,9 +8,13 @@ import { createLogger } from './lib/logger'
 import { errorHandler, notFoundHandler } from './middleware/error-handler'
 import { requestContext, type RequestVariables } from './middleware/request-context'
 import type { AuthVariables } from './middleware/auth'
+import { accountRoutes } from './routes/account'
+import { academicRoutes } from './routes/academic'
 import { admissionRoutes } from './routes/admissions'
 import { authRoutes } from './routes/auth'
 import { healthRoutes } from './routes/health'
+import { ictRoutes } from './routes/ict'
+import { studentRoutes } from './routes/student'
 
 export type AppEnv = { Variables: RequestVariables & Partial<AuthVariables> }
 
@@ -46,6 +50,10 @@ export function createApp() {
   app.route('/', healthRoutes)
   app.route('/', authRoutes)
   app.route('/', admissionRoutes)
+  app.route('/', studentRoutes)
+  app.route('/', ictRoutes)
+  app.route('/', academicRoutes)
+  app.route('/', accountRoutes)
 
   app.notFound(notFoundHandler)
   app.onError(errorHandler)

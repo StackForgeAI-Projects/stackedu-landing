@@ -2,8 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo } from 'react'
 import { RefreshCw, ArrowRight, X, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { DataTable } from '@/components/DataTable'
 import { StatTile } from '@/components/StatTile'
-import { Button } from '@/components/ui/button'
 import {
   Sheet, SheetContent,
 } from '@/components/ui/sheet'
@@ -19,7 +19,7 @@ import {
   BURSAR, BURSAR_NAV,
   PENDING_RECONCILIATION, RESOLVED_RECONCILIATION,
   methodColors, gatewayColors, statusColors,
-  type PendingReconciliation, type ResolvedReconciliation, type ResolutionType,
+  type PendingReconciliation, type ResolutionType,
 } from '@/data/bursar'
 import { toast } from 'sonner'
 
@@ -39,19 +39,11 @@ function ReconciliationPage() {
   const [selectedTxn, setSelectedTxn]     = useState<PendingReconciliation | null>(null)
   const [escalateTarget, setEscalate]     = useState<PendingReconciliation | null>(null)
   const [escalateReason, setEscalateReason] = useState('')
-  const [pendingPage, setPendingPage]     = useState(1)
-  const [pendingPageSize, setPendingPageSize] = useState(10)
-  const [resolvedPage, setResolvedPage]   = useState(1)
-  const [resolvedPageSize, setResolvedPageSize] = useState(10)
 
   const filtered = useMemo(() =>
     pending.filter((t) => !dateFilter || t.dateTime.includes(dateFilter)),
     [pending, dateFilter]
   )
-  const pendingTotalPages  = Math.max(1, Math.ceil(filtered.length / pendingPageSize))
-  const paginatedPending   = filtered.slice((pendingPage - 1) * pendingPageSize, pendingPage * pendingPageSize)
-  const resolvedTotalPages = Math.max(1, Math.ceil(resolved.length / resolvedPageSize))
-  const paginatedResolved  = resolved.slice((resolvedPage - 1) * resolvedPageSize, resolvedPage * resolvedPageSize)
 
   const totalPendingAmount = pending.reduce((s, t) => s + t.amount, 0)
 
@@ -192,149 +184,128 @@ function ReconciliationPage() {
               Pending Reconciliation
             </h2>
 
-            <div
-              style={{
-                backgroundColor: 'var(--card)',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow-sm)',
-                overflow: 'hidden',
-              }}
-            >
-              {filtered.length === 0 ? (
-                <div className="flex flex-col items-center py-16 gap-3">
-                  <CheckCircle style={{ width: 40, height: 40, color: 'var(--success)' }} />
-                  <h3 className="t-h3" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>
-                    All clear
-                  </h3>
-                  <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>
-                    No pending transactions to reconcile.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto', overflowY: 'visible' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        {['Transaction ID', 'Student', 'Student ID', 'Amount', 'Method', 'Gateway Status', 'System Status', 'Date & Time', 'Actions'].map((h) => (
-                          <th
-                            key={h}
-                            className="t-label text-left"
-                            style={{ color: 'var(--muted-foreground)', padding: '12px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedPending.map((txn, i) => {
-                        const mc  = methodColors(txn.method)
-                        const gc  = gatewayColors(txn.gatewayStatus)
-                        const sc  = statusColors(txn.systemStatus)
-                        return (
-                          <tr
-                            key={txn.id}
-                            style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                          >
-                            <td style={{ padding: '14px 16px' }}>
-                              <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.txnId}</span>
-                            </td>
-                            <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                              {txn.studentName}
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.studentId}</span>
-                            </td>
-                            <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                              {formatCurrency(txn.amount)}
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <span className="t-label px-2 py-0.5" style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap', fontSize: 10 }}>
-                                {txn.method}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <span className="t-label px-2 py-0.5" style={{ backgroundColor: gc.bg, color: gc.color, borderRadius: 'var(--radius-sm)' }}>
-                                {txn.gatewayStatus}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>
-                                {txn.systemStatus}
-                              </span>
-                            </td>
-                            <td className="t-caption" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                              {txn.dateTime}
-                            </td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  onClick={() => setSelectedTxn(txn)}
-                                  className="text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all duration-150"
-                                  style={{
-                                    border: '1px solid var(--brand)',
-                                    color: 'var(--brand)',
-                                    background: 'transparent',
-                                    cursor: 'pointer',
-                                  }}
-                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(15, 189, 59,0.08)' }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
-                                >
-                                  Reconcile
-                                </button>
-                                <button
-                                  onClick={() => { setEscalate(txn); setEscalateReason('') }}
-                                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
-                                  style={{
-                                    border: '1px solid var(--border)',
-                                    color: 'var(--muted-foreground)',
-                                    background: 'transparent',
-                                    cursor: 'pointer',
-                                  }}
-                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)'; e.currentTarget.style.color = 'var(--foreground)' }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
-                                >
-                                  Escalate
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {/* Pending pagination */}
-              {filtered.length > 0 && (
-                <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Show</span>
-                    <Select value={String(pendingPageSize)} onValueChange={(v) => { setPendingPageSize(Number(v)); setPendingPage(1) }}>
-                      <SelectTrigger className="h-8 w-16 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>per page</span>
-                    <span className="t-caption" style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>
-                      {`${(pendingPage - 1) * pendingPageSize + 1}–${Math.min(pendingPage * pendingPageSize, filtered.length)}`} of {filtered.length} entries
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPendingPage((p) => p - 1)} disabled={pendingPage === 1}>Previous</Button>
-                    <span className="t-caption px-1" style={{ color: 'var(--muted-foreground)' }}>{pendingPage} / {pendingTotalPages}</span>
-                    <Button variant="outline" size="sm" onClick={() => setPendingPage((p) => p + 1)} disabled={pendingPage >= pendingTotalPages}>Next</Button>
-                  </div>
-                </div>
-              )}
-            </div>
+            {filtered.length === 0 ? (
+              <div
+                className="flex flex-col items-center py-16 gap-3"
+                style={{
+                  backgroundColor: 'var(--card)',
+                  borderRadius: 'var(--radius-xl)',
+                  border: '1px solid var(--border)',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <CheckCircle style={{ width: 40, height: 40, color: 'var(--success)' }} />
+                <h3 className="t-h3" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>
+                  All clear
+                </h3>
+                <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>
+                  No pending transactions to reconcile.
+                </p>
+              </div>
+            ) : (
+              <DataTable
+                rows={filtered}
+                rowKey={(txn) => String(txn.id)}
+                searchPlaceholder="Search pending transactions…"
+                empty="No pending transactions to reconcile."
+                defaultPageSize={10}
+                columns={[
+                  {
+                    id: 'txnId',
+                    header: 'Transaction ID',
+                    value: (txn) => txn.txnId,
+                    cell: (txn) => <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.txnId}</span>,
+                  },
+                  {
+                    id: 'student',
+                    header: 'Student',
+                    value: (txn) => txn.studentName,
+                    cell: (txn) => <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{txn.studentName}</span>,
+                  },
+                  {
+                    id: 'studentId',
+                    header: 'Student ID',
+                    value: (txn) => txn.studentId,
+                    cell: (txn) => <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.studentId}</span>,
+                  },
+                  {
+                    id: 'amount',
+                    header: 'Amount',
+                    value: (txn) => txn.amount,
+                    cell: (txn) => <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{formatCurrency(txn.amount)}</span>,
+                  },
+                  {
+                    id: 'method',
+                    header: 'Method',
+                    value: (txn) => txn.method,
+                    cell: (txn) => {
+                      const mc = methodColors(txn.method)
+                      return <span className="t-label px-2 py-0.5" style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap', fontSize: 10 }}>{txn.method}</span>
+                    },
+                  },
+                  {
+                    id: 'gateway',
+                    header: 'Gateway Status',
+                    value: (txn) => txn.gatewayStatus,
+                    cell: (txn) => {
+                      const gc = gatewayColors(txn.gatewayStatus)
+                      return <span className="t-label px-2 py-0.5" style={{ backgroundColor: gc.bg, color: gc.color, borderRadius: 'var(--radius-sm)' }}>{txn.gatewayStatus}</span>
+                    },
+                  },
+                  {
+                    id: 'system',
+                    header: 'System Status',
+                    value: (txn) => txn.systemStatus,
+                    cell: (txn) => {
+                      const sc = statusColors(txn.systemStatus)
+                      return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{txn.systemStatus}</span>
+                    },
+                  },
+                  {
+                    id: 'date',
+                    header: 'Date & Time',
+                    value: (txn) => txn.dateTime,
+                    cell: (txn) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{txn.dateTime}</span>,
+                  },
+                  {
+                    id: 'actions',
+                    header: 'Actions',
+                    cell: (txn) => (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setSelectedTxn(txn)}
+                          className="text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all duration-150"
+                          style={{
+                            border: '1px solid var(--brand)',
+                            color: 'var(--brand)',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(15, 189, 59,0.08)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                        >
+                          Reconcile
+                        </button>
+                        <button
+                          onClick={() => { setEscalate(txn); setEscalateReason('') }}
+                          className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
+                          style={{
+                            border: '1px solid var(--border)',
+                            color: 'var(--muted-foreground)',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)'; e.currentTarget.style.color = 'var(--foreground)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
+                        >
+                          Escalate
+                        </button>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            )}
           </div>
 
           {/* Resolved section */}
@@ -346,92 +317,57 @@ function ReconciliationPage() {
               >
                 Recently Resolved
               </h2>
-              <div
-                style={{
-                  backgroundColor: 'var(--card)',
-                  borderRadius: 'var(--radius-xl)',
-                  border: '1px solid var(--border)',
-                  boxShadow: 'var(--shadow-sm)',
-                  overflow: 'hidden',
-                }}
-              >
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Transaction ID', 'Student', 'Amount', 'Resolution', 'Resolved By', 'Resolved At'].map((h) => (
-                        <th
-                          key={h}
-                          className="t-label text-left"
-                          style={{ color: 'var(--muted-foreground)', padding: '12px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedResolved.map((txn, i) => {
+              <DataTable
+                rows={resolved}
+                rowKey={(txn) => String(txn.id)}
+                searchPlaceholder="Search resolved transactions…"
+                empty="No resolved transactions."
+                defaultPageSize={10}
+                columns={[
+                  {
+                    id: 'txnId',
+                    header: 'Transaction ID',
+                    value: (txn) => txn.txnId,
+                    cell: (txn) => <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.txnId}</span>,
+                  },
+                  {
+                    id: 'student',
+                    header: 'Student',
+                    value: (txn) => txn.studentName,
+                    cell: (txn) => <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{txn.studentName}</span>,
+                  },
+                  {
+                    id: 'amount',
+                    header: 'Amount',
+                    value: (txn) => txn.amount,
+                    cell: (txn) => <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{formatCurrency(txn.amount)}</span>,
+                  },
+                  {
+                    id: 'resolution',
+                    header: 'Resolution',
+                    value: (txn) => txn.resolution,
+                    cell: (txn) => {
                       const resColor =
                         txn.resolution === 'Mark as Paid'   ? { bg: 'var(--success-bg)', color: 'var(--success)' }  :
                         txn.resolution === 'Mark as Failed' ? { bg: 'var(--error-bg)',   color: 'var(--error)'   }  :
                         { bg: 'var(--warning-bg)', color: 'var(--warning)' }
-                      return (
-                        <tr
-                          key={txn.id}
-                          style={{ borderBottom: i < paginatedResolved.length - 1 ? '1px solid var(--border)' : 'none' }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                        >
-                          <td style={{ padding: '14px 16px' }}>
-                            <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.txnId}</span>
-                          </td>
-                          <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 500 }}>
-                            {txn.studentName}
-                          </td>
-                          <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 600 }}>
-                            {formatCurrency(txn.amount)}
-                          </td>
-                          <td style={{ padding: '14px 16px' }}>
-                            <span className="t-label px-2 py-0.5" style={{ backgroundColor: resColor.bg, color: resColor.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>
-                              {txn.resolution}
-                            </span>
-                          </td>
-                          <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 16px' }}>
-                            {txn.resolvedBy}
-                          </td>
-                          <td className="t-caption" style={{ color: 'var(--muted-foreground)', padding: '14px 16px' }}>
-                            {txn.resolvedAt}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-                {/* Resolved pagination */}
-                <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Show</span>
-                    <Select value={String(resolvedPageSize)} onValueChange={(v) => { setResolvedPageSize(Number(v)); setResolvedPage(1) }}>
-                      <SelectTrigger className="h-8 w-16 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>per page</span>
-                    <span className="t-caption" style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>
-                      {`${(resolvedPage - 1) * resolvedPageSize + 1}–${Math.min(resolvedPage * resolvedPageSize, resolved.length)}`} of {resolved.length} entries
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setResolvedPage((p) => p - 1)} disabled={resolvedPage === 1}>Previous</Button>
-                    <span className="t-caption px-1" style={{ color: 'var(--muted-foreground)' }}>{resolvedPage} / {resolvedTotalPages}</span>
-                    <Button variant="outline" size="sm" onClick={() => setResolvedPage((p) => p + 1)} disabled={resolvedPage >= resolvedTotalPages}>Next</Button>
-                  </div>
-                </div>
-              </div>
+                      return <span className="t-label px-2 py-0.5" style={{ backgroundColor: resColor.bg, color: resColor.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>{txn.resolution}</span>
+                    },
+                  },
+                  {
+                    id: 'resolvedBy',
+                    header: 'Resolved By',
+                    value: (txn) => txn.resolvedBy,
+                    cell: (txn) => <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{txn.resolvedBy}</span>,
+                  },
+                  {
+                    id: 'resolvedAt',
+                    header: 'Resolved At',
+                    value: (txn) => txn.resolvedAt,
+                    cell: (txn) => <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>{txn.resolvedAt}</span>,
+                  },
+                ]}
+              />
             </div>
           )}
 

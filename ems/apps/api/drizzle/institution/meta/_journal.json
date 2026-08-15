@@ -8,6 +8,13 @@
       "when": 1786487766398,
       "tag": "0000_volatile_liz_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786490000000,
+      "tag": "0001_user_notification_preferences",
+      "breakpoints": true
     }
   ]
 }

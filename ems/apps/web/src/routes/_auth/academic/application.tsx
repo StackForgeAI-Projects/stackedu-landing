@@ -8,10 +8,9 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { AppShell } from '@/components/AppShell'
+import { AcademicShell } from '@/components/AcademicShell'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ACADEMIC_ADMIN, ACADEMIC_NAV } from '@/data/academic'
 import {
   academicApplicationsQueryKey,
   confirmAcademicPayment,
@@ -20,7 +19,6 @@ import {
   getAcademicDocumentUrl,
 } from '@/lib/api/admissions'
 import { apiErrorMessage } from '@/lib/api/client'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { queryClient } from '@/lib/query-client'
 import { formatCurrency } from '@/lib/utils'
@@ -51,7 +49,6 @@ function detailString(details: Record<string, unknown> | null, key: string): str
 
 function ApplicationDetailPage() {
   const { id } = Route.useSearch()
-  const { user } = useCurrentUser()
   const [decision, setDecision] = useState<DecisionChoice>('UnderReview')
   const [comments, setComments] = useState('')
 
@@ -90,33 +87,27 @@ function ApplicationDetailPage() {
     },
   })
 
-  const name = user?.fullName ?? ACADEMIC_ADMIN.fullName
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('') || 'AA'
-
   if (!id) {
     return (
-      <AppShell navItems={ACADEMIC_NAV} pageTitle="Application" userName={name} userRole="Academic Admin" userInitials={initials}>
+      <AcademicShell pageTitle="Application">
         <div className="page-body">
           <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>Missing application id.</p>
         </div>
-      </AppShell>
+      </AcademicShell>
     )
   }
 
   if (detailQuery.isLoading || !app) {
     return (
-      <AppShell navItems={ACADEMIC_NAV} pageTitle="Application" userName={name} userRole="Academic Admin" userInitials={initials}>
+      <AcademicShell pageTitle="Application">
         <div className="page-body">
           <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>
-            {detailQuery.isError ? 'Application could not be loaded.' : 'Loading application…'}
+            {detailQuery.isError
+              ? apiErrorMessage(detailQuery.error, 'Application could not be loaded.')
+              : 'Loading application…'}
           </p>
         </div>
-      </AppShell>
+      </AcademicShell>
     )
   }
 
@@ -124,17 +115,7 @@ function ApplicationDetailPage() {
   const finalised = app.status === 'Accepted' || app.status === 'Rejected'
 
   return (
-    <AppShell
-      navItems={ACADEMIC_NAV}
-      pageTitle="Application Detail"
-      userName={name}
-      userRole="Academic Admin"
-      userInitials={initials}
-      unreadCount={0}
-      infoCardLabel="ACADEMIC ADMIN"
-      infoCardValue={user?.institution.name ?? ACADEMIC_ADMIN.institution}
-      infoCardSubtext={ACADEMIC_ADMIN.office}
-    >
+    <AcademicShell pageTitle="Application Detail">
       <div className="page-body animate-fade-up">
         <div className="flex items-center gap-2 mb-6">
           <Link
@@ -314,7 +295,7 @@ function ApplicationDetailPage() {
           </aside>
         </div>
       </div>
-    </AppShell>
+    </AcademicShell>
   )
 }
 

@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Search, Eye, Pencil, Trash2, Plus } from 'lucide-react'
+import type { AcademicProgrammeRow } from '@stackedu/shared'
+import { Eye, Pencil, Trash2, Plus } from 'lucide-react'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet'
@@ -10,233 +12,213 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
-import { AppShell } from '@/components/AppShell'
-import { ACADEMIC_ADMIN, ACADEMIC_NAV, PROGRAMMES, type Programme } from '@/data/academic'
-
-// ─────────────────────────────────────────────────────────────────────────────
+import { AcademicShell } from '@/components/AcademicShell'
+import { DataTable } from '@/components/DataTable'
+import {
+  academicProgrammesQueryKey,
+  createAcademicProgramme,
+  listAcademicProgrammes,
+  updateAcademicProgramme,
+} from '@/lib/api/academic'
+import { apiErrorMessage } from '@/lib/api/client'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_auth/academic/programmes')({
   component: ProgrammesPage,
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-const DEPT_FILTER = [
-  'All Departments',
-  'Computer Science & IT',
-  'Mathematics & Sciences',
-  'Business & Management',
-  'Languages & Communication',
-]
-
-const DEPT_MAP: Record<string, string> = {
-  'School of Computing': 'Computer Science & IT',
-  'School of Sciences':  'Mathematics & Sciences',
-  'School of Business':  'Business & Management',
-  'School of Languages': 'Languages & Communication',
+function parseDurationYears(duration: string): number {
+  const match = duration.match(/\d+/)
+  const years = match ? Number.parseInt(match[0], 10) : 3
+  return Number.isFinite(years) && years >= 1 ? years : 3
 }
-
-const DURATIONS = ['1 year', '2 years', '3 years', '4 years']
 
 function deptBadgeColors(dept: string) {
-  const mapped = DEPT_MAP[dept] ?? dept
-  if (mapped.includes('Computer'))  return { bg: 'var(--info-bg)',          color: 'var(--info)'             }
-  if (mapped.includes('Math'))      return { bg: 'rgba(15, 189, 59,0.10)',    color: '#16A34A'                 }
-  if (mapped.includes('Business'))  return { bg: 'var(--warning-bg)',       color: 'var(--warning)'          }
-  return                                   { bg: 'var(--muted)',             color: 'var(--muted-foreground)' }
+  if (dept.includes('Computer') || dept.includes('Computing')) return { bg: 'var(--info-bg)', color: 'var(--info)' }
+  if (dept.includes('Math') || dept.includes('Science')) return { bg: 'rgba(15, 189, 59,0.10)', color: '#16A34A' }
+  if (dept.includes('Business')) return { bg: 'var(--warning-bg)', color: 'var(--warning)' }
+  return { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 function ProgrammesPage() {
-  const [search, setSearch]           = useState('')
-  const [dept, setDept]               = useState('All Departments')
-  const [sheetOpen, setSheetOpen]     = useState(false)
-  const [editProg, setEditProg]       = useState<Programme | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<Programme | null>(null)
+  const queryClient = useQueryClient()
+  const { data, isPending, error } = useQuery({
+    queryKey: academicProgrammesQueryKey,
+    queryFn: listAcademicProgrammes,
+  })
 
+  const programmes = data ?? []
+  const defaultDepartment = programmes[0]?.department ?? 'Department of Computing'
+
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editProg, setEditProg] = useState<AcademicProgrammeRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AcademicProgrammeRow | null>(null)
   const [form, setForm] = useState({
-    name: '', department: 'School of Computing', duration: '3 years',
-    totalCredits: '', description: '', status: true,
+    name: '', department: '', duration: '', totalCredits: '', description: '', status: true,
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const totalCredits = Number.parseInt(form.totalCredits, 10)
+      if (!form.name.trim()) throw new Error('Programme name is required.')
+      if (!Number.isFinite(totalCredits) || totalCredits < 1) throw new Error('Total credits must be a positive number.')
+
+      const durationYears = parseDurationYears(form.duration)
+
+      if (editProg) {
+        return updateAcademicProgramme(editProg.id, {
+          name: form.name.trim(),
+          durationYears,
+          totalCredits,
+          isActive: form.status,
+        })
+      }
+
+      return createAcademicProgramme({
+        name: form.name.trim(),
+        departmentName: form.department.trim() || defaultDepartment,
+        durationYears,
+        totalCredits,
+      })
+    },
+    onSuccess: async () => {
+      toast.success(editProg ? 'Programme updated.' : 'Programme created.')
+      setSheetOpen(false)
+      setEditProg(null)
+      await queryClient.invalidateQueries({ queryKey: academicProgrammesQueryKey })
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not save programme.')),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (prog: AcademicProgrammeRow) => updateAcademicProgramme(prog.id, { isActive: false }),
+    onSuccess: async () => {
+      toast.success('Programme deactivated.')
+      setDeleteTarget(null)
+      await queryClient.invalidateQueries({ queryKey: academicProgrammesQueryKey })
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not delete programme.')),
   })
 
   const openAdd = () => {
     setEditProg(null)
-    setForm({ name: '', department: 'School of Computing', duration: '3 years', totalCredits: '', description: '', status: true })
+    setForm({
+      name: '',
+      department: defaultDepartment,
+      duration: '3 years',
+      totalCredits: '120',
+      description: '',
+      status: true,
+    })
     setSheetOpen(true)
   }
 
-  const openEdit = (p: Programme) => {
+  const openEdit = (p: AcademicProgrammeRow) => {
     setEditProg(p)
-    setForm({ name: p.name, department: p.department, duration: p.duration, totalCredits: String(p.totalCredits), description: p.description, status: p.status === 'Active' })
+    setForm({
+      name: p.name,
+      department: p.department,
+      duration: p.duration,
+      totalCredits: String(p.totalCredits),
+      description: p.description ?? '',
+      status: p.status === 'Active',
+    })
     setSheetOpen(true)
   }
 
-  const filtered = PROGRAMMES.filter((p) => {
-    const nameMatch = p.name.toLowerCase().includes(search.toLowerCase())
-    const courseMatch = search.length > 0 && p.years.some((yr) =>
-      yr.semesters.some((sem) =>
-        sem.courses.some((c) =>
-          c.name.toLowerCase().includes(search.toLowerCase()) ||
-          c.code.toLowerCase().includes(search.toLowerCase())
-        )
-      )
-    )
-    const searchMatch = search === '' || nameMatch || courseMatch
-    const deptMatch   = dept === 'All Departments' || DEPT_MAP[p.department] === dept
-    return searchMatch && deptMatch
-  })
+  const inputStyle = { border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }
 
   return (
-    <AppShell
-      navItems={ACADEMIC_NAV}
-      pageTitle="Programmes"
-      userName={ACADEMIC_ADMIN.fullName}
-      userRole={ACADEMIC_ADMIN.role}
-      userInitials={ACADEMIC_ADMIN.initials}
-      unreadCount={4}
-      infoCardLabel="ACADEMIC ADMIN"
-      infoCardValue={ACADEMIC_ADMIN.institution}
-      infoCardSubtext={ACADEMIC_ADMIN.office}
-    >
+    <AcademicShell pageTitle="Programmes">
       <div className="page-body animate-fade-up">
-
-        {/* Section header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
             <h1 className="t-h1 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.015em' }}>Programmes</h1>
-            <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>{PROGRAMMES.filter((p) => p.status === 'Active').length} active programmes</p>
+            <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>
+              {isPending ? 'Loading…' : `${programmes.filter((p) => p.status === 'Active').length} active programmes`}
+            </p>
           </div>
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
-            style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'pointer' }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9' }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
-          >
+          <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
+            style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'pointer' }}>
             <Plus style={{ width: 15, height: 15 }} />Add programme
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex items-center gap-2 rounded-lg px-3 h-9 flex-1 max-w-sm" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-            <Search className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--muted-foreground)' }} />
-            <input type="text" placeholder="Search by programme or course name…" value={search} onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 bg-transparent text-sm outline-none" style={{ color: 'var(--foreground)' }} />
-          </div>
-          <select value={dept} onChange={(e) => setDept(e.target.value)}
-            className="text-sm rounded-lg px-3 h-9 outline-none"
-            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer' }}
-          >
-            {DEPT_FILTER.map((d) => <option key={d}>{d}</option>)}
-          </select>
-        </div>
+        {error ? (
+          <p className="t-body mb-4" style={{ color: 'var(--error)' }}>{apiErrorMessage(error, 'Could not load programmes.')}</p>
+        ) : null}
 
-        {/* Table */}
-        <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Programme Name', 'Department', 'Duration', 'Credits / Units', 'Enrolled', 'Status', ''].map((h) => (
-                    <th key={h} className="t-label text-left" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', borderBottom: '1px solid var(--border)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 t-body" style={{ color: 'var(--muted-foreground)' }}>No programmes found</td>
-                  </tr>
-                ) : filtered.map((prog, i) => {
-                  const dc = deptBadgeColors(prog.department)
-                  const sc = prog.status === 'Active'
-                    ? { bg: 'var(--success-bg)', color: 'var(--success)'         }
-                    : { bg: 'var(--muted)',       color: 'var(--muted-foreground)' }
-                  return (
-                    <tr key={prog.id}
-                      style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>{prog.name}</td>
-                      <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                        <span className="t-label px-2 py-0.5" style={{ backgroundColor: dc.bg, color: dc.color, borderRadius: 'var(--radius-sm)' }}>{prog.department}</span>
-                      </td>
-                      <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', whiteSpace: 'nowrap' }}>{prog.duration}</td>
-                      <td className="text-sm font-medium" style={{ color: 'var(--foreground)', padding: '14px 16px' }}>{prog.totalCredits} cr</td>
-                      <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 16px' }}>{prog.enrolled}</td>
-                      <td style={{ padding: '14px 16px' }}>
-                        <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{prog.status}</span>
-                      </td>
-                      <td style={{ padding: '14px 16px' }}>
-                        <div className="flex items-center gap-0.5">
-                          <Link to="/academic/programme" search={{ id: String(prog.id) }}>
-                            <button
-                              title="View"
-                              className="flex items-center justify-center rounded-lg transition-colors duration-150"
-                              style={{ width: 30, height: 30, color: 'var(--muted-foreground)', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}
-                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)'; e.currentTarget.style.color = 'var(--foreground)' }}
-                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
-                            >
-                              <Eye style={{ width: 14, height: 14 }} />
-                            </button>
-                          </Link>
-                          <button
-                            onClick={() => openEdit(prog)}
-                            title="Edit"
-                            className="flex items-center justify-center rounded-lg transition-colors duration-150"
-                            style={{ width: 30, height: 30, color: 'var(--muted-foreground)', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)'; e.currentTarget.style.color = 'var(--foreground)' }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
-                          >
-                            <Pencil style={{ width: 14, height: 14 }} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(prog)}
-                            title="Delete"
-                            className="flex items-center justify-center rounded-lg transition-colors duration-150"
-                            style={{ width: 30, height: 30, color: 'var(--muted-foreground)', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--error-bg)'; e.currentTarget.style.color = 'var(--error)' }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
-                          >
-                            <Trash2 style={{ width: 14, height: 14 }} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
+        <DataTable
+          rows={programmes}
+          rowKey={(prog) => prog.id}
+          searchPlaceholder="Search by programme name…"
+          searchFilter={(p, query) => p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query)}
+          filters={[{ id: 'department', label: 'departments', getValue: (p) => p.department }]}
+          empty={isPending ? 'Loading programmes…' : 'No programmes found'}
+          columns={[
+            { id: 'name', header: 'Programme Name', value: (prog) => prog.name, cell: (prog) => <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{prog.name}</span> },
+            {
+              id: 'department', header: 'Department', value: (prog) => prog.department,
+              cell: (prog) => {
+                const dc = deptBadgeColors(prog.department)
+                return <span className="t-label px-2 py-0.5 whitespace-nowrap" style={{ backgroundColor: dc.bg, color: dc.color, borderRadius: 'var(--radius-sm)' }}>{prog.department}</span>
+              },
+            },
+            { id: 'duration', header: 'Duration', value: (prog) => prog.duration, cell: (prog) => <span className="text-sm whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{prog.duration}</span> },
+            { id: 'credits', header: 'Credits / Units', value: (prog) => prog.totalCredits, cell: (prog) => <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{prog.totalCredits} cr</span> },
+            { id: 'enrolled', header: 'Enrolled', value: (prog) => prog.enrolled, cell: (prog) => <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{prog.enrolled}</span> },
+            {
+              id: 'status', header: 'Status', value: (prog) => prog.status,
+              cell: (prog) => {
+                const sc = prog.status === 'Active'
+                  ? { bg: 'var(--success-bg)', color: 'var(--success)' }
+                  : { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
+                return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{prog.status}</span>
+              },
+            },
+            {
+              id: 'actions', header: '', className: 'text-right',
+              cell: (prog) => (
+                <div className="flex items-center gap-0.5">
+                  <Link to="/academic/programme" search={{ id: prog.id }}>
+                    <button type="button" title="View" className="flex items-center justify-center rounded-lg" style={{ width: 30, height: 30, color: 'var(--muted-foreground)', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                      <Eye style={{ width: 14, height: 14 }} />
+                    </button>
+                  </Link>
+                  <button type="button" onClick={() => openEdit(prog)} title="Edit" className="flex items-center justify-center rounded-lg" style={{ width: 30, height: 30, color: 'var(--muted-foreground)', border: 'none', background: 'none', cursor: 'pointer' }}>
+                    <Pencil style={{ width: 14, height: 14 }} />
+                  </button>
+                  <button type="button" onClick={() => setDeleteTarget(prog)} title="Delete" className="flex items-center justify-center rounded-lg" style={{ width: 30, height: 30, color: 'var(--error)', border: 'none', background: 'none', cursor: 'pointer' }}>
+                    <Trash2 style={{ width: 14, height: 14 }} />
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
-      {/* Delete AlertDialog */}
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will affect all enrolled students and course assignments. This cannot be undone.
+              This will deactivate the programme. Enrolled students will remain on record but the programme will no longer appear as active.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => setDeleteTarget(null)}
+              onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget) }}
+              disabled={deleteMutation.isPending}
               style={{ backgroundColor: 'var(--error)', color: '#fff' }}
             >
-              Delete
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add / Edit Programme Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="p-0 overflow-y-auto sheet-lg">
           <SheetHeader className="px-8 py-6" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -245,73 +227,86 @@ function ProgrammesPage() {
             </SheetTitle>
           </SheetHeader>
           <div className="px-8 py-6 flex flex-col gap-4">
-
             <div>
               <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Programme Name</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Computer Science"
+              <input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full text-sm rounded-lg px-3 h-9 outline-none"
-                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }} />
+                style={inputStyle}
+                placeholder="e.g. BSc Computer Science"
+              />
             </div>
-
             <div>
               <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Department</label>
-              <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
+              <input
+                value={form.department}
+                onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+                readOnly={!!editProg}
                 className="w-full text-sm rounded-lg px-3 h-9 outline-none"
-                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)', cursor: 'pointer' }}
-              >
-                <option value="School of Computing">School of Computing</option>
-                <option value="School of Sciences">School of Sciences</option>
-                <option value="School of Business">School of Business</option>
-                <option value="School of Languages">School of Languages</option>
-              </select>
+                style={{ ...inputStyle, backgroundColor: editProg ? 'var(--muted)' : 'var(--background)' }}
+                placeholder="Department of Computing"
+              />
             </div>
-
-            <div>
-              <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Duration</label>
-              <select value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                className="w-full text-sm rounded-lg px-3 h-9 outline-none"
-                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)', cursor: 'pointer' }}
-              >
-                {DURATIONS.map((d) => <option key={d}>{d}</option>)}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Duration</label>
+                <input
+                  value={form.duration}
+                  onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
+                  className="w-full text-sm rounded-lg px-3 h-9 outline-none"
+                  style={inputStyle}
+                  placeholder="3 years"
+                />
+              </div>
+              <div>
+                <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Total Credits</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.totalCredits}
+                  onChange={(e) => setForm((f) => ({ ...f, totalCredits: e.target.value }))}
+                  className="w-full text-sm rounded-lg px-3 h-9 outline-none"
+                  style={inputStyle}
+                  placeholder="120"
+                />
+              </div>
             </div>
-
-            <div>
-              <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Total Credit Units</label>
-              <input type="number" value={form.totalCredits} onChange={(e) => setForm({ ...form, totalCredits: e.target.value })} placeholder="e.g. 120"
-                className="w-full text-sm rounded-lg px-3 h-9 outline-none"
-                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }} />
-            </div>
-
             <div>
               <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Description</label>
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Brief description of the programme…"
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                rows={3}
                 className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
-                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }} />
+                style={inputStyle}
+                placeholder="Optional programme description"
+              />
             </div>
-
-            <div className="flex items-center justify-between py-3 px-4 rounded-xl" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Status</p>
-                <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{form.status ? 'Active — open for enrolment' : 'Inactive — hidden from students'}</p>
+            {editProg ? (
+              <div className="flex items-center justify-between py-3 px-4 rounded-xl" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Status</p>
+                  <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{form.status ? 'Active' : 'Inactive'}</p>
+                </div>
+                <Switch checked={form.status} onCheckedChange={(checked) => setForm((f) => ({ ...f, status: checked }))} />
               </div>
-              <Switch checked={form.status} onCheckedChange={(v) => setForm({ ...form, status: v })} />
-            </div>
-
+            ) : null}
             <div className="flex gap-3 mt-2">
-              <button onClick={() => setSheetOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
-                style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => setSheetOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150"
-                style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9' }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
-              >Save</button>
+              <button type="button" onClick={() => setSheetOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>Cancel</button>
+              <button
+                type="button"
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: saveMutation.isPending ? 'not-allowed' : 'pointer', opacity: saveMutation.isPending ? 0.7 : 1 }}
+              >
+                {saveMutation.isPending ? 'Saving…' : 'Save'}
+              </button>
             </div>
-
           </div>
         </SheetContent>
       </Sheet>
-
-    </AppShell>
+    </AcademicShell>
   )
 }

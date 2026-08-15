@@ -1,5 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouterState } from '@tanstack/react-router'
+import { notifySuccess } from '@/lib/notify'
+import { consumeWelcomeName, isDashboardPath } from '@/lib/welcome'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { PageContent } from '@/components/PageContent'
 import { LogoutDialog, useLogoutDialog } from '@/components/LogoutDialog'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { roleLabel } from '@/lib/auth/portals'
@@ -46,6 +50,13 @@ export function AppShell({
 
   const { user } = useCurrentUser()
   const logoutDialog = useLogoutDialog()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  useEffect(() => {
+    if (!isDashboardPath(pathname)) return
+    const name = consumeWelcomeName()
+    if (name) notifySuccess(`Welcome back, ${name} 👋`)
+  }, [pathname])
 
   // The signed-in user is the truth about who is looking at the screen. The
   // props remain as the fallback shown while the session is still loading.
@@ -110,7 +121,7 @@ export function AppShell({
           onLogout={handleLogout}
         />
         <main className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--background)' }}>
-          {children}
+          <PageContent>{children}</PageContent>
         </main>
       </div>
 

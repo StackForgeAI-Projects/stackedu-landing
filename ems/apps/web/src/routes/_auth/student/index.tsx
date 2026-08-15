@@ -1,9 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_auth/student/')({
-  component: StudentDashboardPlaceholder,
+  component: () => <Navigate to="/student/dashboard" />,
 })
-
-function StudentDashboardPlaceholder() {
-  return <div className="p-8 t-h2">Student dashboard — coming soon.</div>
-}

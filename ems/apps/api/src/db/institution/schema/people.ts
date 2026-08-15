@@ -39,6 +39,10 @@ export const users = pgTable(
     twoFactorSecret: text('two_factor_secret'),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true, mode: 'string' }),
     preferredLocale: text('preferred_locale').notNull().default('en'),
+    /** Per-user notification channel toggles keyed by preference id. */
+    notificationPreferences: jsonb('notification_preferences').$type<
+      Record<string, { email: boolean; sms: boolean; inapp: boolean }>
+    >(),
     ...timestamps(),
   },
   (t) => [

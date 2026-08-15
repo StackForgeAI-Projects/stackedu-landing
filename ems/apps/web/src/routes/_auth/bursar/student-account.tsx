@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
-  ChevronLeft, Lock, Unlock, Receipt, CreditCard, AlertCircle, Download, Search, X,
+  ChevronLeft, Lock, Unlock, Receipt, CreditCard, AlertCircle, Download, X,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { DataTable } from '@/components/DataTable'
 import { StatTile } from '@/components/StatTile'
-import { Button } from '@/components/ui/button'
 import {
   Sheet, SheetContent,
 } from '@/components/ui/sheet'
@@ -15,7 +15,7 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import {
   BURSAR, BURSAR_NAV, BURSAR_STUDENTS, methodColors, statusColors,
-  type BursarStudent, type StudentPayment, type PaymentMethod, type BursarReceipt,
+  type BursarStudent, type StudentPayment, type PaymentMethod,
 } from '@/data/bursar'
 import { toast } from 'sonner'
 
@@ -93,13 +93,8 @@ function StudentAccountPage() {
 function StudentAccountInner({ base }: { base: BursarStudent }) {
   const [student, setStudent] = useState<BursarStudent>(base)
   const [payments, setPayments] = useState<(StudentPayment & { isManual?: boolean })[]>(base.payments)
-  const [page, setPage]         = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [issueSheetOpen, setIssueSheetOpen]   = useState(false)
   const [manualSheetOpen, setManualSheetOpen] = useState(false)
-
-  const totalPages = Math.max(1, Math.ceil(payments.length / pageSize))
-  const paginated  = payments.slice((page - 1) * pageSize, page * pageSize)
 
   const toggleHold = () => {
     const newHold    = !student.hasHold
@@ -214,130 +209,82 @@ function StudentAccountInner({ base }: { base: BursarStudent }) {
               Payment History
             </h2>
 
-            <div
-              style={{
-                backgroundColor: 'var(--card)',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow-sm)',
-                overflow: 'hidden',
-              }}
-            >
-              {payments.length === 0 ? (
-                <div className="text-sm text-center py-12" style={{ color: 'var(--muted-foreground)' }}>
-                  No payments recorded yet.
-                </div>
-              ) : (
-                <>
-                  <div style={{ overflowX: 'auto', overflowY: 'visible' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                          {['Date', 'Description', 'Amount', 'Method', 'Status', 'Receipt'].map((h) => (
-                            <th
-                              key={h}
-                              className="t-label text-left"
-                              style={{ color: 'var(--muted-foreground)', padding: '12px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                            >
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginated.map((pmt, i) => {
-                          const mc  = methodColors(pmt.method)
-                          const sc2 = statusColors(pmt.status)
-                          return (
-                            <tr
-                              key={i}
-                              style={{ borderBottom: i < paginated.length - 1 ? '1px solid var(--border)' : 'none' }}
-                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                            >
-                              <td className="t-caption" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                                {pmt.date}
-                              </td>
-                              <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px' }}>
-                                <span>{pmt.description}</span>
-                                {(pmt as any).isManual && (
-                                  <span
-                                    className="t-label px-1.5 py-0.5 ml-2"
-                                    style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info)', borderRadius: 'var(--radius-sm)', fontSize: 9 }}
-                                  >
-                                    MANUAL
-                                  </span>
-                                )}
-                              </td>
-                              <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                {formatCurrency(pmt.amount)}
-                              </td>
-                              <td style={{ padding: '14px 16px' }}>
-                                <span
-                                  className="t-label px-2 py-0.5"
-                                  style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap', fontSize: 10 }}
-                                >
-                                  {pmt.method}
-                                </span>
-                              </td>
-                              <td style={{ padding: '14px 16px' }}>
-                                <span
-                                  className="t-label px-2 py-0.5"
-                                  style={{ backgroundColor: sc2.bg, color: sc2.color, borderRadius: 'var(--radius-sm)' }}
-                                >
-                                  {pmt.status}
-                                </span>
-                              </td>
-                              <td style={{ padding: '14px 16px' }}>
-                                {pmt.receiptNo ? (
-                                  <button
-                                    onClick={() => toast.success(`Receipt ${pmt.receiptNo} download started.`)}
-                                    className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
-                                    style={{ border: '1px solid var(--border)', color: 'var(--foreground)', background: 'var(--card)', cursor: 'pointer' }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)' }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)' }}
-                                  >
-                                    <Download style={{ width: 12, height: 12 }} />
-                                    Download
-                                  </button>
-                                ) : (
-                                  <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>—</span>
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Pagination */}
-                  <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-                    <div className="flex items-center gap-2">
-                      <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Show</span>
-                      <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                        <SelectTrigger className="h-8 w-16 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="25">25</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>per page</span>
-                      <span className="t-caption" style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>
-                        {payments.length === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, payments.length)}`} of {payments.length} entries
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>Previous</Button>
-                      <span className="t-caption px-1" style={{ color: 'var(--muted-foreground)' }}>{page} / {totalPages}</span>
-                      <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>Next</Button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            <DataTable
+              rows={payments}
+              rowKey={(pmt) => `${pmt.date}|${pmt.description}|${pmt.amount}|${pmt.receiptNo ?? ''}|${pmt.method}`}
+              searchPlaceholder="Search payments…"
+              empty="No payments recorded yet."
+              defaultPageSize={10}
+              columns={[
+                {
+                  id: 'date',
+                  header: 'Date',
+                  value: (pmt) => pmt.date,
+                  cell: (pmt) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{pmt.date}</span>,
+                },
+                {
+                  id: 'description',
+                  header: 'Description',
+                  value: (pmt) => pmt.description,
+                  cell: (pmt) => (
+                    <span className="text-sm" style={{ color: 'var(--foreground)' }}>
+                      {pmt.description}
+                      {pmt.isManual && (
+                        <span
+                          className="t-label px-1.5 py-0.5 ml-2"
+                          style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info)', borderRadius: 'var(--radius-sm)', fontSize: 9 }}
+                        >
+                          MANUAL
+                        </span>
+                      )}
+                    </span>
+                  ),
+                },
+                {
+                  id: 'amount',
+                  header: 'Amount',
+                  value: (pmt) => pmt.amount,
+                  cell: (pmt) => <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{formatCurrency(pmt.amount)}</span>,
+                },
+                {
+                  id: 'method',
+                  header: 'Method',
+                  value: (pmt) => pmt.method,
+                  cell: (pmt) => {
+                    const mc = methodColors(pmt.method)
+                    return <span className="t-label px-2 py-0.5" style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap', fontSize: 10 }}>{pmt.method}</span>
+                  },
+                },
+                {
+                  id: 'status',
+                  header: 'Status',
+                  value: (pmt) => pmt.status,
+                  cell: (pmt) => {
+                    const sc2 = statusColors(pmt.status)
+                    return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc2.bg, color: sc2.color, borderRadius: 'var(--radius-sm)' }}>{pmt.status}</span>
+                  },
+                },
+                {
+                  id: 'receipt',
+                  header: 'Receipt',
+                  value: (pmt) => pmt.receiptNo,
+                  cell: (pmt) => pmt.receiptNo ? (
+                    <button
+                      onClick={() => toast.success(`Receipt ${pmt.receiptNo} download started.`)}
+                      className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all duration-150"
+                      style={{ border: '1px solid var(--border)', color: 'var(--foreground)', background: 'var(--card)', cursor: 'pointer' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)' }}
+                    >
+                      <Download style={{ width: 12, height: 12 }} />
+                      Download
+                    </button>
+                  ) : (
+                    <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>—</span>
+                  ),
+                },
+              ]}
+            />
           </div>
 
           {/* Action buttons */}

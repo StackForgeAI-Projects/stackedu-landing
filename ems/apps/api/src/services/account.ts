@@ -1,0 +1,227 @@
+import { and, eq, isNull, ne } from 'drizzle-orm'
+import type {
+  AccountProfile,
+  ChangePasswordRequest,
+  SessionUser,
+  UpdateAccountProfileRequest,
+  UpdateAccountSecurityRequest,
+} from '@stackedu/shared'
+import { getInstitutionDb, getPlatformDb } from '../db/connection'
+import { institutions, userDirectory } from '../db/platform/schema'
+import { users, sessions } from '../db/institution/schema/people'
+import { studentProfiles, students } from '../db/institution/schema/students'
+import { faculties, departments, programmes } from '../db/institution/schema/academic'
+import { badRequest, conflict, notFound } from '../lib/errors'
+import { hashPassword, verifyPassword } from '../lib/password'
+
+function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName
+}
+
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  return {
+    firstName: parts[0] ?? fullName,
+    lastName: parts.slice(1).join(' ') || (parts[0] ?? fullName),
+  }
+}
+
+export async function getAccountProfile(institutionId: string, userId: string): Promise<AccountProfile> {
+  const db = await getInstitutionDb(institutionId)
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      fullName: users.fullName,
+      phone: users.phone,
+      role: users.role,
+      twoFactorEnabled: users.twoFactorEnabled,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!user) throw notFound('That account')
+
+  const [institution] = await getPlatformDb()
+    .select({ name: institutions.name, shortName: institutions.shortName })
+    .from(institutions)
+    .where(eq(institutions.id, institutionId))
+    .limit(1)
+
+  const [student] = await db
+    .select({
+      studentNumber: students.studentNumber,
+      yearOfStudy: students.yearOfStudy,
+      admittedAt: students.admittedAt,
+      programmeName: programmes.name,
+      facultyName: faculties.name,
+    })
+    .from(students)
+    .innerJoin(programmes, eq(programmes.id, students.programmeId))
+    .leftJoin(departments, eq(departments.id, programmes.departmentId))
+    .leftJoin(faculties, eq(faculties.id, departments.facultyId))
+    .where(eq(students.userId, userId))
+    .limit(1)
+
+  return {
+    id: user.id,
+    email: user.email,
+    fullName: user.fullName,
+    firstName: firstName(user.fullName),
+    phone: user.phone,
+    role: user.role,
+    twoFactorEnabled: user.twoFactorEnabled,
+    institutionName: institution?.name ?? 'Institution',
+    institutionShortName: institution?.shortName ?? 'INS',
+    studentNumber: student?.studentNumber ?? null,
+    programmeName: student?.programmeName ?? null,
+    yearOfStudy: student?.yearOfStudy ?? null,
+    facultyName: student?.facultyName ?? null,
+    admittedAt: student?.admittedAt ?? null,
+  }
+}
+
+export async function updateAccountProfile(
+  institutionId: string,
+  user: SessionUser,
+  input: UpdateAccountProfileRequest,
+): Promise<AccountProfile> {
+  const db = await getInstitutionDb(institutionId)
+  const email = input.email.trim().toLowerCase()
+  const phone = input.phone === undefined ? undefined : input.phone
+
+  if (email !== user.email) {
+    const [taken] = await getPlatformDb()
+      .select({ id: userDirectory.id })
+      .from(userDirectory)
+      .where(and(eq(userDirectory.email, email), ne(userDirectory.institutionUserId, user.id)))
+      .limit(1)
+    if (taken) throw conflict('An account with that email address already exists.')
+  }
+
+  await db
+    .update(users)
+    .set({
+      fullName: input.fullName,
+      email,
+      ...(phone !== undefined ? { phone } : {}),
+    })
+    .where(eq(users.id, user.id))
+
+  if (email !== user.email) {
+    await getPlatformDb()
+      .update(userDirectory)
+      .set({ email })
+      .where(eq(userDirectory.institutionUserId, user.id))
+  }
+
+  const [student] = await db
+    .select({ id: students.id })
+    .from(students)
+    .where(eq(students.userId, user.id))
+    .limit(1)
+
+  if (student) {
+    const names = splitName(input.fullName)
+    await db
+      .update(studentProfiles)
+      .set({
+        firstName: names.firstName,
+        lastName: names.lastName,
+        ...(phone !== undefined ? { contactPhone: phone } : {}),
+      })
+      .where(eq(studentProfiles.studentId, student.id))
+  }
+
+  return getAccountProfile(institutionId, user.id)
+}
+
+export async function changeAccountPassword(
+  institutionId: string,
+  userId: string,
+  input: ChangePasswordRequest,
+): Promise<void> {
+  const db = await getInstitutionDb(institutionId)
+  const [account] = await db
+    .select({ passwordHash: users.passwordHash })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!account?.passwordHash) throw notFound('That account')
+  if (!(await verifyPassword(input.currentPassword, account.passwordHash))) {
+    throw badRequest('Current password is not correct.')
+  }
+  if (input.currentPassword === input.newPassword) {
+    throw badRequest('Choose a new password that is different from the current one.')
+  }
+
+  await db
+    .update(users)
+    .set({ passwordHash: await hashPassword(input.newPassword) })
+    .where(eq(users.id, userId))
+
+  await db
+    .update(sessions)
+    .set({ revokedAt: new Date().toISOString() })
+    .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)))
+}
+
+export async function updateAccountSecurity(
+  institutionId: string,
+  userId: string,
+  input: UpdateAccountSecurityRequest,
+): Promise<AccountProfile> {
+  if (input.twoFactorEnabled) {
+    throw badRequest('Two-factor authentication setup is not available yet. Leave this turned off for now.')
+  }
+  const db = await getInstitutionDb(institutionId)
+  await db
+    .update(users)
+    .set({ twoFactorEnabled: false })
+    .where(eq(users.id, userId))
+  return getAccountProfile(institutionId, userId)
+}
+
+export async function getAccountNotificationPreferences(
+  institutionId: string,
+  userId: string,
+): Promise<Record<string, { email: boolean; sms: boolean; inapp: boolean }>> {
+  const db = await getInstitutionDb(institutionId)
+  const [row] = await db
+    .select({ notificationPreferences: users.notificationPreferences })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+  if (!row) throw notFound('That account')
+  return row.notificationPreferences ?? {}
+}
+
+export async function updateAccountNotificationPreferences(
+  institutionId: string,
+  userId: string,
+  input: { preferences: Array<{ key: string; email: boolean; sms: boolean; inapp: boolean }> },
+): Promise<Record<string, { email: boolean; sms: boolean; inapp: boolean }>> {
+  const db = await getInstitutionDb(institutionId)
+  const stored = Object.fromEntries(
+    input.preferences.map((item) => [item.key, { email: item.email, sms: item.sms, inapp: item.inapp }]),
+  )
+  const [updated] = await db
+    .update(users)
+    .set({ notificationPreferences: stored })
+    .where(eq(users.id, userId))
+    .returning({ notificationPreferences: users.notificationPreferences })
+  if (!updated) throw notFound('That account')
+  return updated.notificationPreferences ?? stored
+}
+
+export function sessionUserFrom(profile: AccountProfile, institution: SessionUser['institution']): SessionUser {
+  return {
+    id: profile.id,
+    email: profile.email,
+    fullName: profile.fullName,
+    role: profile.role,
+    institution,
+  }
+}

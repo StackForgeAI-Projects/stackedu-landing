@@ -2,8 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo } from 'react'
 import { Pencil, Trash2, Plus, X, BookOpen } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { DataTable } from '@/components/DataTable'
 import { StatTile } from '@/components/StatTile'
-import { Button } from '@/components/ui/button'
 import {
   Sheet, SheetContent,
 } from '@/components/ui/sheet'
@@ -296,105 +296,91 @@ function FeeStructurePage() {
                     </span>
                   </div>
 
-                  <div
-                    style={{
-                      backgroundColor: 'var(--card)',
-                      borderRadius: 'var(--radius-xl)',
-                      border: '1px solid var(--border)',
-                      boxShadow: 'var(--shadow-sm)',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                          {['Fee Name', 'Category', 'Amount', 'Due Date', 'Applies To', 'Status', ''].map((h) => (
-                            <th
-                              key={h}
-                              className="t-label text-left"
-                              style={{ color: 'var(--muted-foreground)', padding: '12px 16px', fontWeight: 600 }}
-                            >
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {progItems.map((item, i) => {
+                  <DataTable
+                    rows={progItems}
+                    rowKey={(item) => String(item.id)}
+                    searchPlaceholder="Search fee items…"
+                    empty="No fee items."
+                    columns={[
+                      {
+                        id: 'name',
+                        header: 'Fee Name',
+                        value: (item) => item.name,
+                        cell: (item) => <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{item.name}</span>,
+                      },
+                      {
+                        id: 'category',
+                        header: 'Category',
+                        value: (item) => item.category,
+                        cell: (item) => {
                           const cc = categoryColors(item.category)
+                          return <span className="t-label px-2 py-0.5" style={{ backgroundColor: cc.bg, color: cc.color, borderRadius: 'var(--radius-sm)' }}>{item.category}</span>
+                        },
+                      },
+                      {
+                        id: 'amount',
+                        header: 'Amount',
+                        value: (item) => item.amount,
+                        cell: (item) => <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{formatCurrency(item.amount)}</span>,
+                      },
+                      {
+                        id: 'dueDate',
+                        header: 'Due Date',
+                        value: (item) => item.dueDate,
+                        cell: (item) => <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>{item.dueDate}</span>,
+                      },
+                      {
+                        id: 'yearGroup',
+                        header: 'Applies To',
+                        value: (item) => item.yearGroup,
+                        cell: (item) => (
+                          <span className="t-label px-2 py-0.5" style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', borderRadius: 'var(--radius-sm)' }}>
+                            {item.yearGroup}
+                          </span>
+                        ),
+                      },
+                      {
+                        id: 'status',
+                        header: 'Status',
+                        value: (item) => item.status,
+                        cell: (item) => {
                           const sc = item.status === 'Active'
                             ? { bg: 'var(--success-bg)', color: 'var(--success)' }
                             : { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
-                          return (
-                            <tr
-                              key={item.id}
-                              style={{ borderBottom: i < progItems.length - 1 ? '1px solid var(--border)' : 'none' }}
-                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{item.status}</span>
+                        },
+                      },
+                      {
+                        id: 'actions',
+                        header: '',
+                        className: 'text-right',
+                        cell: (item) => (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => openEdit(item)}
+                              className="flex items-center justify-center rounded-lg transition-colors duration-150"
+                              style={{ width: 30, height: 30, color: 'var(--muted-foreground)', background: 'none', border: 'none', cursor: 'pointer' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)'; e.currentTarget.style.color = 'var(--foreground)' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
+                              title="Edit fee item"
                             >
-                              <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 500 }}>
-                                {item.name}
-                              </td>
-                              <td style={{ padding: '14px 16px' }}>
-                                <span
-                                  className="t-label px-2 py-0.5"
-                                  style={{ backgroundColor: cc.bg, color: cc.color, borderRadius: 'var(--radius-sm)' }}
-                                >
-                                  {item.category}
-                                </span>
-                              </td>
-                              <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 600 }}>
-                                {formatCurrency(item.amount)}
-                              </td>
-                              <td className="t-caption" style={{ color: 'var(--muted-foreground)', padding: '14px 16px' }}>
-                                {item.dueDate}
-                              </td>
-                              <td style={{ padding: '14px 16px' }}>
-                                <span
-                                  className="t-label px-2 py-0.5"
-                                  style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', borderRadius: 'var(--radius-sm)' }}
-                                >
-                                  {item.yearGroup}
-                                </span>
-                              </td>
-                              <td style={{ padding: '14px 16px' }}>
-                                <span
-                                  className="t-label px-2 py-0.5"
-                                  style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}
-                                >
-                                  {item.status}
-                                </span>
-                              </td>
-                              <td style={{ padding: '14px 16px' }}>
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    onClick={() => openEdit(item)}
-                                    className="flex items-center justify-center rounded-lg transition-colors duration-150"
-                                    style={{ width: 30, height: 30, color: 'var(--muted-foreground)', background: 'none', border: 'none', cursor: 'pointer' }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)'; e.currentTarget.style.color = 'var(--foreground)' }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
-                                    title="Edit fee item"
-                                  >
-                                    <Pencil style={{ width: 14, height: 14 }} />
-                                  </button>
-                                  <button
-                                    onClick={() => setDeleteItem(item)}
-                                    className="flex items-center justify-center rounded-lg transition-colors duration-150"
-                                    style={{ width: 30, height: 30, color: 'var(--muted-foreground)', background: 'none', border: 'none', cursor: 'pointer' }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--error-bg)'; e.currentTarget.style.color = 'var(--error)' }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
-                                    title="Delete fee item"
-                                  >
-                                    <Trash2 style={{ width: 14, height: 14 }} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                              <Pencil style={{ width: 14, height: 14 }} />
+                            </button>
+                            <button
+                              onClick={() => setDeleteItem(item)}
+                              className="flex items-center justify-center rounded-lg transition-colors duration-150"
+                              style={{ width: 30, height: 30, color: 'var(--muted-foreground)', background: 'none', border: 'none', cursor: 'pointer' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--error-bg)'; e.currentTarget.style.color = 'var(--error)' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
+                              title="Delete fee item"
+                            >
+                              <Trash2 style={{ width: 14, height: 14 }} />
+                            </button>
+                          </div>
+                        ),
+                      },
+                    ]}
+                  />
                 </div>
               )
             })}

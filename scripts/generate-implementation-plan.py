@@ -101,10 +101,10 @@ def main():
 
     para(
         doc,
-        "This document is a plan only. No code has been written or changed. It explains "
-        "what already exists, what technology we should use, and exactly how we will "
-        "build the system step by step. It is written in simple English so that both "
-        "technical and non-technical readers can follow it.",
+        "This document is the living implementation plan. It explains what already "
+        "exists, who owns each part of the system, and the order we build the remaining "
+        "role portals. It is written in simple English so that both technical and "
+        "non-technical readers can follow it.",
     )
 
     # ── 1. Executive summary ─────────────────────────────────────────────────
@@ -124,14 +124,81 @@ def main():
     bullets(
         doc,
         [
-            "The look and feel of the app is almost finished. There are roughly 29,400 lines of "
-            "screen code across more than 100 screens.",
-            "Every screen currently shows fake (mock) data that is typed directly into the code. "
-            "Nothing is saved anywhere.",
-            "The backend is an empty shell. It has one endpoint that only replies 'ok'.",
-            "There is no database, no login, no file storage, no payments, and no AI yet.",
-            "One whole area is missing: the Librarian portal has only a placeholder page.",
+            "Foundation is live: Hono API, Drizzle, one Postgres database per institution, "
+            "session login, Cloudflare R2 uploads, and Resend email.",
+            "Public admissions is live: apply, documents, sandbox fee, submit, academic review, "
+            "and tracking.",
+            "The Student portal is live against real records: dashboard, courses, registration, "
+            "results, transcript, fees, sandbox payment, receipt, library, notifications, "
+            "timetable, onboarding, and assignment submit. StackEDU AI stays paused.",
+            "The ICT Manager portal is live: users, access levels, revocation, audit log, "
+            "institution settings, integrations with health checks, analytics, announcements, "
+            "notifications, and account settings (notification preferences stored in the database).",
+            "The Academic Admin portal is live: dashboard, applications inbox, students, courses "
+            "and programmes (create and edit), calendar (create, edit, delete), timetable "
+            "(read-only), faculty list, result approval, at-risk, reports, and notifications.",
+            "Lecturer, Bursar, and Librarian screens still show mock data. They will write into "
+            "the same tables the Student and Academic portals already read.",
+            "Every signed-in page shows a short guide box so staff and students know what "
+            "that screen is for.",
         ],
+    )
+
+    h2(doc, "1.4 Who owns what — and the build order")
+    para(
+        doc,
+        "Roles are interconnected. We do not build each portal as its own fake system. "
+        "Shared tables and APIs come first. Student, ICT, and Academic Admin are live. "
+        "Bursar is next for fee holds that block registration. Academic work that students "
+        "depend on — opening a semester, offerings, timetable — belongs to Academic Admin, "
+        "not ICT.",
+    )
+    table(
+        doc,
+        ["Action a student needs", "Who must do it first", "Why"],
+        [
+            [
+                "Sign in at all",
+                "ICT Manager",
+                "ICT creates and activates user accounts, roles, and access.",
+            ],
+            [
+                "Register for courses",
+                "Academic Admin, then Bursar if a hold exists",
+                "Academic Admin opens the current semester and offerings. A fee hold from the Bursar blocks registration.",
+            ],
+            [
+                "See a timetable / materials / assignments",
+                "Academic Admin, then Lecturer",
+                "Academic Admin assigns the lecturer and publishes the timetable. The lecturer uploads materials and assessments.",
+            ],
+            [
+                "Pay fees and clear a hold",
+                "Bursar",
+                "Bursar owns fee structures, invoices, reconciliation, and fee holds.",
+            ],
+            [
+                "See published results",
+                "Lecturer, then Academic Admin",
+                "Lecturer enters marks. Academic Admin publishes the batch.",
+            ],
+            [
+                "Open e-library items",
+                "Librarian",
+                "Librarian publishes catalogue resources.",
+            ],
+            [
+                "Activate a session / semester",
+                "Academic Admin",
+                "calendar.write — years, current semester, registration window. Not an ICT setting.",
+            ],
+        ],
+    )
+    para(
+        doc,
+        "Build order for the remaining portals: Bursar (fees and holds) → Lecturer "
+        "(teaching and results entry) → Librarian (catalogue). ICT and Academic Admin "
+        "are done. AI stays paused until the core portals are real.",
     )
 
     h2(doc, "1.2 The main recommendations in this document")
@@ -256,18 +323,17 @@ def main():
     numbered(
         doc,
         [
-            "No database exists. Every number on every screen is hard-coded in files such as "
-            "data/academic.ts and data/bursar.ts (about 3,500 lines of fake data in total).",
-            "No login exists. The authentication guard in routes/_auth.tsx contains the line "
-            "'const isAuthenticated = true', which means anyone can open any screen.",
-            "No API exists. The files in lib/api/ (students.ts, fees.ts, courses.ts, results.ts, "
-            "library.ts) are placeholders that deliberately throw a 'not implemented' error.",
-            "The Librarian portal is missing. Six of its seven screens do not exist.",
-            "File uploads are only visual. Files are held in browser memory and never sent anywhere.",
-            "Payments are only visual. The screens collect MoMo, Airtel, and card details but "
-            "nothing is charged.",
-            "The backend is configured for Cloudflare Workers (the wrangler tool), but the "
-            "decision is to run it as a Node server on Render. This must be changed early.",
+            "Lecturer, Bursar, and Librarian portals still use mock data files. Their screens "
+            "exist but do not yet read or write the institution database.",
+            "Academic timetable and full faculty management are read-only in the UI. Calendar, "
+            "programmes, and courses can be created and edited; timetable conflict detection "
+            "and lecturer assignment are not wired yet.",
+            "Live payment gateways (MoMo, Airtel, DPO) and production webhooks are not connected. "
+            "Student and admissions fees run in sandbox mode.",
+            "Two-factor authentication is blocked in account settings until a real TOTP flow exists.",
+            "The central notification service (SMS via Pindo, templated email beyond admissions) "
+            "is not built. In-app notification lists are live for Student, ICT, and Academic.",
+            "StackEDU AI features remain paused until core portals are complete.",
         ],
     )
 
@@ -1441,9 +1507,12 @@ def main():
     para(
         doc,
         "Note the strict separation between admin levels. A bursar cannot see results. "
-        "An academic admin cannot see payments. A librarian cannot see either. This is "
-        "a deliberate product requirement, not an oversight, and the API must enforce it "
-        "on every single endpoint.",
+        "An academic admin cannot see payments. A librarian cannot see either. ICT's "
+        "default job is the platform: users, roles, institution settings, integrations, "
+        "and the audit log. ICT does not activate semesters, edit the course catalogue, "
+        "or set fee structures — those stay with Academic Admin and the Bursar. Extra "
+        "permissions can be granted on the Access Levels screen, but ownership does not "
+        "move. The API must enforce this on every endpoint.",
     )
 
     h2(doc, "7.2 Protections we build in")
@@ -2214,6 +2283,13 @@ def main():
     )
 
     h2(doc, "Stage 2 — The Role Portals")
+    para(
+        doc,
+        "Admissions, Student, ICT Manager, and Academic Admin are live on real data. "
+        "Bursar is next so fee holds can block registration correctly. Every portal page "
+        "includes a short, dismissible guide that explains what the signed-in person can "
+        "do on that screen.",
+    )
 
     phase(
         doc,
@@ -2271,8 +2347,8 @@ def main():
         doc,
         5,
         "Student Portal",
-        "15 screens · the largest user group by far",
-        "4 weeks",
+        "15 screens · LIVE on real records · AI paused",
+        "Done",
         [
             (
                 "Screens covered",
@@ -2375,49 +2451,51 @@ def main():
         doc,
         7,
         "Academic Admin (Registrar) Portal",
-        "16 screens · the operational heart of the institution",
-        "4 weeks",
+        "18 screens · LIVE on real records · AI paused",
+        "Done (timetable write and full faculty CRUD remain)",
         [
             (
                 "Screens covered",
                 [
                     "dashboard, applications, application, students, student, courses, "
                     "programmes, programme, calendar, timetable, faculty, results, reports, "
-                    "at-risk, notifications, index",
+                    "at-risk, notifications, profile, settings, index",
                 ],
             ),
             (
-                "Backend work",
+                "Backend work (live)",
                 [
-                    "Student registry with search and filters, and full student record management.",
+                    "Student registry with search, filters, and student detail views.",
+                    "Applications inbox wired to the admissions API (review and decision).",
+                    "Programme and course catalogue: create and edit via API.",
+                    "Academic calendar: create, edit, and delete years, semesters, and events.",
+                    "Timetable read from enrolled offerings (display only; no write API yet).",
+                    "Faculty list from lecturer records (read-only; no add-or-assign API yet).",
+                    "Result approval workflow (approve and reject with audit).",
+                    "At-risk student list and academic reports from live aggregates.",
+                    "In-app notifications list with read state.",
+                    "Shared account profile and settings (notification preferences in DB).",
+                ],
+            ),
+            (
+                "Still to build",
+                [
+                    "Timetable manager with conflict detection and write endpoints.",
+                    "Faculty management and course assignment to lecturers.",
                     "Enrolment status changes: suspend, transfer, graduate, withdraw, each with "
                     "an audit entry.",
-                    "Programme and course catalogue management, including prerequisites and "
-                    "credit requirements.",
-                    "Academic calendar: years, semesters, registration windows, exam periods, "
-                    "holidays.",
-                    "Timetable manager with conflict detection.",
-                    "Faculty management and course assignment to lecturers.",
-                    "Result approval and batch publishing, which triggers notifications to every "
-                    "affected student.",
+                    "Result batch publishing as a background job with student notifications.",
                     "Result override with a mandatory reason and full audit trail.",
-                    "Academic report builder with export to Excel and PDF.",
-                ],
-            ),
-            (
-                "Careful points",
-                [
-                    "Batch publishing may affect thousands of students at once. It runs as a "
-                    "background job, not in a web request, and it must be safe to retry.",
-                    "Opening a registration window changes what thousands of students can do. It "
-                    "needs a clear confirmation step and is fully logged.",
+                    "Academic report export to Excel and PDF.",
                 ],
             ),
             (
                 "Done when",
                 [
-                    "A registrar can run a full semester cycle: set the calendar, open "
-                    "registration, assign lecturers, approve results, and publish them.",
+                    "A registrar can set the calendar, manage programmes and courses, review "
+                    "applications, approve results, and monitor at-risk students — all on live data.",
+                    "Timetable editing and full faculty assignment complete the remaining registrar "
+                    "workflow.",
                     "An academic admin cannot see any payment data, verified by test.",
                 ],
             ),
@@ -2534,41 +2612,46 @@ def main():
         doc,
         10,
         "ICT Manager Portal",
-        "15 screens · the controls that govern the platform",
-        "3 weeks",
+        "15 screens · LIVE on real records · platform controls only",
+        "Done",
         [
             (
                 "Screens covered",
                 [
                     "dashboard, users, user, access-levels, revocation, revocation-detail, "
                     "audit-log, audit-entry, settings, integrations, integration-detail, "
-                    "analytics, announcements, notifications, index",
+                    "analytics, announcements, notifications, profile, account-settings, index",
                 ],
             ),
             (
-                "Backend work",
+                "What ICT owns (live)",
                 [
-                    "Full user management for all roles, including bulk import of staff and "
-                    "students.",
-                    "Access level assignment, reading and writing the permission matrix.",
-                    "Access revocation with a mandatory reason and immediate session termination.",
-                    "Audit log search by user, action, date, and module, with export.",
-                    "Institution settings: branding, grading scale, notification templates, "
-                    "preferences.",
-                    "Integration management: store and test API keys for payment, SMS, and email "
-                    "providers. Keys are encrypted at rest and never shown again after saving.",
-                    "Platform-wide analytics across all modules.",
-                    "Announcement broadcasting to any segment of users.",
+                    "Create, edit, deactivate and restore logins for every role.",
+                    "When the role is Student, ICT also creates the student record so the "
+                    "person can sign in to the student portal.",
+                    "Access levels: grant or remove the seeded permission keys per role.",
+                    "Access revocation with a mandatory reason; all sessions for that user end.",
+                    "Append-only audit log with human-readable labels. Even ICT cannot edit or "
+                    "delete an entry.",
+                    "Institution identity settings: name, short name, contact email, timezone, "
+                    "locale. Not faculties, programmes, or the academic calendar.",
+                    "Integration on/off flags and connection health checks. Secrets stay in "
+                    "environment variables, never in the database.",
+                    "Analytics dashboard from live audit and user activity aggregates.",
+                    "Institution-wide announcements and ICT's own in-app notifications.",
+                    "Shared account profile and settings (password change revokes all sessions; "
+                    "2FA enable blocked until TOTP is implemented).",
+                    "A short guide box on every ICT and Student page.",
                 ],
             ),
             (
-                "Security focus",
+                "What ICT does not own",
                 [
-                    "This role can do everything, so its own actions receive the heaviest "
-                    "logging.",
-                    "Certain actions, such as deleting a user permanently, require re-entering "
-                    "the password.",
-                    "The audit log must be append-only. Even an ICT manager cannot edit it.",
+                    "Opening or closing a semester, registration windows, or 'current year'. "
+                    "That is Academic Admin (calendar.write).",
+                    "Fee structures, invoices, and fee holds. That is the Bursar.",
+                    "Course materials, attendance, and marks. That is the Lecturer.",
+                    "Publishing library resources. That is the Librarian.",
                 ],
             ),
             (
@@ -2576,6 +2659,7 @@ def main():
                 [
                     "An ICT manager can create every type of user, change access levels, revoke "
                     "access instantly, and trace any action in the audit log.",
+                    "Semester activation is not possible from the ICT portal.",
                 ],
             ),
         ],

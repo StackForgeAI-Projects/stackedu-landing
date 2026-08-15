@@ -8,7 +8,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
+import { accountSettingsPath, profilePath } from '@/lib/account-paths'
 import { cn } from '@/lib/utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,6 +36,9 @@ export function Header({
   onLogout,
 }: HeaderProps) {
   const [searchValue, setSearchValue] = useState('')
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const profileHref = profilePath(pathname)
+  const settingsHref = accountSettingsPath(pathname)
 
   return (
     <header
@@ -203,14 +207,14 @@ export function Header({
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild className="gap-2 cursor-pointer">
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <Link to={'/student/profile' as any}>
+              <Link to={profileHref as any}>
                 <User className="h-4 w-4" />
                 View Profile
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="gap-2 cursor-pointer">
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <Link to={'/student/settings' as any}>
+              <Link to={settingsHref as any}>
                 <Settings className="h-4 w-4" />
                 Account Settings
               </Link>

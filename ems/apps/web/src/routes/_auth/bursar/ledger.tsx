@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo } from 'react'
-import { ArrowUpDown, Download, X } from 'lucide-react'
+import { Download, X } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { DataTable } from '@/components/DataTable'
 import { StatTile } from '@/components/StatTile'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +14,7 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import {
   BURSAR, BURSAR_NAV, TRANSACTIONS, methodColors, statusColors,
-  type Transaction, type PaymentMethod, type TxnStatus,
+  type Transaction,
 } from '@/data/bursar'
 import { CreditCard, CheckCircle, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,19 +25,11 @@ export const Route = createFileRoute('/_auth/bursar/ledger')({
   component: LedgerPage,
 })
 
-type SortKey = 'date' | 'amount' | 'studentName' | 'status'
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 function LedgerPage() {
   const [methodFilter, setMethodFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [fromDate, setFromDate]         = useState('')
   const [toDate, setToDate]             = useState('')
-  const [sortKey, setSortKey]           = useState<SortKey>('date')
-  const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc')
-  const [page, setPage]                 = useState(1)
-  const [pageSize, setPageSize]         = useState(10)
   const [selectedTxn, setSelectedTxn]  = useState<Transaction | null>(null)
 
   const filtered = useMemo(() => {
@@ -46,26 +39,6 @@ function LedgerPage() {
       return true
     })
   }, [methodFilter, statusFilter, fromDate, toDate])
-
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      let cmp = 0
-      if (sortKey === 'date')        cmp = a.date.localeCompare(b.date)
-      else if (sortKey === 'amount') cmp = a.amount - b.amount
-      else if (sortKey === 'studentName') cmp = a.studentName.localeCompare(b.studentName)
-      else if (sortKey === 'status') cmp = a.status.localeCompare(b.status)
-      return sortDir === 'asc' ? cmp : -cmp
-    })
-  }, [filtered, sortKey, sortDir])
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
-  const paginated  = sorted.slice((page - 1) * pageSize, page * pageSize)
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(key); setSortDir('asc') }
-    setPage(1)
-  }
 
   const paidCount   = filtered.filter((t) => t.status === 'Paid').length
   const totalAmount = filtered.filter((t) => t.status === 'Paid').reduce((s, t) => s + t.amount, 0)
@@ -106,7 +79,7 @@ function LedgerPage() {
                 <input
                   type="date"
                   value={fromDate}
-                  onChange={(e) => { setFromDate(e.target.value); setPage(1) }}
+                  onChange={(e) => setFromDate(e.target.value)}
                   className="text-sm rounded-lg px-3 py-2 outline-none"
                   style={{
                     border: '1px solid var(--border)',
@@ -121,7 +94,7 @@ function LedgerPage() {
                 <input
                   type="date"
                   value={toDate}
-                  onChange={(e) => { setToDate(e.target.value); setPage(1) }}
+                  onChange={(e) => setToDate(e.target.value)}
                   className="text-sm rounded-lg px-3 py-2 outline-none"
                   style={{
                     border: '1px solid var(--border)',
@@ -131,7 +104,7 @@ function LedgerPage() {
                   }}
                 />
               </div>
-              <Select value={methodFilter} onValueChange={(v) => { setMethodFilter(v); setPage(1) }}>
+              <Select value={methodFilter} onValueChange={setMethodFilter}>
                 <SelectTrigger className="w-36 text-sm h-9">
                   <SelectValue placeholder="Method" />
                 </SelectTrigger>
@@ -143,7 +116,7 @@ function LedgerPage() {
                   <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1) }}>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-32 text-sm h-9">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -197,159 +170,77 @@ function LedgerPage() {
             />
           </div>
 
-          {/* Transactions table */}
-          <div
-            style={{
-              backgroundColor: 'var(--card)',
-              borderRadius: 'var(--radius-xl)',
-              boxShadow: 'var(--shadow-sm)',
-              border: '1px solid var(--border)',
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {[
-                      { key: null,             label: 'Transaction ID' },
-                      { key: 'studentName' as SortKey, label: 'Student Name' },
-                      { key: null,             label: 'Student ID'     },
-                      { key: 'date' as SortKey,label: 'Date & Time'    },
-                      { key: null,             label: 'Description'    },
-                      { key: 'amount' as SortKey, label: 'Amount'      },
-                      { key: null,             label: 'Method'         },
-                      { key: 'status' as SortKey, label: 'Status'      },
-                    ].map(({ key, label }) => (
-                      <th
-                        key={label}
-                        onClick={() => key && handleSort(key)}
-                        className="t-label text-left"
-                        style={{
-                          color: 'var(--muted-foreground)',
-                          padding: '12px 16px',
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap',
-                          cursor: key ? 'pointer' : 'default',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          {label}
-                          {key && (
-                            <ArrowUpDown
-                              style={{
-                                width: 12,
-                                height: 12,
-                                opacity: sortKey === key ? 1 : 0.35,
-                                color: sortKey === key ? 'var(--foreground)' : 'var(--muted-foreground)',
-                              }}
-                            />
-                          )}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((txn, i) => {
-                    const mc = methodColors(txn.method)
-                    const sc = statusColors(txn.status)
-                    return (
-                      <tr
-                        key={txn.id}
-                        onClick={() => setSelectedTxn(txn)}
-                        style={{
-                          borderBottom: i < paginated.length - 1 ? '1px solid var(--border)' : 'none',
-                          cursor: 'pointer',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                      >
-                        <td style={{ padding: '14px 16px' }}>
-                          <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.txnId}</span>
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                          {txn.studentName}
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.studentId}</span>
-                        </td>
-                        <td className="t-caption" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                          {txn.date} · {txn.time}
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', maxWidth: 200 }}>
-                          <span className="truncate block">{txn.description}</span>
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right' }}>
-                          {formatCurrency(txn.amount)}
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span
-                            className="t-label px-2 py-0.5"
-                            style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}
-                          >
-                            {txn.method}
-                          </span>
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span
-                            className="t-label px-2 py-0.5"
-                            style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}
-                          >
-                            {txn.status}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  {paginated.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="text-sm text-center py-12" style={{ color: 'var(--muted-foreground)' }}>
-                        No transactions match the selected filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            <div
-              className="flex items-center justify-between px-4 py-3"
-              style={{ borderTop: '1px solid var(--border)' }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Show</span>
-                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                  <SelectTrigger className="h-8 w-16 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>per page</span>
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>
-                  {sorted.length === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, sorted.length)}`} of {sorted.length} entries
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>
-                  Previous
-                </Button>
-                <span className="t-caption px-1" style={{ color: 'var(--muted-foreground)' }}>
-                  {page} / {totalPages}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>
-                  Next
-                </Button>
-              </div>
-            </div>
-          </div>
+          <DataTable
+            rows={filtered}
+            rowKey={(txn) => String(txn.id)}
+            searchPlaceholder="Search transactions…"
+            empty="No transactions match the selected filters."
+            defaultPageSize={10}
+            onRowClick={(txn) => setSelectedTxn(txn)}
+            columns={[
+              {
+                id: 'txnId',
+                header: 'Transaction ID',
+                value: (txn) => txn.txnId,
+                cell: (txn) => <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.txnId}</span>,
+              },
+              {
+                id: 'studentName',
+                header: 'Student Name',
+                value: (txn) => txn.studentName,
+                sortable: true,
+                cell: (txn) => <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{txn.studentName}</span>,
+              },
+              {
+                id: 'studentId',
+                header: 'Student ID',
+                value: (txn) => txn.studentId,
+                cell: (txn) => <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{txn.studentId}</span>,
+              },
+              {
+                id: 'date',
+                header: 'Date & Time',
+                value: (txn) => `${txn.date} ${txn.time}`,
+                sortable: true,
+                sortValue: (txn) => txn.date,
+                cell: (txn) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{txn.date} · {txn.time}</span>,
+              },
+              {
+                id: 'description',
+                header: 'Description',
+                value: (txn) => txn.description,
+                cell: (txn) => <span className="text-sm truncate block" style={{ color: 'var(--muted-foreground)', maxWidth: 200 }}>{txn.description}</span>,
+              },
+              {
+                id: 'amount',
+                header: 'Amount',
+                value: (txn) => txn.amount,
+                sortable: true,
+                sortValue: (txn) => txn.amount,
+                className: 'text-right',
+                cell: (txn) => <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{formatCurrency(txn.amount)}</span>,
+              },
+              {
+                id: 'method',
+                header: 'Method',
+                value: (txn) => txn.method,
+                cell: (txn) => {
+                  const mc = methodColors(txn.method)
+                  return <span className="t-label px-2 py-0.5" style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>{txn.method}</span>
+                },
+              },
+              {
+                id: 'status',
+                header: 'Status',
+                value: (txn) => txn.status,
+                sortable: true,
+                cell: (txn) => {
+                  const sc = statusColors(txn.status)
+                  return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{txn.status}</span>
+                },
+              },
+            ]}
+          />
         </div>
       </div>
 

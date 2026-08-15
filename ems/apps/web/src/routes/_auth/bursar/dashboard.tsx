@@ -8,6 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { AppShell } from '@/components/AppShell'
+import { DataTable } from '@/components/DataTable'
 import { StatTile } from '@/components/StatTile'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -122,18 +123,8 @@ function BursarDashboardPage() {
 
 function RecentTransactionsCard({ transactions }: { transactions: typeof TRANSACTIONS }) {
   return (
-    <div
-      className="mb-5 animate-fade-up"
-      style={{
-        backgroundColor: 'var(--card)',
-        borderRadius: 'var(--radius-xl)',
-        boxShadow: 'var(--shadow-sm)',
-        border: '1px solid var(--border)',
-        padding: 24,
-        animationDelay: '60ms',
-      }}
-    >
-      <div className="flex items-center justify-between mb-5">
+    <div className="mb-5 animate-fade-up" style={{ animationDelay: '60ms' }}>
+      <div className="flex items-center justify-between mb-3">
         <h2 className="t-h3" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>
           Recent Transactions
         </h2>
@@ -145,76 +136,57 @@ function RecentTransactionsCard({ transactions }: { transactions: typeof TRANSAC
           View all →
         </Link>
       </div>
-
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              {['Student', 'Student ID', 'Amount', 'Method', 'Status', 'Time'].map((h) => (
-                <th
-                  key={h}
-                  className="t-label text-left"
-                  style={{
-                    color: 'var(--muted-foreground)',
-                    paddingBottom: 10,
-                    borderBottom: '1px solid var(--border)',
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    paddingRight: 16,
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((txn, i) => {
+      <DataTable
+        rows={transactions}
+        rowKey={(txn) => String(txn.id)}
+        searchPlaceholder="Search transactions…"
+        empty="No recent transactions."
+        defaultPageSize={10}
+        columns={[
+          {
+            id: 'student',
+            header: 'Student',
+            value: (txn) => txn.studentName,
+            cell: (txn) => <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{txn.studentName}</span>,
+          },
+          {
+            id: 'studentId',
+            header: 'Student ID',
+            value: (txn) => txn.studentId,
+            cell: (txn) => <span className="t-mono" style={{ color: 'var(--muted-foreground)' }}>{txn.studentId}</span>,
+          },
+          {
+            id: 'amount',
+            header: 'Amount',
+            value: (txn) => txn.amount,
+            cell: (txn) => <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{formatCurrency(txn.amount)}</span>,
+          },
+          {
+            id: 'method',
+            header: 'Method',
+            value: (txn) => txn.method,
+            cell: (txn) => {
               const mc = methodColors(txn.method)
+              return <span className="t-label px-2 py-0.5" style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>{txn.method}</span>
+            },
+          },
+          {
+            id: 'status',
+            header: 'Status',
+            value: (txn) => txn.status,
+            cell: (txn) => {
               const sc = statusColors(txn.status)
-              return (
-                <tr
-                  key={txn.id}
-                  style={{
-                    borderBottom: i < transactions.length - 1 ? '1px solid var(--border)' : 'none',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px 14px 0', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                    {txn.studentName}
-                  </td>
-                  <td style={{ padding: '14px 16px 14px 0' }}>
-                    <span className="t-mono" style={{ color: 'var(--muted-foreground)' }}>{txn.studentId}</span>
-                  </td>
-                  <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px 14px 0', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                    {formatCurrency(txn.amount)}
-                  </td>
-                  <td style={{ padding: '14px 16px 14px 0' }}>
-                    <span
-                      className="t-label px-2 py-0.5"
-                      style={{ backgroundColor: mc.bg, color: mc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}
-                    >
-                      {txn.method}
-                    </span>
-                  </td>
-                  <td style={{ padding: '14px 16px 14px 0' }}>
-                    <span
-                      className="t-label px-2 py-0.5"
-                      style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}
-                    >
-                      {txn.status}
-                    </span>
-                  </td>
-                  <td className="t-caption" style={{ color: 'var(--muted-foreground)', padding: '14px 0', whiteSpace: 'nowrap' }}>
-                    {txn.date} · {txn.time}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{txn.status}</span>
+            },
+          },
+          {
+            id: 'time',
+            header: 'Time',
+            value: (txn) => `${txn.date} · ${txn.time}`,
+            cell: (txn) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{txn.date} · {txn.time}</span>,
+          },
+        ]}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageContent } from '@/components/PageContent'
 import { Link } from '@tanstack/react-router'
 import {
   Search, User, Lock, LogOut, CheckCircle2, Info, X, ChevronDown,
@@ -112,13 +113,7 @@ export function ApplyLayout({
           className="flex-1 overflow-y-auto"
           style={{ backgroundColor: 'var(--background)' }}
         >
-          <div
-            style={{
-              maxWidth: 860,
-              margin:   '0 auto',
-              padding:  '2rem',
-            }}
-          >
+          <PageContent className="py-8">
             {/* Instruction banner */}
             {showBanner && !bannerDismissed && (
               <div
@@ -147,7 +142,7 @@ export function ApplyLayout({
             )}
 
             {children}
-          </div>
+          </PageContent>
         </main>
       </div>
 

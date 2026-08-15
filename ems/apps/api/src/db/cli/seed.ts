@@ -10,6 +10,8 @@ import { provisionInstitution } from '../provision'
 import { institutions, userDirectory } from '../platform/schema'
 import { departments, faculties, programmes } from '../institution/schema/academic'
 import { students } from '../institution/schema/students'
+import { seedStudentPortal } from './seed-student-portal'
+import { seedAcademicPortal } from './seed-academic-portal'
 
 /**
  * Creates the institution, its academic structure, and one account per role.
@@ -229,6 +231,9 @@ async function main() {
 
   process.stdout.write('\nAccounts\n')
 
+  let academicAdminUserId: string | undefined
+  let lecturerUserId: string | undefined
+
   for (const account of ACCOUNTS) {
     const [existing] = await db
       .select({
@@ -260,8 +265,20 @@ async function main() {
 
     if (account.role === 'Student' && userId) {
       await ensureStudentRecord(institution.id, userId)
+      await seedStudentPortal(institution.id, userId)
       process.stdout.write(`                 student number     ${STUDENT_NUMBER}\n`)
     }
+
+    if (account.role === 'AcademicAdmin' && userId) {
+      academicAdminUserId = userId
+    }
+    if (account.role === 'Lecturer' && userId) {
+      lecturerUserId = userId
+    }
+  }
+
+  if (academicAdminUserId && lecturerUserId) {
+    await seedAcademicPortal(institution.id, academicAdminUserId, lecturerUserId)
   }
 
   await closeAllConnections()

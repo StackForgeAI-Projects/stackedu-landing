@@ -7,6 +7,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { AppShell } from '@/components/AppShell'
+import { DataTable } from '@/components/DataTable'
 import { StatTile } from '@/components/StatTile'
 import { Button } from '@/components/ui/button'
 import {
@@ -425,66 +426,61 @@ function ReportsPage() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Breakdown table */}
-              <div
-                style={{
-                  backgroundColor: 'var(--card)',
-                  borderRadius: 'var(--radius-xl)',
-                  border: '1px solid var(--border)',
-                  boxShadow: 'var(--shadow-sm)',
-                  overflow: 'hidden',
-                }}
+              <h3
+                className="t-h3 mb-3"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', fontSize: '1rem' }}
               >
-                <div style={{ padding: '20px 24px 0', borderBottom: '1px solid var(--border)' }}>
-                  <h3
-                    className="t-h3 mb-4"
-                    style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', fontSize: '1rem' }}
-                  >
-                    Breakdown by Programme
-                  </h3>
-                </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Programme', 'Students', 'Total Collected', 'Outstanding', 'Collection Rate'].map((h) => (
-                        <th
-                          key={h}
-                          className="t-label text-left"
-                          style={{ color: 'var(--muted-foreground)', padding: '12px 24px', fontWeight: 600 }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {BREAKDOWN_DATA.map((row, i) => {
+                Breakdown by Programme
+              </h3>
+              <DataTable
+                rows={BREAKDOWN_DATA}
+                rowKey={(row) => row.name}
+                hideSearch
+                empty="No programme breakdown."
+                defaultPageSize={10}
+                columns={[
+                  {
+                    id: 'name',
+                    header: 'Programme',
+                    value: (row) => row.name,
+                    cell: (row) => <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{row.name}</span>,
+                  },
+                  {
+                    id: 'students',
+                    header: 'Students',
+                    value: (row) => row.students,
+                    cell: (row) => <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{row.students}</span>,
+                  },
+                  {
+                    id: 'collected',
+                    header: 'Total Collected',
+                    value: (row) => row.collected,
+                    cell: (row) => <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{formatCurrency(row.collected)}</span>,
+                  },
+                  {
+                    id: 'outstanding',
+                    header: 'Outstanding',
+                    value: (row) => row.outstanding,
+                    cell: (row) => <span className="text-sm font-medium" style={{ color: 'var(--warning)' }}>{formatCurrency(row.outstanding)}</span>,
+                  },
+                  {
+                    id: 'rate',
+                    header: 'Collection Rate',
+                    value: (row) => Math.round((row.collected / (row.collected + row.outstanding)) * 100),
+                    cell: (row) => {
                       const rate = Math.round((row.collected / (row.collected + row.outstanding)) * 100)
                       return (
-                        <tr
-                          key={row.name}
-                          style={{ borderBottom: i < BREAKDOWN_DATA.length - 1 ? '1px solid var(--border)' : 'none' }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                        >
-                          <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 24px', fontWeight: 500 }}>{row.name}</td>
-                          <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 24px' }}>{row.students}</td>
-                          <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 24px', fontWeight: 600 }}>{formatCurrency(row.collected)}</td>
-                          <td className="text-sm" style={{ color: 'var(--warning)', padding: '14px 24px', fontWeight: 500 }}>{formatCurrency(row.outstanding)}</td>
-                          <td style={{ padding: '14px 24px' }}>
-                            <div className="flex items-center gap-2">
-                              <div style={{ flex: 1, height: 5, backgroundColor: 'var(--muted)', borderRadius: 9999, overflow: 'hidden' }}>
-                                <div style={{ width: `${rate}%`, height: '100%', backgroundColor: 'var(--brand)', borderRadius: 9999 }} />
-                              </div>
-                              <span className="text-sm font-semibold" style={{ color: 'var(--foreground)', minWidth: 36 }}>{rate}%</span>
-                            </div>
-                          </td>
-                        </tr>
+                        <div className="flex items-center gap-2">
+                          <div style={{ flex: 1, height: 5, backgroundColor: 'var(--muted)', borderRadius: 9999, overflow: 'hidden' }}>
+                            <div style={{ width: `${rate}%`, height: '100%', backgroundColor: 'var(--brand)', borderRadius: 9999 }} />
+                          </div>
+                          <span className="text-sm font-semibold" style={{ color: 'var(--foreground)', minWidth: 36 }}>{rate}%</span>
+                        </div>
                       )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    },
+                  },
+                ]}
+              />
 
             </div>
           )}

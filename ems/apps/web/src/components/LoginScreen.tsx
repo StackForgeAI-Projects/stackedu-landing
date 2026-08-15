@@ -11,6 +11,7 @@ import { login, sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
 import { notifyError } from '@/lib/notify'
+import { rememberWelcome } from '@/lib/welcome'
 import { queryClient } from '@/lib/query-client'
 
 export function LoginScreen() {
@@ -33,6 +34,7 @@ export function LoginScreen() {
     try {
       const user = await login({ identifier, password, rememberMe })
       queryClient.setQueryData(sessionQueryKey, user)
+      rememberWelcome(user.fullName)
       await navigate({ to: dashboardFor(user.role) })
     } catch (cause) {
       notifyError(apiErrorMessage(cause, 'We could not sign you in. Please try again.'))

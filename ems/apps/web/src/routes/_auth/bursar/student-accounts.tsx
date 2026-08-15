@@ -1,16 +1,12 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState, useMemo } from 'react'
-import { Search, Download } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { DataTable } from '@/components/DataTable'
 import { StatTile } from '@/components/StatTile'
 import { Button } from '@/components/ui/button'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { formatCurrency } from '@/lib/utils'
 import {
   BURSAR, BURSAR_NAV, BURSAR_STUDENTS, statusColors,
-  type BursarStudent,
 } from '@/data/bursar'
 import { toast } from 'sonner'
 import { Users, AlertCircle, Lock } from 'lucide-react'
@@ -25,24 +21,6 @@ export const Route = createFileRoute('/_auth/bursar/student-accounts')({
 
 function StudentAccountsPage() {
   const navigate = useNavigate()
-
-  const [search, setSearch]        = useState('')
-  const [programmeFilter, setProg] = useState('all')
-  const [statusFilter, setStatus]  = useState('all')
-  const [page, setPage]            = useState(1)
-  const [pageSize, setPageSize]    = useState(10)
-
-  const filtered = useMemo(() => {
-    return BURSAR_STUDENTS.filter((s) => {
-      if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.id.includes(search)) return false
-      if (programmeFilter !== 'all' && s.programme !== programmeFilter) return false
-      if (statusFilter !== 'all' && s.status !== statusFilter) return false
-      return true
-    })
-  }, [search, programmeFilter, statusFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const paginated  = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   const totalOutstanding = BURSAR_STUDENTS.reduce((s, st) => s + st.outstanding, 0)
   const holdCount        = BURSAR_STUDENTS.filter((s) => s.hasHold).length
@@ -118,163 +96,83 @@ function StudentAccountsPage() {
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-3 mb-6 flex-wrap">
-            <div
-              className="flex items-center gap-2 rounded-xl px-3 h-9 flex-1"
-              style={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                minWidth: 220,
-                maxWidth: 320,
-              }}
-            >
-              <Search style={{ width: 14, height: 14, color: 'var(--muted-foreground)', flexShrink: 0 }} />
-              <input
-                type="text"
-                placeholder="Search by name or ID…"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                className="flex-1 text-sm bg-transparent outline-none"
-                style={{ color: 'var(--foreground)' }}
-              />
-            </div>
-            <Select value={programmeFilter} onValueChange={(v) => { setProg(v); setPage(1) }}>
-              <SelectTrigger className="w-44 text-sm h-9">
-                <SelectValue placeholder="Programme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Programmes</SelectItem>
-                <SelectItem value="Computer Science">Computer Science</SelectItem>
-                <SelectItem value="Business Administration">Business Administration</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={(v) => { setStatus(v); setPage(1) }}>
-              <SelectTrigger className="w-36 text-sm h-9">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Paid">Paid</SelectItem>
-                <SelectItem value="Outstanding">Outstanding</SelectItem>
-                <SelectItem value="On Hold">On Hold</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Table */}
-          <div
-            style={{
-              backgroundColor: 'var(--card)',
-              borderRadius: 'var(--radius-xl)',
-              border: '1px solid var(--border)',
-              boxShadow: 'var(--shadow-sm)',
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ overflowX: 'auto', overflowY: 'visible' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Student ID', 'Name', 'Programme', 'Year', 'Total Fees', 'Amount Paid', 'Outstanding', 'Status'].map((h) => (
-                      <th
-                        key={h}
-                        className="t-label text-left"
-                        style={{ color: 'var(--muted-foreground)', padding: '12px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((student, i) => {
-                    const sc = statusColors(student.status)
-                    const outstandingColor = student.outstanding > 0 ? 'var(--warning)' : 'var(--success)'
-                    return (
-                      <tr
-                        key={student.id}
-                        onClick={() => navigate({ to: '/bursar/student-account', search: { id: student.id } })}
-                        style={{
-                          borderBottom: i < paginated.length - 1 ? '1px solid var(--border)' : 'none',
-                          cursor: 'pointer',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                      >
-                        <td style={{ padding: '14px 16px' }}>
-                          <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{student.id}</span>
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                          {student.name}
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                          {student.programme}
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '14px 16px', textAlign: 'center' }}>
-                          {student.year}
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 500 }}>
-                          {formatCurrency(student.totalFees)}
-                        </td>
-                        <td className="text-sm" style={{ color: 'var(--foreground)', padding: '14px 16px', fontWeight: 500 }}>
-                          {formatCurrency(student.amountPaid)}
-                        </td>
-                        <td className="text-sm" style={{ color: outstandingColor, padding: '14px 16px', fontWeight: 600 }}>
-                          {formatCurrency(student.outstanding)}
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span
-                            className="t-label px-2 py-0.5"
-                            style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}
-                          >
-                            {student.status}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  {paginated.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="text-sm text-center py-12" style={{ color: 'var(--muted-foreground)' }}>
-                        No students match the selected filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            <div
-              className="flex items-center justify-between px-4 py-3"
-              style={{ borderTop: '1px solid var(--border)' }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Show</span>
-                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                  <SelectTrigger className="h-8 w-16 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>per page</span>
-                <span className="t-caption" style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>
-                  {filtered.length === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)}`} of {filtered.length} entries
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>Previous</Button>
-                <span className="t-caption px-1" style={{ color: 'var(--muted-foreground)' }}>{page} / {totalPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>Next</Button>
-              </div>
-            </div>
-          </div>
+          <DataTable
+            rows={BURSAR_STUDENTS}
+            rowKey={(student) => student.id}
+            searchPlaceholder="Search by name or ID…"
+            searchFilter={(s, query) =>
+              s.name.toLowerCase().includes(query) || s.id.toLowerCase().includes(query)
+            }
+            filters={[
+              { id: 'programme', label: 'programmes', getValue: (s) => s.programme },
+              { id: 'status', label: 'statuses', getValue: (s) => s.status },
+            ]}
+            empty="No students match the selected filters."
+            defaultPageSize={10}
+            onRowClick={(student) => navigate({ to: '/bursar/student-account', search: { id: student.id } })}
+            columns={[
+              {
+                id: 'id',
+                header: 'Student ID',
+                value: (student) => student.id,
+                cell: (student) => <span className="t-mono" style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{student.id}</span>,
+              },
+              {
+                id: 'name',
+                header: 'Name',
+                value: (student) => student.name,
+                cell: (student) => <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{student.name}</span>,
+              },
+              {
+                id: 'programme',
+                header: 'Programme',
+                value: (student) => student.programme,
+                cell: (student) => <span className="text-sm whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{student.programme}</span>,
+              },
+              {
+                id: 'year',
+                header: 'Year',
+                value: (student) => student.year,
+                className: 'text-center',
+                cell: (student) => <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{student.year}</span>,
+              },
+              {
+                id: 'totalFees',
+                header: 'Total Fees',
+                value: (student) => student.totalFees,
+                cell: (student) => <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{formatCurrency(student.totalFees)}</span>,
+              },
+              {
+                id: 'amountPaid',
+                header: 'Amount Paid',
+                value: (student) => student.amountPaid,
+                cell: (student) => <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{formatCurrency(student.amountPaid)}</span>,
+              },
+              {
+                id: 'outstanding',
+                header: 'Outstanding',
+                value: (student) => student.outstanding,
+                cell: (student) => (
+                  <span className="text-sm font-semibold" style={{ color: student.outstanding > 0 ? 'var(--warning)' : 'var(--success)' }}>
+                    {formatCurrency(student.outstanding)}
+                  </span>
+                ),
+              },
+              {
+                id: 'status',
+                header: 'Status',
+                value: (student) => student.status,
+                cell: (student) => {
+                  const sc = statusColors(student.status)
+                  return (
+                    <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>
+                      {student.status}
+                    </span>
+                  )
+                },
+              },
+            ]}
+          />
 
         </div>
       </div>

@@ -14,7 +14,7 @@ const PORTALS: ReadonlyArray<{ prefix: string; role: UserRole; home: string }> =
   { prefix: '/lecturer', role: 'Lecturer', home: '/lecturer/dashboard' },
   { prefix: '/bursar', role: 'Bursar', home: '/bursar/dashboard' },
   { prefix: '/academic', role: 'AcademicAdmin', home: '/academic/dashboard' },
-  { prefix: '/librarian', role: 'Librarian', home: '/librarian' },
+  { prefix: '/librarian', role: 'Librarian', home: '/librarian/dashboard' },
   { prefix: '/ict', role: 'ICTManager', home: '/ict/dashboard' },
 ]
 

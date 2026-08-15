@@ -1,0 +1,169 @@
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Mail, Pencil, Phone } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { accountProfileQueryKey, getAccountProfile, updateAccountProfile } from '@/lib/api/account'
+import { apiErrorMessage } from '@/lib/api/client'
+import { sessionQueryKey } from '@/lib/api/auth'
+import { ictProfileQueryKey } from '@/lib/api/ict'
+import { studentProfileQueryKey } from '@/lib/api/student'
+import { initialsFrom } from '@/lib/utils'
+import { notifyError, notifySuccess } from '@/lib/notify'
+
+export interface ProfileField {
+  icon: React.ElementType
+  label: string
+  value: string
+  mono?: boolean
+}
+
+interface AccountProfileViewProps {
+  breadcrumb: string
+  subtitle: string
+  extraFields?: ProfileField[]
+}
+
+export function AccountProfileView({ breadcrumb, subtitle, extraFields = [] }: AccountProfileViewProps) {
+  const queryClient = useQueryClient()
+  const { data, isPending, error } = useQuery({ queryKey: accountProfileQueryKey, queryFn: getAccountProfile })
+  const [open, setOpen] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: updateAccountProfile,
+    onSuccess: async (result) => {
+      queryClient.setQueryData(accountProfileQueryKey, result.profile)
+      queryClient.setQueryData(sessionQueryKey, result.user)
+      await queryClient.invalidateQueries({ queryKey: studentProfileQueryKey })
+      await queryClient.invalidateQueries({ queryKey: ictProfileQueryKey })
+      notifySuccess('Profile updated.')
+      setOpen(false)
+    },
+    onError: (cause) => notifyError(apiErrorMessage(cause, 'Could not update your profile.')),
+  })
+
+  if (isPending) return <p className="t-body p-8" style={{ color: 'var(--muted-foreground)' }}>Loading profile…</p>
+  if (error || !data) {
+    return <p className="t-body p-8" style={{ color: 'var(--error)' }}>{apiErrorMessage(error, 'Could not load your profile.')}</p>
+  }
+
+  const fields: ProfileField[] = [
+    { icon: Mail, label: 'Email', value: data.email },
+    { icon: Phone, label: 'Phone', value: data.phone ?? '—' },
+    ...extraFields,
+  ]
+
+  return (
+    <div className="animate-fade-up" style={{ padding: '32px 16px 48px', maxWidth: 760, margin: '0 auto' }}>
+      <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--muted-foreground)', fontSize: '0.8125rem' }}>
+        <span>{breadcrumb}</span>
+        <span>›</span>
+        <span style={{ color: 'var(--foreground)' }}>My Profile</span>
+      </div>
+      <h1 className="t-h1 mb-6" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.015em' }}>My Profile</h1>
+
+      <div
+        className="flex flex-col sm:flex-row sm:items-center gap-5 mb-6"
+        style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 28 }}
+      >
+        <div className="flex items-center justify-center rounded-full flex-shrink-0" style={{ width: 72, height: 72, backgroundColor: 'var(--ink)' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'var(--brand)' }}>
+            {initialsFrom(data.fullName)}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="t-h2" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>{data.fullName}</h2>
+          <p className="t-body mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{subtitle}</p>
+        </div>
+        <Button variant="outline" className="gap-2 flex-shrink-0" onClick={() => setOpen(true)}>
+          <Pencil size={14} />
+          Edit profile
+        </Button>
+      </div>
+
+      <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 28 }}>
+        <h3 className="t-h3 mb-5" style={{ fontFamily: 'var(--font-display)' }}>Personal Information</h3>
+        {fields.map((field, index) => (
+          <div
+            key={field.label}
+            className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-3.5"
+            style={{ borderBottom: index === fields.length - 1 ? 'none' : '1px solid var(--border)' }}
+          >
+            <div className="flex items-center justify-center rounded-lg flex-shrink-0" style={{ width: 34, height: 34, backgroundColor: 'var(--muted)' }}>
+              <field.icon size={15} style={{ color: 'var(--muted-foreground)' }} />
+            </div>
+            <span className="t-label flex-shrink-0" style={{ color: 'var(--muted-foreground)', width: 140 }}>{field.label}</span>
+            <span className="text-sm flex-1 break-all" style={{ fontFamily: field.mono ? 'var(--font-mono)' : undefined }}>{field.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="p-0 border-l overflow-hidden flex flex-col w-full sm:max-w-md">
+          <EditProfileForm
+            profile={{ fullName: data.fullName, email: data.email, phone: data.phone ?? '' }}
+            saving={mutation.isPending}
+            onSave={(payload) => mutation.mutate(payload)}
+            onClose={() => setOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+    </div>
+  )
+}
+
+function EditProfileForm({
+  profile,
+  saving,
+  onSave,
+  onClose,
+}: {
+  profile: { fullName: string; email: string; phone: string }
+  saving: boolean
+  onSave: (data: { fullName: string; email: string; phone: string | null }) => void
+  onClose: () => void
+}) {
+  const [fullName, setFullName] = useState(profile.fullName)
+  const [email, setEmail] = useState(profile.email)
+  const [phone, setPhone] = useState(profile.phone)
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-shrink-0 px-6 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem', fontWeight: 600, letterSpacing: '-0.01em' }}>Edit Profile</h2>
+        <p className="t-caption mt-1" style={{ color: 'var(--muted-foreground)' }}>Update your personal contact details.</p>
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label>Full Name</Label>
+            <Input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Email</Label>
+            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Phone</Label>
+            <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+250788123456" />
+          </div>
+        </div>
+      </div>
+      <div className="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button
+          disabled={saving || !fullName.trim() || !email.trim()}
+          onClick={() => onSave({
+            fullName: fullName.trim(),
+            email: email.trim(),
+            phone: phone.trim() ? phone.trim().replace(/[\s-]/g, '') : null,
+          })}
+        >
+          Save changes
+        </Button>
+      </div>
+    </div>
+  )
+}

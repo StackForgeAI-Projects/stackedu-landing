@@ -1,105 +1,132 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import { ChevronLeft, CheckCircle2, AlertCircle, Clock, RotateCcw, XCircle } from 'lucide-react'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { AppShell } from '@/components/AppShell'
-import { ACADEMIC_ADMIN, ACADEMIC_NAV, ACADEMIC_STUDENTS, studentStatusColors, gradeColors } from '@/data/academic'
-
-// ─────────────────────────────────────────────────────────────────────────────
+import { AcademicShell } from '@/components/AcademicShell'
+import { DataTable } from '@/components/DataTable'
+import { studentStatusColors, gradeColors } from '@/data/academic'
+import {
+  academicStudentQueryKey,
+  getAcademicStudent,
+} from '@/lib/api/academic'
+import { apiErrorMessage } from '@/lib/api/client'
+import { formatCurrency } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/academic/student')({
-  validateSearch: (s: Record<string, unknown>) => ({ id: (s.id as string) || 'SFE-2024-0042' }),
+  validateSearch: (s: Record<string, unknown>) => ({ id: (s.id as string) || '' }),
   component: StudentProfilePage,
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 type Tab = 'personal' | 'academic' | 'history'
 
-// Mock retake data keyed by student ID
-const STUDENT_RETAKES: Record<string, { code: string; name: string; semesterFailed: string }[]> = {
-  'SFE-2024-0042': [
-    { code: 'CSC 103', name: 'Digital Logic Design', semesterFailed: 'Semester 1 · 2024/2025' },
-  ],
+function formatDate(value: string | null): string {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function StudentProfilePage() {
   const { id } = Route.useSearch()
-  const s      = ACADEMIC_STUDENTS.find((x) => x.id === id) ?? ACADEMIC_STUDENTS[0]
-  const [tab, setTab]                           = useState<Tab>('personal')
-  const [showGradCheck, setShowGradCheck]       = useState(false)
+  const [tab, setTab] = useState<Tab>('personal')
+  const [showGradCheck, setShowGradCheck] = useState(false)
   const [graduateDialogOpen, setGraduateDialogOpen] = useState(false)
 
-  const retakes    = STUDENT_RETAKES[s.id] ?? []
+  const { data: s, isPending, error } = useQuery({
+    queryKey: academicStudentQueryKey(id),
+    queryFn: () => getAcademicStudent(id),
+    enabled: Boolean(id),
+  })
+
+  const retakes = useMemo(() => {
+    if (!s) return []
+    const failed: { code: string; name: string; semesterFailed: string }[] = []
+    for (const sem of s.semesters) {
+      for (const result of sem.results) {
+        if (result.grade === 'F' || result.grade.startsWith('F')) {
+          failed.push({ code: result.code, name: result.name, semesterFailed: sem.name })
+        }
+      }
+    }
+    return failed
+  }, [s])
+
+  if (!id) {
+    return (
+      <AcademicShell pageTitle="Student Profile">
+        <div className="page-body">
+          <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>Missing student id.</p>
+        </div>
+      </AcademicShell>
+    )
+  }
+
+  if (isPending || !s) {
+    return (
+      <AcademicShell pageTitle="Student Profile">
+        <div className="page-body">
+          <p className="t-body" style={{ color: error ? 'var(--error)' : 'var(--muted-foreground)' }}>
+            {error ? apiErrorMessage(error, 'Student could not be loaded.') : 'Loading student…'}
+          </p>
+        </div>
+      </AcademicShell>
+    )
+  }
+
   const hasRetakes = retakes.length > 0
+  const cgpa = s.cgpa ?? 0
 
   const gradChecklist = [
-    { label: 'All compulsory courses passed', pass: !hasRetakes,  detail: hasRetakes ? `${retakes.map((r) => r.code).join(', ')} not passed` : 'All compulsory courses passed' },
-    { label: 'Minimum elective credits (18)', pass: true,          detail: '21 credits completed'     },
-    { label: 'CGPA meets minimum (2.0)',       pass: s.cgpa >= 2.0, detail: `CGPA ${s.cgpa.toFixed(2)}` },
-    { label: 'All fees cleared',               pass: false,         detail: 'RWF 45,000 outstanding'  },
+    { label: 'All compulsory courses passed', pass: !hasRetakes, detail: hasRetakes ? `${retakes.map((r) => r.code).join(', ')} not passed` : 'All compulsory courses passed' },
+    { label: 'Minimum elective credits (18)', pass: true, detail: 'On file' },
+    { label: 'CGPA meets minimum (2.0)', pass: cgpa >= 2.0, detail: `CGPA ${cgpa.toFixed(2)}` },
+    { label: 'All fees cleared', pass: s.feeBalance <= 0, detail: s.feeBalance > 0 ? `${formatCurrency(s.feeBalance)} outstanding` : 'No outstanding balance' },
   ]
   const isGradEligible = gradChecklist.every((item) => item.pass)
 
-  const sc = studentStatusColors(s.status)
+  const sc = studentStatusColors(s.status as Parameters<typeof studentStatusColors>[0])
 
   const standingColors = {
     'Good Standing': { bg: 'var(--success-bg)', color: 'var(--success)' },
-    'Probation':     { bg: 'var(--warning-bg)', color: 'var(--warning)' },
-    'Suspended':     { bg: 'var(--error-bg)',   color: 'var(--error)'   },
-  }[s.standing]
+    'Probation': { bg: 'var(--warning-bg)', color: 'var(--warning)' },
+    'Suspended': { bg: 'var(--error-bg)', color: 'var(--error)' },
+  }[s.standing] ?? { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'personal', label: 'Personal Details'    },
-    { key: 'academic', label: 'Academic Record'     },
-    { key: 'history',  label: 'Enrollment History'  },
+    { key: 'personal', label: 'Personal Details' },
+    { key: 'academic', label: 'Academic Record' },
+    { key: 'history', label: 'Enrollment History' },
   ]
 
   return (
-    <AppShell
-      navItems={ACADEMIC_NAV}
-      pageTitle="Student Profile"
-      userName={ACADEMIC_ADMIN.fullName}
-      userRole={ACADEMIC_ADMIN.role}
-      userInitials={ACADEMIC_ADMIN.initials}
-      unreadCount={4}
-      infoCardLabel="ACADEMIC ADMIN"
-      infoCardValue={ACADEMIC_ADMIN.institution}
-      infoCardSubtext={ACADEMIC_ADMIN.office}
-    >
+    <AcademicShell pageTitle="Student Profile">
       <div className="page-body animate-fade-up">
-
-        {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-6">
           <Link to="/academic/students" className="flex items-center gap-1 text-sm transition-opacity hover:opacity-70" style={{ color: 'var(--success)', textDecoration: 'none' }}>
             <ChevronLeft style={{ width: 14, height: 14 }} />Student Registry
           </Link>
           <span style={{ color: 'var(--border)' }}>/</span>
-          <span className="t-mono text-sm" style={{ color: 'var(--muted-foreground)' }}>{s.id}</span>
+          <span className="t-mono text-sm" style={{ color: 'var(--muted-foreground)' }}>{s.studentNumber}</span>
         </div>
 
-        {/* Section header */}
         <div className="flex items-start justify-between mb-8">
           <div>
             <h1 className="t-h1 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.015em' }}>{s.fullName}</h1>
-            <span className="t-mono text-sm" style={{ color: 'var(--muted-foreground)' }}>{s.id}</span>
+            <span className="t-mono text-sm" style={{ color: 'var(--muted-foreground)' }}>{s.studentNumber}</span>
           </div>
           <span className="t-label px-3 py-1.5 mt-1" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{s.status}</span>
         </div>
 
         <div className="flex gap-6">
-
-          {/* ── Main (65%) ──────────────────────────────────────────────────── */}
           <div style={{ flex: '0 0 65%', maxWidth: '65%' }}>
-
-            {/* Tabs */}
             <div className="flex gap-1 mb-5" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
               {TABS.map((t) => (
-                <button key={t.key} onClick={() => setTab(t.key)}
+                <button key={t.key} type="button" onClick={() => setTab(t.key)}
                   className="px-4 py-2.5 text-sm font-medium transition-colors duration-150 -mb-px"
                   style={{ borderBottom: tab === t.key ? '2px solid var(--foreground)' : '2px solid transparent', color: tab === t.key ? 'var(--foreground)' : 'var(--muted-foreground)', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
@@ -108,17 +135,16 @@ function StudentProfilePage() {
               ))}
             </div>
 
-            {/* Personal Details */}
             {tab === 'personal' && (
               <>
                 <SectionCard title="Basic Details">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
                     {[
-                      { label: 'Full Name',   value: s.fullName },
-                      { label: 'Student ID',  value: s.id       },
-                      { label: 'Date of Birth', value: s.dob    },
-                      { label: 'Gender',      value: s.gender   },
-                      { label: 'Nationality', value: s.nationality },
+                      { label: 'Full Name', value: s.fullName },
+                      { label: 'Student ID', value: s.studentNumber },
+                      { label: 'Date of Birth', value: formatDate(s.dateOfBirth) },
+                      { label: 'Gender', value: s.gender ?? '—' },
+                      { label: 'Nationality', value: s.nationality ?? '—' },
                     ].map((row) => (
                       <div key={row.label}>
                         <p className="t-label mb-0.5" style={{ color: 'var(--muted-foreground)' }}>{row.label}</p>
@@ -130,9 +156,9 @@ function StudentProfilePage() {
                 <SectionCard title="Contact Details">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
                     {[
-                      { label: 'Email',   value: s.email   },
-                      { label: 'Phone',   value: s.phone   },
-                      { label: 'Address', value: s.address },
+                      { label: 'Email', value: s.email },
+                      { label: 'Phone', value: s.phone ?? '—' },
+                      { label: 'Address', value: s.address ?? '—' },
                     ].map((row) => (
                       <div key={row.label}>
                         <p className="t-label mb-0.5" style={{ color: 'var(--muted-foreground)' }}>{row.label}</p>
@@ -144,39 +170,21 @@ function StudentProfilePage() {
               </>
             )}
 
-            {/* Academic Record */}
             {tab === 'academic' && (
               <div>
-                {/* Retake Required — only shown when student has outstanding retakes */}
                 {hasRetakes && (
-                  <div
-                    className="mb-4"
-                    style={{
-                      backgroundColor: 'var(--warning-bg)',
-                      borderRadius: 'var(--radius-md)',
-                      borderLeft: '4px solid var(--warning)',
-                      padding: 16,
-                    }}
-                  >
+                  <div className="mb-4" style={{ backgroundColor: 'var(--warning-bg)', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--warning)', padding: 16 }}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <RotateCcw style={{ width: 14, height: 14, color: 'var(--warning)', flexShrink: 0 }} />
-                      <h3 className="text-sm font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--warning)' }}>
-                        Retake Required
-                      </h3>
+                      <h3 className="text-sm font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--warning)' }}>Retake Required</h3>
                     </div>
                     <p className="t-caption mb-3" style={{ color: 'var(--warning)', opacity: 0.85 }}>
                       This student must retake the following courses before they can progress or graduate.
                     </p>
                     <div className="flex flex-col gap-2">
                       {retakes.map((r) => (
-                        <div
-                          key={r.code}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg flex-wrap"
-                          style={{ backgroundColor: 'rgba(202,138,4,0.12)' }}
-                        >
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--warning)', backgroundColor: 'rgba(202,138,4,0.15)', borderRadius: '10px', padding: '2px 7px', whiteSpace: 'nowrap' }}>
-                            {r.code}
-                          </span>
+                        <div key={`${r.code}-${r.semesterFailed}`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg flex-wrap" style={{ backgroundColor: 'rgba(202,138,4,0.12)' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--warning)', backgroundColor: 'rgba(202,138,4,0.15)', borderRadius: '10px', padding: '2px 7px', whiteSpace: 'nowrap' }}>{r.code}</span>
                           <span className="text-sm font-medium flex-1" style={{ color: 'var(--foreground)' }}>{r.name}</span>
                           <span className="t-caption" style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>{r.semesterFailed}</span>
                           <span className="t-label px-2 py-0.5" style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error)', borderRadius: '10px' }}>Failed</span>
@@ -186,80 +194,77 @@ function StudentProfilePage() {
                   </div>
                 )}
 
-                {s.semesters.map((sem, si) => (
-                  <div key={si} className="mb-4" style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 24 }}>
-                    <div className="flex items-center justify-between mb-4">
+                {s.semesters.length === 0 ? (
+                  <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>No academic record yet.</p>
+                ) : s.semesters.map((sem, si) => (
+                  <div key={si} className="mb-4">
+                    <div className="flex items-center justify-between mb-3">
                       <h2 className="t-h3" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>{sem.name}</h2>
-                      <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>GPA: {sem.gpa.toFixed(2)}</span>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                        GPA: {sem.gpa != null ? sem.gpa.toFixed(2) : '—'}
+                      </span>
                     </div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          {['Course Code', 'Course Name', 'Grade', 'Credits'].map((h) => (
-                            <th key={h} className="t-label text-left" style={{ color: 'var(--muted-foreground)', paddingBottom: 10, borderBottom: '1px solid var(--border)', fontWeight: 600 }}>
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sem.results.map((r, ri) => {
-                          const gc = gradeColors(r.grade)
-                          return (
-                            <tr key={ri} style={{ borderBottom: ri < sem.results.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                              <td style={{ padding: '12px 16px 12px 0' }}><span className="t-mono" style={{ color: 'var(--muted-foreground)' }}>{r.code}</span></td>
-                              <td className="text-sm" style={{ color: 'var(--foreground)', padding: '12px 16px 12px 0' }}>{r.name}</td>
-                              <td style={{ padding: '12px 16px 12px 0' }}>
-                                <span className="t-label px-2 py-0.5" style={{ backgroundColor: gc.bg, color: gc.color, borderRadius: 'var(--radius-sm)' }}>{r.grade}</span>
-                              </td>
-                              <td className="text-sm" style={{ color: 'var(--muted-foreground)', padding: '12px 0' }}>{r.credits} cr</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                    <DataTable
+                      rows={sem.results}
+                      rowKey={(r) => r.code}
+                      hideSearch
+                      empty="No results in this semester."
+                      defaultPageSize={25}
+                      columns={[
+                        { id: 'code', header: 'Course Code', value: (r) => r.code, cell: (r) => <span className="t-mono" style={{ color: 'var(--muted-foreground)' }}>{r.code}</span> },
+                        { id: 'name', header: 'Course Name', value: (r) => r.name, cell: (r) => <span className="text-sm" style={{ color: 'var(--foreground)' }}>{r.name}</span> },
+                        {
+                          id: 'grade', header: 'Grade', value: (r) => r.grade,
+                          cell: (r) => {
+                            const gc = gradeColors(r.grade)
+                            return <span className="t-label px-2 py-0.5" style={{ backgroundColor: gc.bg, color: gc.color, borderRadius: 'var(--radius-sm)' }}>{r.grade}</span>
+                          },
+                        },
+                        { id: 'credits', header: 'Credits', value: (r) => r.credits, cell: (r) => <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{r.credits} cr</span> },
+                      ]}
+                    />
                   </div>
                 ))}
-                {/* CGPA Footer */}
+
                 <div className="flex items-center gap-4 p-5 rounded-xl" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
                   <div>
                     <p className="t-label mb-0.5" style={{ color: 'var(--muted-foreground)' }}>CGPA</p>
-                    <p className="text-2xl font-bold" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.015em' }}>{s.cgpa.toFixed(2)}</p>
+                    <p className="text-2xl font-bold" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.015em' }}>{cgpa.toFixed(2)}</p>
                   </div>
                   <span className="t-label px-3 py-1.5" style={{ backgroundColor: standingColors.bg, color: standingColors.color, borderRadius: 'var(--radius-sm)' }}>{s.standing}</span>
                 </div>
               </div>
             )}
 
-            {/* Enrollment History */}
             {tab === 'history' && (
               <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 24 }}>
-                <div className="flex flex-col" style={{ gap: 0 }}>
-                  {s.timeline.map((ev, i) => {
-                    const Icon = ev.type === 'admission' ? CheckCircle2 : ev.type === 'suspension' ? AlertCircle : Clock
-                    const iconColor = ev.type === 'admission' ? 'var(--success)' : ev.type === 'suspension' ? 'var(--error)' : 'var(--info)'
-                    return (
-                      <div key={i} className="flex gap-4 py-4" style={{ borderBottom: i < s.timeline.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div className="flex-shrink-0 mt-0.5 flex items-center justify-center rounded-full" style={{ width: 32, height: 32, backgroundColor: 'var(--muted)' }}>
-                          <Icon style={{ width: 14, height: 14, color: iconColor }} />
+                {s.timeline.length === 0 ? (
+                  <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>No enrollment history recorded.</p>
+                ) : (
+                  <div className="flex flex-col" style={{ gap: 0 }}>
+                    {s.timeline.map((ev, i) => {
+                      const Icon = ev.type === 'admission' ? CheckCircle2 : ev.type === 'suspension' ? AlertCircle : Clock
+                      const iconColor = ev.type === 'admission' ? 'var(--success)' : ev.type === 'suspension' ? 'var(--error)' : 'var(--info)'
+                      return (
+                        <div key={i} className="flex gap-4 py-4" style={{ borderBottom: i < s.timeline.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div className="flex-shrink-0 mt-0.5 flex items-center justify-center rounded-full" style={{ width: 32, height: 32, backgroundColor: 'var(--muted)' }}>
+                            <Icon style={{ width: 14, height: 14, color: iconColor }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{ev.event}</p>
+                            {ev.notes && <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{ev.notes}</p>}
+                          </div>
+                          <span className="t-caption flex-shrink-0" style={{ color: 'var(--muted-foreground)' }}>{ev.date}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{ev.event}</p>
-                          {ev.notes && <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{ev.notes}</p>}
-                        </div>
-                        <span className="t-caption flex-shrink-0" style={{ color: 'var(--muted-foreground)' }}>{ev.date}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* ── Right sidebar (35%) ─────────────────────────────────────────── */}
           <div className="flex flex-col gap-4" style={{ flex: '0 0 35%', maxWidth: '35%' }}>
-
-            {/* Status card */}
             <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 20 }}>
               <h3 className="t-h3 mb-4" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', fontSize: '0.9375rem' }}>Student Status</h3>
               <div className="flex items-center gap-2 flex-wrap mb-4">
@@ -271,10 +276,10 @@ function StudentProfilePage() {
                 )}
               </div>
               {[
-                { label: 'Enrollment Date', value: s.enrollmentDate },
-                { label: 'Programme',       value: s.programme      },
-                { label: 'Year of Study',   value: `Year ${s.year}` },
-                { label: 'Expected Grad.',  value: s.expectedGrad   },
+                { label: 'Enrollment Date', value: formatDate(s.enrollmentDate) },
+                { label: 'Programme', value: s.programmeName },
+                { label: 'Year of Study', value: `Year ${s.yearOfStudy}` },
+                { label: 'Expected Grad.', value: formatDate(s.expectedGraduation) },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid var(--border)' }}>
                   <span className="t-label" style={{ color: 'var(--muted-foreground)' }}>{row.label}</span>
@@ -283,41 +288,28 @@ function StudentProfilePage() {
               ))}
             </div>
 
-            {/* Actions card */}
             <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 20 }}>
               <h3 className="t-h3 mb-4" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', fontSize: '0.9375rem' }}>Actions</h3>
               <div className="flex flex-col gap-2.5">
-                <ActionButton label="Suspend student"    color="var(--error)"       confirmTitle="Suspend student?"    confirmDesc={`This will suspend ${s.fullName}'s access to all platform features.`} />
-
-                {/* Graduate student — with collapsible eligibility checklist */}
+                <ActionButton label="Suspend student" color="var(--error)" confirmTitle="Suspend student?" confirmDesc={`This will suspend ${s.fullName}'s access to all platform features.`} />
                 <div>
                   {!showGradCheck ? (
-                    <button
-                      onClick={() => setShowGradCheck(true)}
-                      className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
-                      style={{ border: '1px solid var(--brand)', color: 'var(--brand)', backgroundColor: 'transparent', cursor: 'pointer' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(15, 189, 59,0.06)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
-                    >
+                    <button type="button" onClick={() => setShowGradCheck(true)} className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
+                      style={{ border: '1px solid var(--brand)', color: 'var(--brand)', backgroundColor: 'transparent', cursor: 'pointer' }}>
                       Check graduation eligibility
                     </button>
                   ) : (
                     <div>
-                      {/* Checklist */}
                       <div className="mb-3 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                         <div className="px-3 py-2" style={{ backgroundColor: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
                           <p className="t-label" style={{ color: 'var(--muted-foreground)' }}>GRADUATION REQUIREMENTS</p>
                         </div>
                         {gradChecklist.map((item, i) => (
-                          <div
-                            key={i}
-                            className="flex items-start gap-2.5 px-3 py-2.5"
-                            style={{ borderBottom: i < gradChecklist.length - 1 ? '1px solid var(--border)' : 'none', backgroundColor: 'var(--card)' }}
-                          >
+                          <div key={i} className="flex items-start gap-2.5 px-3 py-2.5"
+                            style={{ borderBottom: i < gradChecklist.length - 1 ? '1px solid var(--border)' : 'none', backgroundColor: 'var(--card)' }}>
                             {item.pass
                               ? <CheckCircle2 style={{ width: 14, height: 14, color: 'var(--success)', flexShrink: 0, marginTop: 1 }} />
-                              : <XCircle     style={{ width: 14, height: 14, color: 'var(--error)',   flexShrink: 0, marginTop: 1 }} />
-                            }
+                              : <XCircle style={{ width: 14, height: 14, color: 'var(--error)', flexShrink: 0, marginTop: 1 }} />}
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium" style={{ color: 'var(--foreground)', lineHeight: 1.4 }}>{item.label}</p>
                               <p className="t-caption mt-0.5" style={{ color: item.pass ? 'var(--success)' : 'var(--error)' }}>{item.detail}</p>
@@ -325,23 +317,10 @@ function StudentProfilePage() {
                           </div>
                         ))}
                       </div>
-
-                      {/* Graduate button — disabled until all items pass */}
                       <AlertDialog open={graduateDialogOpen} onOpenChange={setGraduateDialogOpen}>
-                        <button
-                          disabled={!isGradEligible}
-                          title={!isGradEligible ? 'Student does not meet all graduation requirements' : undefined}
-                          onClick={() => { if (isGradEligible) setGraduateDialogOpen(true) }}
+                        <button type="button" disabled={!isGradEligible} onClick={() => { if (isGradEligible) setGraduateDialogOpen(true) }}
                           className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 mb-1.5"
-                          style={{
-                            backgroundColor: isGradEligible ? 'var(--brand)' : 'var(--muted)',
-                            color:           isGradEligible ? 'var(--brand-ink)' : 'var(--muted-foreground)',
-                            border: 'none',
-                            cursor:          isGradEligible ? 'pointer' : 'not-allowed',
-                          }}
-                          onMouseEnter={(e) => { if (isGradEligible) e.currentTarget.style.opacity = '0.9' }}
-                          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
-                        >
+                          style={{ backgroundColor: isGradEligible ? 'var(--brand)' : 'var(--muted)', color: isGradEligible ? 'var(--brand-ink)' : 'var(--muted-foreground)', border: 'none', cursor: isGradEligible ? 'pointer' : 'not-allowed' }}>
                           Graduate student
                         </button>
                         <AlertDialogContent>
@@ -355,33 +334,23 @@ function StudentProfilePage() {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
-
-                      <button
-                        onClick={() => setShowGradCheck(false)}
-                        className="w-full py-1.5 rounded-lg text-xs font-medium transition-colors duration-150"
-                        style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
-                      >
+                      <button type="button" onClick={() => setShowGradCheck(false)} className="w-full py-1.5 rounded-lg text-xs font-medium transition-colors duration-150"
+                        style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>
                         Hide checklist
                       </button>
                     </div>
                   )}
                 </div>
-
                 <ActionButton label="Transfer programme" color="var(--foreground)" confirmTitle="Transfer programme?" confirmDesc={`You are about to initiate a programme transfer for ${s.fullName}.`} />
-                <ActionButton label="Defer enrollment"   color="var(--foreground)" confirmTitle="Defer enrollment?"   confirmDesc={`Defer ${s.fullName}'s enrollment to a future semester.`} />
+                <ActionButton label="Defer enrollment" color="var(--foreground)" confirmTitle="Defer enrollment?" confirmDesc={`Defer ${s.fullName}'s enrollment to a future semester.`} />
               </div>
             </div>
-
           </div>
         </div>
       </div>
-    </AppShell>
+    </AcademicShell>
   )
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -394,17 +363,12 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 function ActionButton({ label, color, confirmTitle, confirmDesc }: { label: string; color: string; confirmTitle: string; confirmDesc: string }) {
   const isDestructive = color === 'var(--error)'
-  const isSuccess     = color === 'var(--success)'
-  const borderColor   = isDestructive ? 'var(--error)' : isSuccess ? 'var(--brand)' : 'var(--border)'
-  const bg            = 'transparent'
+  const borderColor = isDestructive ? 'var(--error)' : 'var(--border)'
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <button className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
-          style={{ border: `1px solid ${borderColor}`, color, backgroundColor: bg, cursor: 'pointer' }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = bg }}
-        >
+        <button type="button" className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
+          style={{ border: `1px solid ${borderColor}`, color, backgroundColor: 'transparent', cursor: 'pointer' }}>
           {label}
         </button>
       </AlertDialogTrigger>
@@ -413,11 +377,6 @@ function ActionButton({ label, color, confirmTitle, confirmDesc }: { label: stri
           <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
           <AlertDialogDescription>{confirmDesc}</AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="px-1 py-2">
-          <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Reason (required)</label>
-          <textarea rows={3} placeholder="Enter the reason for this action…" className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
-            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }} />
-        </div>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction>Confirm</AlertDialogAction>

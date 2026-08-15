@@ -1,9 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_auth/academic/')({
-  component: AcademicAdminDashboardPlaceholder,
+  beforeLoad: () => { throw redirect({ to: '/academic/dashboard' }) },
+  component: () => null,
 })
-
-function AcademicAdminDashboardPlaceholder() {
-  return <div className="p-8 t-h2">Academic Admin dashboard — coming soon.</div>
-}
