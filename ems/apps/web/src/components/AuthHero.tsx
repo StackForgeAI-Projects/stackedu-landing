@@ -9,8 +9,7 @@ import { BrandMark } from '@/components/BrandMark'
  * behaviour identical wherever it appears.
  */
 
-// In production this comes from subdomain detection — kigali.stackedu.rw
-// resolves to that institution's name and logo. This is the development value.
+// In production this comes from the public institution API (see useInstitutionBranding).
 export const INSTITUTION_NAME = 'StackForgeAI University'
 
 /** Written for someone reading English as a second language. */
@@ -34,6 +33,7 @@ interface AuthHeroProps {
   title: string
   subtitle: string
   features: string[]
+  institutionName?: string
   /** Where the logo goes. Omitted on the sign-in screen, which is already home. */
   logoTo?: string
   logoAriaLabel?: string
@@ -43,6 +43,7 @@ export function AuthHero({
   title,
   subtitle,
   features,
+  institutionName = INSTITUTION_NAME,
   logoTo,
   logoAriaLabel,
 }: AuthHeroProps) {
@@ -101,7 +102,7 @@ export function AuthHero({
       </div>
 
       <span className="text-xs" style={{ color: 'var(--ink-muted)' }}>
-        {INSTITUTION_NAME}
+        {institutionName}
       </span>
     </div>
   )

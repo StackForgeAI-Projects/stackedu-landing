@@ -1,18 +1,26 @@
 import { Hono } from 'hono'
 import {
   changePasswordRequestSchema,
+  disableTwoFactorRequestSchema,
+  enableTwoFactorRequestSchema,
   updateAccountProfileRequestSchema,
   updateAccountSecurityRequestSchema,
   updateNotificationPreferencesRequestSchema,
+  verifyTwoFactorRequestSchema,
 } from '@stackedu/shared'
 import { validationFailed } from '../lib/errors'
 import { requireAuth, type AuthVariables } from '../middleware/auth'
 import type { RequestVariables } from '../middleware/request-context'
 import {
   changeAccountPassword,
+  disableAccountTwoFactor,
+  enableAccountTwoFactor,
   getAccountNotificationPreferences,
   getAccountProfile,
+  listAccountNotifications,
+  markAccountNotificationRead,
   sessionUserFrom,
+  setupAccountTwoFactor,
   updateAccountNotificationPreferences,
   updateAccountProfile,
   updateAccountSecurity,
@@ -70,4 +78,42 @@ accountRoutes.patch('/account/notification-preferences', requireAuth, async (c) 
   return c.json({
     preferences: Object.entries(stored).map(([key, value]) => ({ key, ...value })),
   })
+})
+
+accountRoutes.get('/account/notifications', requireAuth, async (c) => {
+  const user = c.get('user')!
+  const limit = Math.min(Number(c.req.query('limit') ?? 8), 20)
+  return c.json({
+    notifications: await listAccountNotifications(user.institution.id, user.id, limit),
+  })
+})
+
+accountRoutes.post('/account/notifications/:id/read', requireAuth, async (c) => {
+  const user = c.get('user')!
+  return c.json({
+    notifications: await markAccountNotificationRead(
+      user.institution.id,
+      user.id,
+      c.req.param('id'),
+    ),
+  })
+})
+
+accountRoutes.post('/account/2fa/setup', requireAuth, async (c) => {
+  const user = c.get('user')!
+  return c.json({ setup: await setupAccountTwoFactor(user.institution.id, user.id) })
+})
+
+accountRoutes.post('/account/2fa/enable', requireAuth, async (c) => {
+  const parsed = enableTwoFactorRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  return c.json({ profile: await enableAccountTwoFactor(user.institution.id, user.id, parsed.data) })
+})
+
+accountRoutes.post('/account/2fa/disable', requireAuth, async (c) => {
+  const parsed = disableTwoFactorRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  return c.json({ profile: await disableAccountTwoFactor(user.institution.id, user.id, parsed.data) })
 })

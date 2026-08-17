@@ -112,6 +112,7 @@ export async function notifyApplicationSubmitted(input: {
     await sendEmail({
       to: input.to,
       subject: `Application received — ${input.reference}`,
+      institutionId: input.institutionId,
       ...content,
     })
   } catch (error) {
@@ -152,6 +153,7 @@ export async function notifyApplicationDecision(input: {
     await sendEmail({
       to: input.to,
       subject: `${copy.headline} — ${input.reference}`,
+      institutionId: input.institutionId,
       ...content,
     })
   } catch (error) {

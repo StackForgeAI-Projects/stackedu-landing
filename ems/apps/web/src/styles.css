@@ -209,6 +209,36 @@
   --content-max-width:       1400px;
 }
 
+html.dark {
+  --background:        #0B1520;
+  --card:              #101C28;
+  --muted:             #152433;
+  --muted-foreground:  #94A3B8;
+  --border:            #223041;
+  --foreground:        #F8FAFC;
+  --input-border:      #2A3A4C;
+  --success-bg:        #12301F;
+  --warning-bg:        #2E2608;
+  --error-bg:          #3A1414;
+  --info-bg:           #12233A;
+  color-scheme: dark;
+
+  /* Tailwind / shadcn tokens — keeps buttons and inputs readable in dark mode */
+  --color-background:            #0B1520;
+  --color-card:                  #101C28;
+  --color-muted:                 #152433;
+  --color-muted-foreground:      #94A3B8;
+  --color-border:                #223041;
+  --color-foreground:            #F8FAFC;
+  --color-secondary:             #152433;
+  --color-secondary-foreground:  #F8FAFC;
+  --color-accent:                #1A2A3A;
+  --color-accent-foreground:     #F8FAFC;
+  --color-popover:               #101C28;
+  --color-popover-foreground:    #F8FAFC;
+  --color-input:                 #2A3A4C;
+}
+
 /* Base typography & rendering */
 html,
 body {

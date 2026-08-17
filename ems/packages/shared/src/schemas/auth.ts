@@ -43,7 +43,18 @@ export const sessionResponseSchema = z.object({
   user: sessionUserSchema,
 })
 
+export const twoFactorChallengeResponseSchema = z.object({
+  requiresTwoFactor: z.literal(true),
+})
+
+export const loginResponseSchema = z.union([
+  sessionResponseSchema,
+  twoFactorChallengeResponseSchema,
+])
+
 export type LoginRequest = z.infer<typeof loginRequestSchema>
 export type SessionInstitution = z.infer<typeof sessionInstitutionSchema>
 export type SessionUser = z.infer<typeof sessionUserSchema>
 export type SessionResponse = z.infer<typeof sessionResponseSchema>
+export type TwoFactorChallengeResponse = z.infer<typeof twoFactorChallengeResponseSchema>
+export type LoginResponse = z.infer<typeof loginResponseSchema>

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getIctSettings, ictProfileQueryKey, ictSettingsQueryKey, updateIctSettings } from '@/lib/api/ict'
+import { institutionBrandingQueryKey } from '@/hooks/useInstitutionBranding'
+import { accountProfileQueryKey } from '@/lib/api/account'
 import { apiErrorMessage } from '@/lib/api/client'
 
 export const Route = createFileRoute('/_auth/ict/settings')({
@@ -28,6 +30,8 @@ function SystemSettingsPage() {
       toast.success('Institution settings saved.')
       await queryClient.invalidateQueries({ queryKey: ictSettingsQueryKey })
       await queryClient.invalidateQueries({ queryKey: ictProfileQueryKey })
+      await queryClient.invalidateQueries({ queryKey: institutionBrandingQueryKey })
+      await queryClient.invalidateQueries({ queryKey: accountProfileQueryKey })
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Could not save settings.')),
   })

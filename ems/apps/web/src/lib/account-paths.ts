@@ -24,6 +24,11 @@ export function accountSettingsPath(pathname: string): string {
   return segment === 'ict' ? '/ict/account-settings' : `/${segment}/settings`
 }
 
+export function notificationsPath(pathname: string): string {
+  const segment = roleSegmentFromPath(pathname)
+  return `/${segment}/notifications`
+}
+
 export function roleFromSegment(segment: string): UserRole | null {
   return ROLE_SEGMENTS[segment] ?? null
 }

@@ -72,16 +72,22 @@ describe('authentication', () => {
 
   it('identifies the role and institution from the credentials alone', async () => {
     const alpha = await login({ identifier: 'alpha.student@alpha.test', password })
+    expect(alpha.status).toBe('session')
+    if (alpha.status !== 'session') return
     expect(alpha.user.role).toBe('Student')
     expect(alpha.user.institution.id).toBe(alphaId)
 
     const beta = await login({ identifier: 'beta.bursar@beta.test', password })
+    expect(beta.status).toBe('session')
+    if (beta.status !== 'session') return
     expect(beta.user.role).toBe('Bursar')
     expect(beta.user.institution.id).toBe(betaId)
   })
 
   it('treats the email address as case-insensitive', async () => {
     const result = await login({ identifier: 'ALPHA.STUDENT@ALPHA.TEST', password })
+    expect(result.status).toBe('session')
+    if (result.status !== 'session') return
     expect(result.user.email).toBe('alpha.student@alpha.test')
   })
 
@@ -117,15 +123,20 @@ describe('authentication', () => {
   })
 
   it('resolves a session cookie back to the same user', async () => {
-    const { cookieValue, user } = await login({ identifier: 'alpha.student@alpha.test', password })
+    const result = await login({ identifier: 'alpha.student@alpha.test', password })
+    expect(result.status).toBe('session')
+    if (result.status !== 'session') return
 
-    const resolved = await resolveSession(cookieValue)
-    expect(resolved?.id).toBe(user.id)
+    const resolved = await resolveSession(result.cookieValue)
+    expect(resolved?.id).toBe(result.user.id)
     expect(resolved?.role).toBe('Student')
   })
 
   it('will not resolve a tampered or unknown token', async () => {
-    const { cookieValue } = await login({ identifier: 'alpha.student@alpha.test', password })
+    const result = await login({ identifier: 'alpha.student@alpha.test', password })
+    expect(result.status).toBe('session')
+    if (result.status !== 'session') return
+    const cookieValue = result.cookieValue
     const [institutionId, token] = [
       cookieValue.slice(0, cookieValue.indexOf('.')),
       cookieValue.slice(cookieValue.indexOf('.') + 1),
@@ -141,18 +152,22 @@ describe('authentication', () => {
    * anywhere would be a valid session everywhere.
    */
   it('will not accept a session against a different institution', async () => {
-    const { cookieValue } = await login({ identifier: 'alpha.student@alpha.test', password })
-    const token = cookieValue.slice(cookieValue.indexOf('.') + 1)
+    const result = await login({ identifier: 'alpha.student@alpha.test', password })
+    expect(result.status).toBe('session')
+    if (result.status !== 'session') return
+    const token = result.cookieValue.slice(result.cookieValue.indexOf('.') + 1)
 
     expect(await resolveSession(`${betaId}.${token}`)).toBeNull()
   })
 
   it('ends the session on sign-out', async () => {
-    const { cookieValue } = await login({ identifier: 'alpha.student@alpha.test', password })
-    expect(await resolveSession(cookieValue)).not.toBeNull()
+    const result = await login({ identifier: 'alpha.student@alpha.test', password })
+    expect(result.status).toBe('session')
+    if (result.status !== 'session') return
+    expect(await resolveSession(result.cookieValue)).not.toBeNull()
 
-    await logout(cookieValue)
-    expect(await resolveSession(cookieValue)).toBeNull()
+    await logout(result.cookieValue)
+    expect(await resolveSession(result.cookieValue)).toBeNull()
   })
 
   it('will not register the same email address twice', async () => {

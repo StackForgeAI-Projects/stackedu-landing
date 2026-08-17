@@ -22,6 +22,7 @@ import {
 } from '../db/institution/schema/admissions'
 import { programmes } from '../db/institution/schema/academic'
 import { badRequest, conflict, notFound } from '../lib/errors'
+import { isIntegrationEnabled } from '../lib/integrations'
 import { notifyApplicationSubmitted } from '../lib/admissions-email'
 import {
   buildFileKey,
@@ -563,6 +564,15 @@ export async function initiatePayment(
   const sandboxComplete =
     env().PAYMENT_MODE === 'sandbox' &&
     (input.method === 'MoMo' || input.method === 'Airtel' || input.method === 'Card')
+
+  if (env().PAYMENT_MODE === 'live') {
+    if (input.method === 'MoMo' && !(await isIntegrationEnabled(institutionId, 'MTNMoMo'))) {
+      throw badRequest('MTN MoMo payments are currently turned off. Contact ICT to enable them.')
+    }
+    if (input.method === 'Airtel' && !(await isIntegrationEnabled(institutionId, 'AirtelMoney'))) {
+      throw badRequest('Airtel Money payments are currently turned off. Contact ICT to enable them.')
+    }
+  }
 
   const [row] = await db
     .insert(applicationPayments)

@@ -53,6 +53,7 @@ import {
 } from '../db/institution/schema/teaching'
 import { courseColor, formatClock } from '../lib/course-color'
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
+import { isIntegrationEnabled } from '../lib/integrations'
 
 const MAX_CREDITS = 21
 
@@ -788,6 +789,15 @@ export async function payStudentFees(
   const sandboxComplete =
     env().PAYMENT_MODE === 'sandbox' &&
     (input.method === 'MoMo' || input.method === 'Airtel' || input.method === 'Card')
+
+  if (env().PAYMENT_MODE === 'live') {
+    if (input.method === 'MoMo' && !(await isIntegrationEnabled(institutionId, 'MTNMoMo'))) {
+      throw badRequest('MTN MoMo payments are currently turned off. Contact ICT to enable them.')
+    }
+    if (input.method === 'Airtel' && !(await isIntegrationEnabled(institutionId, 'AirtelMoney'))) {
+      throw badRequest('Airtel Money payments are currently turned off. Contact ICT to enable them.')
+    }
+  }
 
   const reference = `PAY-${profile.studentNumber}-${randomInt(1000, 9999)}`
   const now = new Date().toISOString()

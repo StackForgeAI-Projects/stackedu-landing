@@ -7,11 +7,11 @@ interface PageContentProps {
   narrow?: boolean
 }
 
-/** Shared page width — 80% on larger screens, full width with side padding on small screens. */
+/** Shared page width — 90% on larger screens, full width with side padding on small screens. */
 export function PageContent({ children, className, narrow }: PageContentProps) {
   return (
     <div
-      className={cn('mx-auto w-full px-4 sm:px-6 md:w-[80%]', className)}
+      className={cn('mx-auto w-full px-4 sm:px-6 md:w-[90%]', className)}
       style={{ maxWidth: narrow ? 760 : 1400 }}
     >
       {children}

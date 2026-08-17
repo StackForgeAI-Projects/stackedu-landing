@@ -1,18 +1,23 @@
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne } from 'drizzle-orm'
 import type {
   AccountProfile,
   ChangePasswordRequest,
+  DisableTwoFactorRequest,
+  EnableTwoFactorRequest,
   SessionUser,
+  TwoFactorSetupResponse,
   UpdateAccountProfileRequest,
   UpdateAccountSecurityRequest,
 } from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions, userDirectory } from '../db/platform/schema'
+import { notifications } from '../db/institution/schema/communication'
 import { users, sessions } from '../db/institution/schema/people'
 import { studentProfiles, students } from '../db/institution/schema/students'
 import { faculties, departments, programmes } from '../db/institution/schema/academic'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
+import { createTotpSecret, totpQrDataUrl, totpUri, verifyTotpCode } from '../lib/totp'
 
 function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName
@@ -174,12 +179,105 @@ export async function updateAccountSecurity(
   input: UpdateAccountSecurityRequest,
 ): Promise<AccountProfile> {
   if (input.twoFactorEnabled) {
-    throw badRequest('Two-factor authentication setup is not available yet. Leave this turned off for now.')
+    throw badRequest('Use the authenticator setup flow in Account Settings to turn on two-factor authentication.')
   }
   const db = await getInstitutionDb(institutionId)
   await db
     .update(users)
-    .set({ twoFactorEnabled: false })
+    .set({ twoFactorEnabled: false, twoFactorSecret: null })
+    .where(eq(users.id, userId))
+  return getAccountProfile(institutionId, userId)
+}
+
+export async function listAccountNotifications(
+  institutionId: string,
+  userId: string,
+  limit = 8,
+) {
+  const db = await getInstitutionDb(institutionId)
+  return db
+    .select({
+      id: notifications.id,
+      title: notifications.title,
+      body: notifications.body,
+      category: notifications.category,
+      actionUrl: notifications.actionUrl,
+      readAt: notifications.readAt,
+      createdAt: notifications.createdAt,
+    })
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit)
+}
+
+export async function markAccountNotificationRead(
+  institutionId: string,
+  userId: string,
+  notificationId: string,
+) {
+  const db = await getInstitutionDb(institutionId)
+  const [updated] = await db
+    .update(notifications)
+    .set({ readAt: new Date().toISOString() })
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
+    .returning({ id: notifications.id })
+  if (!updated) throw notFound('That notification')
+  return listAccountNotifications(institutionId, userId)
+}
+
+export async function setupAccountTwoFactor(
+  institutionId: string,
+  userId: string,
+): Promise<TwoFactorSetupResponse> {
+  const profile = await getAccountProfile(institutionId, userId)
+  const secret = createTotpSecret()
+  const otpauthUrl = totpUri({
+    email: profile.email,
+    issuer: profile.institutionName,
+    secret,
+  })
+  return {
+    secret,
+    otpauthUrl,
+    qrCodeDataUrl: await totpQrDataUrl(otpauthUrl),
+  }
+}
+
+export async function enableAccountTwoFactor(
+  institutionId: string,
+  userId: string,
+  input: EnableTwoFactorRequest,
+): Promise<AccountProfile> {
+  if (!verifyTotpCode(input.secret, input.code)) {
+    throw badRequest('That code is not correct. Scan the QR code again and enter the latest code.')
+  }
+  const db = await getInstitutionDb(institutionId)
+  await db
+    .update(users)
+    .set({ twoFactorEnabled: true, twoFactorSecret: input.secret })
+    .where(eq(users.id, userId))
+  return getAccountProfile(institutionId, userId)
+}
+
+export async function disableAccountTwoFactor(
+  institutionId: string,
+  userId: string,
+  input: DisableTwoFactorRequest,
+): Promise<AccountProfile> {
+  const db = await getInstitutionDb(institutionId)
+  const [account] = await db
+    .select({ twoFactorSecret: users.twoFactorSecret })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+  if (!account?.twoFactorSecret) throw badRequest('Two-factor authentication is not enabled.')
+  if (!verifyTotpCode(account.twoFactorSecret, input.code)) {
+    throw badRequest('That code is not correct.')
+  }
+  await db
+    .update(users)
+    .set({ twoFactorEnabled: false, twoFactorSecret: null })
     .where(eq(users.id, userId))
   return getAccountProfile(institutionId, userId)
 }

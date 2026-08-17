@@ -43,6 +43,41 @@ export const updateAccountSecurityRequestSchema = z.object({
   twoFactorEnabled: z.boolean(),
 })
 
+export const accountNotificationSchema = z.object({
+  id: uuidSchema,
+  title: z.string(),
+  body: z.string(),
+  category: z.string(),
+  actionUrl: z.string().nullable(),
+  readAt: isoDateSchema.nullable(),
+  createdAt: isoDateSchema,
+})
+
+export const accountNotificationsResponseSchema = z.object({
+  notifications: z.array(accountNotificationSchema),
+})
+
+export const twoFactorSetupResponseSchema = z.object({
+  secret: z.string(),
+  otpauthUrl: z.string(),
+  qrCodeDataUrl: z.string(),
+})
+
+const totpCodeSchema = z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your authenticator app.')
+
+export const enableTwoFactorRequestSchema = z.object({
+  code: totpCodeSchema,
+  secret: z.string().min(16),
+})
+
+export const disableTwoFactorRequestSchema = z.object({
+  code: totpCodeSchema,
+})
+
+export const verifyTwoFactorRequestSchema = z.object({
+  code: totpCodeSchema,
+})
+
 export const notificationPreferenceItemSchema = z.object({
   key: z.string().trim().min(1).max(64).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/),
   email: z.boolean(),
@@ -62,6 +97,11 @@ export type AccountProfile = z.infer<typeof accountProfileSchema>
 export type UpdateAccountProfileRequest = z.infer<typeof updateAccountProfileRequestSchema>
 export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>
 export type UpdateAccountSecurityRequest = z.infer<typeof updateAccountSecurityRequestSchema>
+export type AccountNotification = z.infer<typeof accountNotificationSchema>
+export type TwoFactorSetupResponse = z.infer<typeof twoFactorSetupResponseSchema>
+export type EnableTwoFactorRequest = z.infer<typeof enableTwoFactorRequestSchema>
+export type DisableTwoFactorRequest = z.infer<typeof disableTwoFactorRequestSchema>
+export type VerifyTwoFactorRequest = z.infer<typeof verifyTwoFactorRequestSchema>
 export type NotificationPreferenceItem = z.infer<typeof notificationPreferenceItemSchema>
 export type UpdateNotificationPreferencesRequest = z.infer<typeof updateNotificationPreferencesRequestSchema>
 export type NotificationPreferencesResponse = z.infer<typeof notificationPreferencesResponseSchema>

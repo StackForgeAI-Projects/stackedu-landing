@@ -1,15 +1,20 @@
-import { useEffect, useState } from 'react'
-import { useRouterState } from '@tanstack/react-router'
+import { useEffect, useState, useCallback } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { notifySuccess } from '@/lib/notify'
 import { consumeWelcomeName, isDashboardPath } from '@/lib/welcome'
+import { logout } from '@/lib/api/auth'
+import { queryClient } from '@/lib/query-client'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { PageContent } from '@/components/PageContent'
+import { InactivityDialog } from '@/components/InactivityDialog'
 import { LogoutDialog, useLogoutDialog } from '@/components/LogoutDialog'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useInactivityLogout } from '@/hooks/useInactivityLogout'
 import { roleLabel } from '@/lib/auth/portals'
 import { initialsFrom } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { Sidebar, type NavItem } from './Sidebar'
 import { Header } from './Header'
+import { AppVersion } from './AppVersion'
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -50,7 +55,18 @@ export function AppShell({
 
   const { user } = useCurrentUser()
   const logoutDialog = useLogoutDialog()
+  const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  const forcedLogout = useCallback(async () => {
+    await logout().catch(() => undefined)
+    queryClient.clear()
+    await navigate({ to: '/login' })
+  }, [navigate])
+
+  const inactivity = useInactivityLogout(() => {
+    void forcedLogout()
+  })
 
   useEffect(() => {
     if (!isDashboardPath(pathname)) return
@@ -110,7 +126,7 @@ export function AppShell({
       </Sheet>
 
       {/* ── Right column — header + scrollable content ───────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header
           pageTitle={pageTitle}
           userName={identity.name}
@@ -120,12 +136,19 @@ export function AppShell({
           onMenuClick={() => setMobileOpen(true)}
           onLogout={handleLogout}
         />
-        <main className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--background)' }}>
+        <main className="flex-1 overflow-y-auto pb-10" style={{ backgroundColor: 'var(--background)' }}>
           <PageContent>{children}</PageContent>
         </main>
+        <AppVersion />
       </div>
 
       <LogoutDialog open={logoutDialog.open} onOpenChange={logoutDialog.setOpen} />
+      <InactivityDialog
+        open={inactivity.open}
+        secondsLeft={inactivity.secondsLeft}
+        onStay={inactivity.staySignedIn}
+        onLogout={() => void forcedLogout()}
+      />
 
     </div>
   )

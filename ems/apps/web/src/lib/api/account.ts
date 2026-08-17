@@ -1,8 +1,12 @@
 import type {
+  AccountNotification,
   AccountProfile,
   ChangePasswordRequest,
+  DisableTwoFactorRequest,
+  EnableTwoFactorRequest,
   NotificationPreferenceItem,
   SessionUser,
+  TwoFactorSetupResponse,
   UpdateAccountProfileRequest,
   UpdateAccountSecurityRequest,
   UpdateNotificationPreferencesRequest,
@@ -11,6 +15,7 @@ import { api } from './client'
 
 export const accountProfileQueryKey = ['account', 'profile'] as const
 export const accountNotificationPrefsQueryKey = ['account', 'notification-preferences'] as const
+export const accountNotificationsQueryKey = ['account', 'notifications'] as const
 
 export async function getAccountProfile(): Promise<AccountProfile> {
   const { profile } = await api.get<{ profile: AccountProfile }>('/account/profile')
@@ -43,4 +48,33 @@ export async function updateAccountNotificationPreferences(input: UpdateNotifica
     input,
   )
   return preferences
+}
+
+export async function getAccountNotifications(limit = 8): Promise<AccountNotification[]> {
+  const { notifications } = await api.get<{ notifications: AccountNotification[] }>(
+    `/account/notifications?limit=${limit}`,
+  )
+  return notifications
+}
+
+export async function markAccountNotificationRead(id: string): Promise<AccountNotification[]> {
+  const { notifications } = await api.post<{ notifications: AccountNotification[] }>(
+    `/account/notifications/${id}/read`,
+  )
+  return notifications
+}
+
+export async function setupAccountTwoFactor(): Promise<TwoFactorSetupResponse> {
+  const { setup } = await api.post<{ setup: TwoFactorSetupResponse }>('/account/2fa/setup')
+  return setup
+}
+
+export async function enableAccountTwoFactor(input: EnableTwoFactorRequest): Promise<AccountProfile> {
+  const { profile } = await api.post<{ profile: AccountProfile }>('/account/2fa/enable', input)
+  return profile
+}
+
+export async function disableAccountTwoFactor(input: DisableTwoFactorRequest): Promise<AccountProfile> {
+  const { profile } = await api.post<{ profile: AccountProfile }>('/account/2fa/disable', input)
+  return profile
 }

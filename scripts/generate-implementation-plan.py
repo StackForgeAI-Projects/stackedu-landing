@@ -137,6 +137,14 @@ def main():
             "The Academic Admin portal is live: dashboard, applications inbox, students, courses "
             "and programmes (create and edit), calendar (create, edit, delete), timetable "
             "(read-only), faculty list, result approval, at-risk, reports, and notifications.",
+            "Shared account layer is live on all portals: profile, password change (revokes all "
+            "sessions), notification preferences in the database, TOTP two-factor authentication "
+            "with authenticator apps, dark/light mode on this device, and a header notification "
+            "dropdown with mark-as-read.",
+            "Platform UX and security: institution name from ICT settings flows to login, apply, "
+            "emails, and receipts; ICT integration toggles gate Resend email and live MoMo/Airtel "
+            "payments; three-minute inactivity prompt with one-minute logout countdown; app "
+            "version v1.0.0 shown in the signed-in shell.",
             "Lecturer, Bursar, and Librarian screens still show mock data. They will write into "
             "the same tables the Student and Academic portals already read.",
             "Every signed-in page shows a short guide box so staff and students know what "
@@ -329,10 +337,13 @@ def main():
             "programmes, and courses can be created and edited; timetable conflict detection "
             "and lecturer assignment are not wired yet.",
             "Live payment gateways (MoMo, Airtel, DPO) and production webhooks are not connected. "
-            "Student and admissions fees run in sandbox mode.",
-            "Two-factor authentication is blocked in account settings until a real TOTP flow exists.",
+            "Student and admissions fees run in sandbox mode; ICT toggles block live MoMo/Airtel "
+            "when turned off.",
+            "Notification preferences are saved per user but not yet enforced when sending SMS or "
+            "email beyond admissions.",
             "The central notification service (SMS via Pindo, templated email beyond admissions) "
-            "is not built. In-app notification lists are live for Student, ICT, and Academic.",
+            "is not built. In-app notification lists and the header dropdown are live for Student, "
+            "ICT, and Academic.",
             "StackEDU AI features remain paused until core portals are complete.",
         ],
     )
@@ -2635,12 +2646,15 @@ def main():
                     "delete an entry.",
                     "Institution identity settings: name, short name, contact email, timezone, "
                     "locale. Not faculties, programmes, or the academic calendar.",
-                    "Integration on/off flags and connection health checks. Secrets stay in "
-                    "environment variables, never in the database.",
+                    "Integration on/off flags and connection health checks. When Resend is off, "
+                    "outbound email is skipped; when MoMo or Airtel is off, live payments for that "
+                    "channel are blocked. Secrets stay in environment variables, never in the "
+                    "database.",
                     "Analytics dashboard from live audit and user activity aggregates.",
                     "Institution-wide announcements and ICT's own in-app notifications.",
                     "Shared account profile and settings (password change revokes all sessions; "
-                    "2FA enable blocked until TOTP is implemented).",
+                    "TOTP two-factor authentication with QR setup; notification preferences in DB; "
+                    "dark/light mode).",
                     "A short guide box on every ICT and Student page.",
                 ],
             ),

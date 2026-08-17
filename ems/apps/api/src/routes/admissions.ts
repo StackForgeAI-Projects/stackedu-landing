@@ -83,6 +83,10 @@ admissionRoutes.post('/apply/register', async (c) => {
     userAgent: c.req.header('user-agent'),
   })
 
+  if (session.status !== 'session') {
+    throw new Error('Applicant registration did not return a session.')
+  }
+
   setCookie(c, SESSION_COOKIE, session.cookieValue, sessionCookieOptions(env(), session.expiresAt))
 
   c.get('logger').info('Applicant registered', {

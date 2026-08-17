@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { env } from '../config/env'
+import { isIntegrationEnabled } from './integrations'
 import { createLogger } from './logger'
 
 export interface SendEmailInput {
@@ -7,6 +8,8 @@ export interface SendEmailInput {
   subject: string
   text: string
   html: string
+  /** When set, Resend must be enabled in ICT integrations for this institution. */
+  institutionId?: string
 }
 
 /**
@@ -17,6 +20,15 @@ export interface SendEmailInput {
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   const config = env()
   const log = createLogger(config.LOG_LEVEL, { service: 'stackedu-api', component: 'email' })
+
+  if (input.institutionId && !(await isIntegrationEnabled(input.institutionId, 'Resend'))) {
+    log.debug('Email skipped — Resend integration is off for institution', {
+      institutionId: input.institutionId,
+      to: input.to,
+      subject: input.subject,
+    })
+    return false
+  }
 
   if (!config.RESEND_API_KEY || !config.EMAIL_FROM) {
     log.debug('Email skipped — RESEND_API_KEY or EMAIL_FROM not set', {

@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { BrandMark } from '@/components/BrandMark'
-import { AuthHero, INSTITUTION_NAME, SIGN_IN_FEATURES } from '@/components/AuthHero'
+import { AuthHero, SIGN_IN_FEATURES } from '@/components/AuthHero'
 import { login, sessionQueryKey } from '@/lib/api/auth'
+import { useInstitutionBranding } from '@/hooks/useInstitutionBranding'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
 import { notifyError } from '@/lib/notify'
@@ -16,6 +17,7 @@ import { queryClient } from '@/lib/query-client'
 
 export function LoginScreen() {
   const navigate = useNavigate()
+  const { institutionName } = useInstitutionBranding()
 
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -32,10 +34,14 @@ export function LoginScreen() {
     setIsLoading(true)
 
     try {
-      const user = await login({ identifier, password, rememberMe })
-      queryClient.setQueryData(sessionQueryKey, user)
-      rememberWelcome(user.fullName)
-      await navigate({ to: dashboardFor(user.role) })
+      const result = await login({ identifier, password, rememberMe })
+      if ('requiresTwoFactor' in result) {
+        await navigate({ to: '/verify' })
+        return
+      }
+      queryClient.setQueryData(sessionQueryKey, result)
+      rememberWelcome(result.fullName)
+      await navigate({ to: dashboardFor(result.role) })
     } catch (cause) {
       notifyError(apiErrorMessage(cause, 'We could not sign you in. Please try again.'))
     } finally {
@@ -48,8 +54,9 @@ export function LoginScreen() {
 
       <AuthHero
         title="Welcome back"
-        subtitle={`Sign in to ${INSTITUTION_NAME}`}
+        subtitle={`Sign in to ${institutionName}`}
         features={SIGN_IN_FEATURES}
+        institutionName={institutionName}
       />
 
       {/* ── Right panel — sign-in form ────────────────────────────────────── */}
@@ -75,7 +82,7 @@ export function LoginScreen() {
                 className="text-sm font-medium mb-1 lg:hidden"
                 style={{ color: 'var(--muted-foreground)' }}
               >
-                {INSTITUTION_NAME}
+                {institutionName}
               </p>
               <h1
                 className="t-h1 mb-2"

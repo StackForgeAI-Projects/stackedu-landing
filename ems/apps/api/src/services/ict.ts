@@ -449,6 +449,7 @@ export async function createIctUser(
   void sendEmail({
     to: created.email,
     subject: 'Your StackEDU account',
+    institutionId,
     text: `Hello ${created.fullName}. Your account is ready. Sign in with ${created.email} and temporary password ${password}. Change it after you sign in.`,
     html: `<p>Hello ${created.fullName}.</p><p>Your account is ready. Sign in with <strong>${created.email}</strong> and temporary password <strong>${password}</strong>.</p><p>Change it after you sign in.</p>`,
   })
@@ -537,6 +538,7 @@ export async function resetIctUserPassword(
   void sendEmail({
     to: user.email,
     subject: 'Your StackEDU password was reset',
+    institutionId,
     text: `Hello ${user.fullName}. Your temporary password is ${password}. Sign in and change it.`,
     html: `<p>Hello ${user.fullName}.</p><p>Your temporary password is <strong>${password}</strong>.</p>`,
   })

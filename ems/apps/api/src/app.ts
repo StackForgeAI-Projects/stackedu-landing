@@ -15,6 +15,7 @@ import { authRoutes } from './routes/auth'
 import { healthRoutes } from './routes/health'
 import { ictRoutes } from './routes/ict'
 import { studentRoutes } from './routes/student'
+import { publicRoutes } from './routes/public'
 
 export type AppEnv = { Variables: RequestVariables & Partial<AuthVariables> }
 
@@ -48,6 +49,7 @@ export function createApp() {
   app.use('*', bodyLimit({ maxSize: 1024 * 1024 }))
 
   app.route('/', healthRoutes)
+  app.route('/', publicRoutes)
   app.route('/', authRoutes)
   app.route('/', admissionRoutes)
   app.route('/', studentRoutes)

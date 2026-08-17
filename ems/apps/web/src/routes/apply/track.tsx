@@ -68,6 +68,10 @@ function ApplicantSignIn() {
 
     try {
       const signedIn = await login({ identifier, password, rememberMe: false })
+      if ('requiresTwoFactor' in signedIn) {
+        await navigate({ to: '/verify' })
+        return
+      }
       queryClient.setQueryData(sessionQueryKey, signedIn)
 
       // Staff and students who land here belong somewhere else.

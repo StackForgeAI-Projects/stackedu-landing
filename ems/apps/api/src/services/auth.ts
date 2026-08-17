@@ -4,8 +4,10 @@ import type { SessionUser } from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions, loginAttempts, userDirectory } from '../db/platform/schema'
 import { sessions, users } from '../db/institution/schema'
-import { invalidCredentials, tooManyRequests } from '../lib/errors'
+import { invalidCredentials, tooManyRequests, badRequest } from '../lib/errors'
 import { fakeVerify, verifyPassword } from '../lib/password'
+import { createPending2faToken, parsePending2faToken } from '../lib/pending-2fa'
+import { verifyTotpCode } from '../lib/totp'
 
 /**
  * Sessions.
@@ -32,11 +34,17 @@ export interface LoginInput {
   userAgent?: string | undefined
 }
 
-export interface LoginResult {
-  cookieValue: string
-  expiresAt: Date
-  user: SessionUser
-}
+export type LoginResult =
+  | {
+      status: 'session'
+      cookieValue: string
+      expiresAt: Date
+      user: SessionUser
+    }
+  | {
+      status: 'two-factor'
+      pendingToken: string
+    }
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('base64url')
@@ -159,6 +167,8 @@ export async function login(input: LoginInput): Promise<LoginResult> {
       role: users.role,
       isActive: users.isActive,
       passwordHash: users.passwordHash,
+      twoFactorEnabled: users.twoFactorEnabled,
+      twoFactorSecret: users.twoFactorSecret,
     })
     .from(users)
     .where(eq(users.id, directory.institutionUserId))
@@ -189,6 +199,24 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     throw invalidCredentials()
   }
 
+  if (account.twoFactorEnabled && account.twoFactorSecret) {
+    await recordAttempt({
+      email,
+      institutionId: directory.institutionId,
+      succeeded: true,
+      ipAddress,
+      userAgent,
+    })
+    return {
+      status: 'two-factor',
+      pendingToken: createPending2faToken({
+        institutionId: directory.institutionId,
+        userId: account.id,
+        rememberMe: input.rememberMe ?? false,
+      }),
+    }
+  }
+
   const token = randomBytes(32).toString('base64url')
   const expiresAt = expiryFrom(input.rememberMe ?? false)
 
@@ -214,7 +242,96 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   })
 
   return {
+    status: 'session',
     cookieValue: `${directory.institutionId}.${token}`,
+    expiresAt,
+    user: {
+      id: account.id,
+      email: account.email,
+      fullName: account.fullName,
+      role: account.role,
+      institution: {
+        id: directory.institutionId,
+        name: directory.name,
+        shortName: directory.shortName,
+        slug: directory.slug,
+      },
+    },
+  }
+}
+
+/** Completes sign-in after password + authenticator code. */
+export async function verifyTwoFactorLogin(input: {
+  pendingToken: string
+  code: string
+  ipAddress?: string | undefined
+  userAgent?: string | undefined
+}): Promise<Extract<LoginResult, { status: 'session' }>> {
+  const pending = parsePending2faToken(input.pendingToken)
+  if (!pending) throw badRequest('Your sign-in session expired. Please sign in again.')
+
+  const [directory] = await getPlatformDb()
+    .select({
+      institutionId: userDirectory.institutionId,
+      isActive: userDirectory.isActive,
+      name: institutions.name,
+      shortName: institutions.shortName,
+      slug: institutions.slug,
+    })
+    .from(userDirectory)
+    .innerJoin(institutions, eq(institutions.id, userDirectory.institutionId))
+    .where(
+      and(
+        eq(userDirectory.institutionUserId, pending.userId),
+        eq(userDirectory.institutionId, pending.institutionId),
+      ),
+    )
+    .limit(1)
+
+  if (!directory?.isActive) throw invalidCredentials()
+
+  const db = await getInstitutionDb(pending.institutionId)
+  const [account] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      fullName: users.fullName,
+      role: users.role,
+      isActive: users.isActive,
+      twoFactorEnabled: users.twoFactorEnabled,
+      twoFactorSecret: users.twoFactorSecret,
+    })
+    .from(users)
+    .where(eq(users.id, pending.userId))
+    .limit(1)
+
+  if (!account?.isActive || !account.twoFactorEnabled || !account.twoFactorSecret) {
+    throw invalidCredentials()
+  }
+
+  if (!verifyTotpCode(account.twoFactorSecret, input.code)) {
+    throw badRequest('That code is not correct. Check your authenticator app and try again.')
+  }
+
+  const token = randomBytes(32).toString('base64url')
+  const expiresAt = expiryFrom(pending.rememberMe)
+
+  await db.insert(sessions).values({
+    userId: account.id,
+    token: hashToken(token),
+    expiresAt: expiresAt.toISOString(),
+    ipAddress: input.ipAddress ?? null,
+    userAgent: input.userAgent ?? null,
+  })
+
+  await db
+    .update(users)
+    .set({ lastLoginAt: new Date().toISOString() })
+    .where(eq(users.id, account.id))
+
+  return {
+    status: 'session',
+    cookieValue: `${pending.institutionId}.${token}`,
     expiresAt,
     user: {
       id: account.id,

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, Menu, Search, LogOut, ChevronDown, User, Settings } from 'lucide-react'
+import { Menu, Search, LogOut, ChevronDown, User, Settings } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,10 +9,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { accountSettingsPath, profilePath } from '@/lib/account-paths'
-import { cn } from '@/lib/utils'
-
-// ─────────────────────────────────────────────────────────────────────────────
+import { accountSettingsPath, notificationsPath, profilePath } from '@/lib/account-paths'
+import { NotificationMenu } from '@/components/NotificationMenu'
 
 interface HeaderProps {
   pageTitle: string
@@ -20,6 +18,7 @@ interface HeaderProps {
   userRole: string
   userInitials: string
   unreadCount?: number
+  notificationsHref?: string
   onMenuClick?: () => void
   onLogout?: () => void
 }
@@ -32,6 +31,7 @@ export function Header({
   userRole,
   userInitials,
   unreadCount = 0,
+  notificationsHref,
   onMenuClick,
   onLogout,
 }: HeaderProps) {
@@ -39,6 +39,7 @@ export function Header({
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const profileHref = profilePath(pathname)
   const settingsHref = accountSettingsPath(pathname)
+  const bellHref = notificationsHref ?? notificationsPath(pathname)
 
   return (
     <header
@@ -115,39 +116,7 @@ export function Header({
           />
         </div>
 
-        {/* Notifications bell */}
-        <div className="relative">
-          <button
-            className="flex items-center justify-center h-9 w-9 rounded-lg transition-colors duration-150"
-            style={{ color: 'var(--muted-foreground)' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--muted)'
-              e.currentTarget.style.color = 'var(--foreground)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = 'var(--muted-foreground)'
-            }}
-            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-          >
-            <Bell className="h-4.5 w-4.5" />
-          </button>
-          {unreadCount > 0 && (
-            <span
-              className={cn(
-                'absolute -top-0.5 -right-0.5 flex items-center justify-center',
-                'min-w-[16px] h-4 rounded-full px-1',
-                'text-[10px] font-bold leading-none'
-              )}
-              style={{
-                backgroundColor: 'var(--error)',
-                color: '#fff',
-              }}
-            >
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </div>
+        <NotificationMenu unreadCount={unreadCount} notificationsHref={bellHref} />
 
         {/* User avatar dropdown */}
         <DropdownMenu>

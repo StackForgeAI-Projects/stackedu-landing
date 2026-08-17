@@ -1,10 +1,23 @@
-import type { LoginRequest, SessionResponse, SessionUser } from '@stackedu/shared'
+import type { LoginRequest, LoginResponse, SessionResponse, SessionUser } from '@stackedu/shared'
 import { api, ApiClientError } from './client'
 
 export const sessionQueryKey = ['auth', 'session'] as const
 
-export async function login(input: LoginRequest): Promise<SessionUser> {
-  const { user } = await api.post<SessionResponse>('/auth/login', input)
+export type LoginResult = SessionUser | { requiresTwoFactor: true }
+
+export async function login(input: LoginRequest): Promise<LoginResult> {
+  const response = await api.post<LoginResponse>('/auth/login', input)
+  if ('requiresTwoFactor' in response && response.requiresTwoFactor) {
+    return { requiresTwoFactor: true }
+  }
+  if (!('user' in response)) {
+    throw new Error('Sign-in did not return a user.')
+  }
+  return response.user
+}
+
+export async function verifyTwoFactor(code: string): Promise<SessionUser> {
+  const { user } = await api.post<SessionResponse>('/auth/2fa/verify', { code })
   return user
 }
 
@@ -12,13 +25,6 @@ export async function logout(): Promise<void> {
   await api.post<void>('/auth/logout')
 }
 
-/**
- * Returns the signed-in user, or null when nobody is signed in.
- *
- * A 401 here is the ordinary answer for a signed-out visitor rather than a
- * failure, so it resolves to null instead of throwing and leaving every caller
- * to special-case it.
- */
 export async function getSession(): Promise<SessionUser | null> {
   try {
     const { user } = await api.get<SessionResponse>('/auth/session')
