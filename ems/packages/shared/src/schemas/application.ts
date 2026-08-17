@@ -36,6 +36,22 @@ export const registerApplicantSchema = z.object({
     .regex(/[a-zA-Z]/, 'Include at least one letter'),
 })
 
+export const verifyApplicantEmailSchema = z.object({
+  email: emailSchema,
+  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+  password: z.string().min(1, 'Enter your password').max(200),
+})
+
+export const resendApplicantVerificationSchema = z.object({
+  email: emailSchema,
+})
+
+export const registerApplicantResponseSchema = z.object({
+  email: emailSchema,
+  fullName: z.string(),
+  reference: z.string(),
+})
+
 /**
  * Everything the seven-step form can save.
  *
@@ -207,6 +223,9 @@ export const documentDownloadUrlSchema = z.object({
 
 export type ProgrammeOption = z.infer<typeof programmeOptionSchema>
 export type RegisterApplicantRequest = z.infer<typeof registerApplicantSchema>
+export type RegisterApplicantResponse = z.infer<typeof registerApplicantResponseSchema>
+export type VerifyApplicantEmailRequest = z.infer<typeof verifyApplicantEmailSchema>
+export type ResendApplicantVerificationRequest = z.infer<typeof resendApplicantVerificationSchema>
 export type SaveApplicationRequest = z.infer<typeof saveApplicationSchema>
 export type ApplicationDocumentType = z.infer<typeof applicationDocumentTypeSchema>
 export type ApplicationDocument = z.infer<typeof applicationDocumentSchema>

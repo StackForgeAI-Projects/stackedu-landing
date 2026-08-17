@@ -43,3 +43,15 @@ export function requireRole(
     await next()
   }
 }
+
+/** Applicants must confirm their email before using the application form. */
+export function requireEmailVerified(): MiddlewareHandler<{ Variables: AuthVariables }> {
+  return async (c, next) => {
+    const user = c.get('user')
+    if (!user) throw unauthenticated()
+    if (user.role === 'Applicant' && !user.emailVerifiedAt) {
+      throw forbidden('Verify your email before continuing.')
+    }
+    await next()
+  }
+}

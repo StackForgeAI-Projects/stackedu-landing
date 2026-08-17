@@ -37,7 +37,10 @@ export async function redirectSignedInToDashboard(): Promise<void> {
 export async function redirectApplicantHome(): Promise<void> {
   const user = await loadSession()
   if (!user) return
-  throw redirect({ to: user.role === 'Applicant' ? '/apply/track' : dashboardFor(user.role) })
+  if (user.role === 'Applicant') {
+    throw redirect({ to: '/apply/track' })
+  }
+  throw redirect({ to: dashboardFor(user.role) })
 }
 
 /**
@@ -50,4 +53,11 @@ export async function requireApplicant(): Promise<void> {
   const user = await loadSession()
   if (!user) throw redirect({ to: '/apply/track' })
   if (user.role !== 'Applicant') throw redirect({ to: dashboardFor(user.role) })
+}
+
+/** Applicants must confirm their email before the form, documents or payment. */
+export async function requireVerifiedApplicant(): Promise<void> {
+  await requireApplicant()
+  const user = await loadSession()
+  if (user && !user.emailVerifiedAt) throw redirect({ to: '/apply/verify' })
 }

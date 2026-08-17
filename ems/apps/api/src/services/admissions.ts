@@ -31,6 +31,7 @@ import {
   deleteStoredObject,
 } from '../lib/storage'
 import { createUser } from './users'
+import { issueApplicantEmailVerification } from './verification'
 
 /**
  * Admissions.
@@ -222,6 +223,13 @@ export async function registerApplicant(
     email: account.email,
     phone: input.phone,
     status: 'Draft',
+  })
+
+  await issueApplicantEmailVerification({
+    institutionId,
+    userId: account.id,
+    email: account.email,
+    fullName: input.fullName,
   })
 
   return { userId: account.id, email: account.email, reference }

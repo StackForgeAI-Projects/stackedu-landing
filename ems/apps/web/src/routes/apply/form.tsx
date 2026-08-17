@@ -24,13 +24,13 @@ import {
   type FieldErrors,
 } from '@/lib/apply/validate-step'
 import { notifyError, notifySuccess } from '@/lib/notify'
-import { requireApplicant } from '@/lib/auth/guards'
+import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { queryClient } from '@/lib/query-client'
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/apply/form')({
-  beforeLoad: requireApplicant,
+  beforeLoad: requireVerifiedApplicant,
   component: ApplyFormPage,
 })
 

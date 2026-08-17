@@ -8,6 +8,9 @@ import {
   registerApplicantSchema,
   reviewApplicationSchema,
   saveApplicationSchema,
+  verifyApplicantEmailSchema,
+  resendApplicantVerificationSchema,
+  type RegisterApplicantResponse,
   type AcademicApplicationDetailResponse,
   type AcademicApplicationsResponse,
   type ApplicationResponse,
@@ -47,6 +50,11 @@ import {
 } from '../services/admissions-review'
 import { resolvePublicInstitution } from '../services/institutions'
 import { login } from '../services/auth'
+import {
+  resendApplicantEmailVerificationByEmail,
+  verifyApplicantEmailByEmail,
+} from '../services/verification'
+import { requireEmailVerified } from '../middleware/auth'
 
 type Variables = RequestVariables & Partial<AuthVariables>
 
@@ -65,9 +73,8 @@ admissionRoutes.get('/apply/programmes', async (c) => {
 })
 
 /**
- * Creates the applicant's account and their draft application, then signs them
- * in. Registering and then being asked to log in again would be a pointless
- * extra step at the very start of the relationship.
+ * Creates the applicant's account and draft application, then sends a verification
+ * code. They are not signed in until the code is confirmed.
  */
 admissionRoutes.post('/apply/register', async (c) => {
   const parsed = registerApplicantSchema.safeParse(await c.req.json().catch(() => ({})))
@@ -76,25 +83,19 @@ admissionRoutes.post('/apply/register', async (c) => {
   const institution = await resolvePublicInstitution(c.req.header('host'))
   const created = await registerApplicant(institution.id, parsed.data)
 
-  const session = await login({
-    identifier: created.email,
-    password: parsed.data.password,
-    ipAddress: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
-    userAgent: c.req.header('user-agent'),
-  })
-
-  if (session.status !== 'session') {
-    throw new Error('Applicant registration did not return a session.')
-  }
-
-  setCookie(c, SESSION_COOKIE, session.cookieValue, sessionCookieOptions(env(), session.expiresAt))
-
   c.get('logger').info('Applicant registered', {
     reference: created.reference,
     institution: institution.slug,
   })
 
-  return c.json<SessionResponse>({ user: session.user }, 201)
+  return c.json<RegisterApplicantResponse>(
+    {
+      email: created.email,
+      fullName: parsed.data.fullName,
+      reference: created.reference,
+    },
+    201,
+  )
 })
 
 /**
@@ -126,15 +127,52 @@ admissionRoutes.get('/apply/documents/file/:token', async (c) => {
 })
 
 const applicantOnly = [requireAuth, requireRole('Applicant')] as const
+const verifiedApplicantOnly = [...applicantOnly, requireEmailVerified()] as const
 const academicOnly = [requireAuth, requireRole('AcademicAdmin')] as const
 
-admissionRoutes.get('/apply/application', ...applicantOnly, async (c) => {
+admissionRoutes.post('/apply/verify-email', async (c) => {
+  const parsed = verifyApplicantEmailSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+
+  const institution = await resolvePublicInstitution(c.req.header('host'))
+  await verifyApplicantEmailByEmail({
+    institutionId: institution.id,
+    email: parsed.data.email,
+    code: parsed.data.code,
+  })
+
+  const session = await login({
+    identifier: parsed.data.email,
+    password: parsed.data.password,
+    ipAddress: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+    userAgent: c.req.header('user-agent'),
+  })
+
+  if (session.status !== 'session') {
+    throw new Error('Applicant verification did not return a session.')
+  }
+
+  setCookie(c, SESSION_COOKIE, session.cookieValue, sessionCookieOptions(env(), session.expiresAt))
+
+  return c.json<SessionResponse>({ user: session.user })
+})
+
+admissionRoutes.post('/apply/resend-verification', async (c) => {
+  const parsed = resendApplicantVerificationSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+
+  const institution = await resolvePublicInstitution(c.req.header('host'))
+  await resendApplicantEmailVerificationByEmail(institution.id, parsed.data.email)
+  return c.body(null, 204)
+})
+
+admissionRoutes.get('/apply/application', ...verifiedApplicantOnly, async (c) => {
   const user = c.get('user')!
   const application = await getApplicationFor(user.institution.id, user.id)
   return c.json<ApplicationResponse>({ application })
 })
 
-admissionRoutes.patch('/apply/application', ...applicantOnly, async (c) => {
+admissionRoutes.patch('/apply/application', ...verifiedApplicantOnly, async (c) => {
   const parsed = saveApplicationSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
 
@@ -143,13 +181,13 @@ admissionRoutes.patch('/apply/application', ...applicantOnly, async (c) => {
   return c.json<ApplicationResponse>({ application })
 })
 
-admissionRoutes.get('/apply/documents', ...applicantOnly, async (c) => {
+admissionRoutes.get('/apply/documents', ...verifiedApplicantOnly, async (c) => {
   const user = c.get('user')!
   const documents = await listApplicantDocuments(user.institution.id, user.id)
   return c.json<DocumentsResponse>({ documents })
 })
 
-admissionRoutes.post('/apply/documents/presign', ...applicantOnly, async (c) => {
+admissionRoutes.post('/apply/documents/presign', ...verifiedApplicantOnly, async (c) => {
   const parsed = presignDocumentSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
 
@@ -158,7 +196,7 @@ admissionRoutes.post('/apply/documents/presign', ...applicantOnly, async (c) => 
   return c.json<PresignDocumentResponse>(result, 201)
 })
 
-admissionRoutes.post('/apply/documents/confirm', ...applicantOnly, async (c) => {
+admissionRoutes.post('/apply/documents/confirm', ...verifiedApplicantOnly, async (c) => {
   const parsed = confirmDocumentSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
 
@@ -167,13 +205,13 @@ admissionRoutes.post('/apply/documents/confirm', ...applicantOnly, async (c) => 
   return c.json<DocumentsResponse>({ documents })
 })
 
-admissionRoutes.delete('/apply/documents/:documentId', ...applicantOnly, async (c) => {
+admissionRoutes.delete('/apply/documents/:documentId', ...verifiedApplicantOnly, async (c) => {
   const user = c.get('user')!
   const documents = await deleteDocument(user.institution.id, user.id, c.req.param('documentId'))
   return c.json<DocumentsResponse>({ documents })
 })
 
-admissionRoutes.get('/apply/documents/:documentId/url', ...applicantOnly, async (c) => {
+admissionRoutes.get('/apply/documents/:documentId/url', ...verifiedApplicantOnly, async (c) => {
   const user = c.get('user')!
   const result = await getDocumentDownloadForApplicant(
     user.institution.id,
@@ -183,7 +221,7 @@ admissionRoutes.get('/apply/documents/:documentId/url', ...applicantOnly, async 
   return c.json<DocumentDownloadUrl>(result)
 })
 
-admissionRoutes.post('/apply/payment', ...applicantOnly, async (c) => {
+admissionRoutes.post('/apply/payment', ...verifiedApplicantOnly, async (c) => {
   const parsed = initiatePaymentSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
 
@@ -197,13 +235,13 @@ admissionRoutes.post('/apply/payment', ...applicantOnly, async (c) => {
   return c.json<PaymentResponse>({ payment }, 201)
 })
 
-admissionRoutes.post('/apply/payment/acknowledge-bank', ...applicantOnly, async (c) => {
+admissionRoutes.post('/apply/payment/acknowledge-bank', ...verifiedApplicantOnly, async (c) => {
   const user = c.get('user')!
   const payment = await acknowledgeBankTransfer(user.institution.id, user.id)
   return c.json<PaymentResponse>({ payment })
 })
 
-admissionRoutes.post('/apply/application/submit', ...applicantOnly, async (c) => {
+admissionRoutes.post('/apply/application/submit', ...verifiedApplicantOnly, async (c) => {
   const user = c.get('user')!
   const application = await submitApplication(user.institution.id, user.id)
   c.get('logger').info('Application submitted', { reference: application.reference })

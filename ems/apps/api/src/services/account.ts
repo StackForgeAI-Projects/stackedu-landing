@@ -41,6 +41,7 @@ export async function getAccountProfile(institutionId: string, userId: string): 
       phone: users.phone,
       role: users.role,
       twoFactorEnabled: users.twoFactorEnabled,
+      emailVerifiedAt: users.emailVerifiedAt,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -77,6 +78,7 @@ export async function getAccountProfile(institutionId: string, userId: string): 
     phone: user.phone,
     role: user.role,
     twoFactorEnabled: user.twoFactorEnabled,
+    emailVerifiedAt: user.emailVerifiedAt,
     institutionName: institution?.name ?? 'Institution',
     institutionShortName: institution?.shortName ?? 'INS',
     studentNumber: student?.studentNumber ?? null,
@@ -320,6 +322,7 @@ export function sessionUserFrom(profile: AccountProfile, institution: SessionUse
     email: profile.email,
     fullName: profile.fullName,
     role: profile.role,
+    emailVerifiedAt: profile.emailVerifiedAt,
     institution,
   }
 }

@@ -5,7 +5,7 @@ import { Upload, FileText, CheckCircle2 } from 'lucide-react'
 import type { ApplicationDocument, ApplicationDocumentType } from '@stackedu/shared'
 import { REQUIRED_APPLICATION_DOCUMENT_TYPES } from '@stackedu/shared'
 import { ApplyLayout, type ApplyStep } from '@/components/ApplyLayout'
-import { requireApplicant } from '@/lib/auth/guards'
+import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,7 +20,7 @@ import { queryClient } from '@/lib/query-client'
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/apply/documents')({
-  beforeLoad: requireApplicant,
+  beforeLoad: requireVerifiedApplicant,
   component: ApplyDocumentsPage,
 })
 

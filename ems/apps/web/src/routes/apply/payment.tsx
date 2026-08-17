@@ -16,14 +16,14 @@ import {
 } from '@/lib/api/admissions'
 import { apiErrorMessage } from '@/lib/api/client'
 import { notifyError, notifySuccess } from '@/lib/notify'
-import { requireApplicant } from '@/lib/auth/guards'
+import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { queryClient } from '@/lib/query-client'
 import { formatCurrency } from '@/lib/utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/apply/payment')({
-  beforeLoad: requireApplicant,
+  beforeLoad: requireVerifiedApplicant,
   component: ApplyPaymentPage,
 })
 

@@ -233,3 +233,67 @@ export async function deleteStoredObject(fileKey: string): Promise<void> {
   const filePath = localPathFor(fileKey)
   if (existsSync(filePath)) await unlink(filePath)
 }
+
+export function buildInstitutionLogoKey(institutionId: string): string {
+  return `institutions/${institutionId}/branding/logo`
+}
+
+const LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'])
+
+export async function writeInstitutionLogo(input: {
+  institutionId: string
+  body: Buffer
+  mimeType: string
+}): Promise<string> {
+  if (!LOGO_MIME_TYPES.has(input.mimeType)) {
+    throw badRequest('Upload a PNG, JPEG, WebP or SVG logo.')
+  }
+  if (input.body.byteLength > 2 * 1024 * 1024) {
+    throw badRequest('The logo must be 2 MB or smaller.')
+  }
+
+  const fileKey = buildInstitutionLogoKey(input.institutionId)
+
+  if (env().STORAGE_DRIVER === 'r2') {
+    await r2Client().send(
+      new PutObjectCommand({
+        Bucket: env().R2_BUCKET!,
+        Key: fileKey,
+        Body: input.body,
+        ContentType: input.mimeType,
+      }),
+    )
+    return fileKey
+  }
+
+  const destination = localPathFor(fileKey)
+  mkdirSync(path.dirname(destination), { recursive: true })
+  await pipeline(Readable.from(input.body), createWriteStream(destination))
+  return fileKey
+}
+
+export function openInstitutionLogo(fileKey: string): {
+  stream: ReturnType<typeof createReadStream>
+  mimeType: string
+} {
+  if (env().STORAGE_DRIVER === 'r2') {
+    throw internalError(new Error('Institution logo streaming is only supported for local storage.'))
+  }
+
+  const filePath = localPathFor(fileKey)
+  if (!existsSync(filePath)) throw badRequest('That logo is not available.')
+
+  const ext = path.extname(filePath).toLowerCase()
+  const mimeType =
+    ext === '.png'
+      ? 'image/png'
+      : ext === '.jpg' || ext === '.jpeg'
+        ? 'image/jpeg'
+        : ext === '.webp'
+          ? 'image/webp'
+          : ext === '.svg'
+            ? 'image/svg+xml'
+            : 'application/octet-stream'
+
+  return { stream: createReadStream(filePath), mimeType }
+}

@@ -169,6 +169,7 @@ export async function login(input: LoginInput): Promise<LoginResult> {
       passwordHash: users.passwordHash,
       twoFactorEnabled: users.twoFactorEnabled,
       twoFactorSecret: users.twoFactorSecret,
+      emailVerifiedAt: users.emailVerifiedAt,
     })
     .from(users)
     .where(eq(users.id, directory.institutionUserId))
@@ -197,6 +198,10 @@ export async function login(input: LoginInput): Promise<LoginResult> {
       userAgent,
     })
     throw invalidCredentials()
+  }
+
+  if (account.role === 'Applicant' && !account.emailVerifiedAt) {
+    throw badRequest('Verify your email before signing in. Check your inbox for the verification code.')
   }
 
   if (account.twoFactorEnabled && account.twoFactorSecret) {
@@ -250,6 +255,7 @@ export async function login(input: LoginInput): Promise<LoginResult> {
       email: account.email,
       fullName: account.fullName,
       role: account.role,
+      emailVerifiedAt: account.emailVerifiedAt,
       institution: {
         id: directory.institutionId,
         name: directory.name,
@@ -300,6 +306,7 @@ export async function verifyTwoFactorLogin(input: {
       isActive: users.isActive,
       twoFactorEnabled: users.twoFactorEnabled,
       twoFactorSecret: users.twoFactorSecret,
+      emailVerifiedAt: users.emailVerifiedAt,
     })
     .from(users)
     .where(eq(users.id, pending.userId))
@@ -338,6 +345,7 @@ export async function verifyTwoFactorLogin(input: {
       email: account.email,
       fullName: account.fullName,
       role: account.role,
+      emailVerifiedAt: account.emailVerifiedAt,
       institution: {
         id: directory.institutionId,
         name: directory.name,
@@ -388,6 +396,7 @@ export async function resolveSession(cookieValue: string): Promise<SessionUser |
       fullName: users.fullName,
       role: users.role,
       isActive: users.isActive,
+      emailVerifiedAt: users.emailVerifiedAt,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -409,6 +418,7 @@ export async function resolveSession(cookieValue: string): Promise<SessionUser |
     email: row.email,
     fullName: row.fullName,
     role: row.role,
+    emailVerifiedAt: row.emailVerifiedAt,
     institution,
   }
 }

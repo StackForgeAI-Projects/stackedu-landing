@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { userRoleSchema } from '../enums'
-import { emailSchema, slugSchema, uuidSchema } from '../primitives'
+import { emailSchema, isoDateTimeSchema, slugSchema, uuidSchema } from '../primitives'
 
 /**
  * Authentication contracts.
@@ -37,6 +37,8 @@ export const sessionUserSchema = z.object({
   fullName: z.string(),
   role: userRoleSchema,
   institution: sessionInstitutionSchema,
+  /** Null until the applicant confirms the code sent to their email. */
+  emailVerifiedAt: isoDateTimeSchema.nullable(),
 })
 
 export const sessionResponseSchema = z.object({

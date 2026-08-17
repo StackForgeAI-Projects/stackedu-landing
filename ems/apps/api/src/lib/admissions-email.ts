@@ -83,6 +83,65 @@ function layout(input: {
   return { text, html }
 }
 
+/** Applicant email verification after registration. Never throws. */
+export async function sendApplicantEmailVerification(input: {
+  institutionId: string
+  to: string
+  fullName: string
+  code: string
+}): Promise<boolean> {
+  try {
+    const institution = await institutionName(input.institutionId)
+    const digits = input.code.split('')
+    const codeBoxes = digits
+      .map(
+        (digit) =>
+          `<span style="display:inline-block;width:44px;height:52px;line-height:52px;margin:0 4px;border-radius:10px;background:#fff;border:1px solid #e5e7eb;font-size:24px;font-weight:700;color:#2563eb;text-align:center">${escapeHtml(digit)}</span>`,
+      )
+      .join('')
+
+    const paragraphs = [
+      'We sent you this verification code to confirm your email address and secure your account. Enter the code below to complete your registration.',
+      'Enter this code on the verification page to continue your application.',
+      'This code will expire in 15 minutes. If you did not request this verification, please ignore this email.',
+    ]
+
+    const content = layout({
+      title: 'Verify your account',
+      greeting: `Hello ${input.fullName},`,
+      paragraphs: [
+        paragraphs[0]!,
+        `Verification code: ${input.code}`,
+        paragraphs[1]!,
+        paragraphs[2]!,
+      ],
+      institution,
+    })
+
+    const html = content.html.replace(
+      `Verification code: ${input.code}`,
+      `<div style="margin:20px 0;padding:16px;border-radius:12px;background:#f3f4f6;text-align:center">
+        <p style="margin:0 0 12px;font-size:11px;letter-spacing:0.08em;color:#6b7280">VERIFICATION CODE</p>
+        <div>${codeBoxes}</div>
+      </div>`,
+    )
+
+    return await sendEmail({
+      to: input.to,
+      subject: `Verify your account — ${institution}`,
+      institutionId: input.institutionId,
+      text: content.text,
+      html,
+    })
+  } catch (error) {
+    log.error('Failed to send applicant verification email', {
+      to: input.to,
+      error,
+    })
+    return false
+  }
+}
+
 /** Applicant notification after a successful submit. Never throws. */
 export async function notifyApplicationSubmitted(input: {
   institutionId: string

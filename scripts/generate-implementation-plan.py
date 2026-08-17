@@ -126,8 +126,8 @@ def main():
         [
             "Foundation is live: Hono API, Drizzle, one Postgres database per institution, "
             "session login, Cloudflare R2 uploads, and Resend email.",
-            "Public admissions is live: apply, documents, sandbox fee, submit, academic review, "
-            "and tracking.",
+            "Public admissions is live: apply, email verification before sign-in, documents, "
+            "sandbox fee, submit, academic review, and tracking.",
             "The Student portal is live against real records: dashboard, courses, registration, "
             "results, transcript, fees, sandbox payment, receipt, library, notifications, "
             "timetable, onboarding, and assignment submit. StackEDU AI stays paused.",
@@ -141,10 +141,15 @@ def main():
             "sessions), notification preferences in the database, TOTP two-factor authentication "
             "with authenticator apps, dark/light mode on this device, and a header notification "
             "dropdown with mark-as-read.",
-            "Platform UX and security: institution name from ICT settings flows to login, apply, "
-            "emails, and receipts; ICT integration toggles gate Resend email and live MoMo/Airtel "
-            "payments; three-minute inactivity prompt with one-minute logout countdown; app "
-            "version v1.0.0 shown in the signed-in shell.",
+            "Platform UX and security: institution name, logo, website, and location from ICT "
+            "settings flow to login, apply, verification, emails, and receipts; ICT integration "
+            "toggles gate Resend email and live MoMo/Airtel payments; three-minute inactivity "
+            "prompt with one-minute logout countdown; app version v1.0.0 shown in the signed-in "
+            "shell.",
+            "Applicant email verification is live: registration creates the account but does not "
+            "sign in. A six-digit code is emailed immediately; the applicant verifies in a modal "
+            "on the create-account screen (or at /apply/verify when returning). Sign-in and access "
+            "to the form, documents, and payment happen only after verification.",
             "Lecturer, Bursar, and Librarian screens still show mock data. They will write into "
             "the same tables the Student and Academic portals already read.",
             "Every signed-in page shows a short guide box so staff and students know what "
@@ -1366,9 +1371,10 @@ def main():
             ],
             [
                 "Admissions (public)",
-                "POST /applications · GET /applications/:trackingCode · "
-                "PATCH /applications/:id · POST /applications/:id/documents · "
-                "POST /applications/:id/fee-payment · POST /applications/:id/submit",
+                "GET /apply/programmes · POST /apply/register · POST /apply/verify-email · "
+                "POST /apply/resend-verification · GET/PATCH /apply/application · "
+                "POST /apply/application/submit · document presign/confirm · "
+                "POST /apply/payment",
             ],
             [
                 "Admissions (staff)",
@@ -2306,49 +2312,51 @@ def main():
         doc,
         4,
         "Admissions and the Public Application Portal",
-        "7 screens · the first thing a new student ever sees",
-        "3 weeks",
+        "7 screens · LIVE on real records · email verification before sign-in",
+        "Done",
         [
             (
                 "Screens covered",
                 [
-                    "apply/index, apply/form (7 steps), apply/documents, apply/payment, "
-                    "apply/verify, apply/confirmation, apply/track",
+                    "apply/index (create account + verification modal), apply/form (7 steps), "
+                    "apply/documents, apply/payment, apply/verify (returning unverified applicants), "
+                    "apply/confirmation, apply/track",
                     "academic/applications (inbox) and academic/application (detail and decision)",
                 ],
             ),
             (
-                "Backend work",
+                "Backend work (live)",
                 [
+                    "POST /apply/register creates the applicant account and draft application, "
+                    "sends a six-digit email code, and does not issue a session.",
+                    "POST /apply/verify-email and POST /apply/resend-verification are public; "
+                    "verify checks the code, marks emailVerifiedAt, then signs the applicant in.",
+                    "Unverified applicants cannot sign in or call form, document, or payment APIs.",
                     "Application create, save-as-draft, and submit endpoints.",
-                    "Document upload tied to the pipeline from Phase 3.",
-                    "Application fee payment, which is the first live use of the payment "
-                    "integration.",
-                    "A tracking code so an applicant can check progress without an account.",
-                    "The review workflow: submitted, under review, documents requested, "
-                    "accepted, rejected.",
-                    "Automatic creation of a student record and a user account when an "
-                    "application is accepted.",
-                    "Notifications at every stage by SMS and email.",
+                    "Document upload through presigned R2 or local storage.",
+                    "Application fee payment in sandbox mode (ICT toggles gate live MoMo/Airtel).",
+                    "Review workflow: submitted, under review, documents requested, accepted, "
+                    "rejected, with Resend email when the integration is on.",
                 ],
             ),
             (
-                "Why this is first",
+                "Institution branding (live)",
                 [
-                    "It is entirely public, so it does not depend on complex role logic.",
-                    "It exercises the whole stack end to end: forms, validation, uploads, "
-                    "payments, notifications, and staff review.",
-                    "It is the module an institution can see working earliest, which builds "
-                    "confidence.",
+                    "ICT System Settings: institution name, short name, contact email, website URL, "
+                    "location, school logo upload, timezone, and locale.",
+                    "GET /public/institution/:slug returns name, shortName, website, location, "
+                    "and logoUrl for login, apply, and verification screens.",
                 ],
             ),
             (
                 "Done when",
                 [
-                    "An applicant can complete an application from start to finish, pay the fee, "
-                    "and track it.",
-                    "An academic admin can review and decide on it.",
-                    "An accepted applicant automatically receives login details.",
+                    "An applicant registers, verifies email in the modal, and only then reaches "
+                    "the application form.",
+                    "An applicant who closes the browser before verifying can complete verification "
+                    "at /apply/verify with email, password, and code — still without accessing the "
+                    "form until verified.",
+                    "An academic admin can review and decide on submitted applications.",
                 ],
             ),
         ],
@@ -2644,8 +2652,9 @@ def main():
                     "Access revocation with a mandatory reason; all sessions for that user end.",
                     "Append-only audit log with human-readable labels. Even ICT cannot edit or "
                     "delete an entry.",
-                    "Institution identity settings: name, short name, contact email, timezone, "
-                    "locale. Not faculties, programmes, or the academic calendar.",
+                    "Institution identity settings: name, short name, contact email, website URL, "
+                    "location, school logo (upload to R2 or local storage), timezone, and locale. "
+                    "Not faculties, programmes, or the academic calendar.",
                     "Integration on/off flags and connection health checks. When Resend is off, "
                     "outbound email is skipped; when MoMo or Airtel is off, live payments for that "
                     "channel are blocked. Secrets stay in environment variables, never in the "
@@ -3211,9 +3220,10 @@ def main():
 
     para(
         doc,
-        "Nothing in this document has been built. It is a plan for approval. Once the "
-        "decisions above are made, Phase 0 can begin immediately, because the "
-        "frontend is already waiting for a backend to talk to.",
+        "Much of this plan is already built and live on Render and Vercel for the pilot "
+        "institution. Remaining work is concentrated in Bursar, Lecturer, Librarian, live "
+        "payment webhooks, and the central notification service. Regenerate this document "
+        "locally with scripts/generate-implementation-plan.py whenever a major milestone ships.",
     )
 
     # ── Appendix ─────────────────────────────────────────────────────────────
@@ -3232,8 +3242,9 @@ def main():
             ["Public", "index, login, verify, forgot-password, reset-password, demo", "2"],
             [
                 "Apply",
-                "index, form, documents, payment, verify, confirmation, track",
-                "4",
+                "index, form, documents, payment, verify, confirmation, track (live; verify "
+                "before sign-in)",
+                "4 — Done",
             ],
             [
                 "Student",

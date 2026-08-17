@@ -16,10 +16,13 @@ import type {
   ProgrammeOption,
   ProgrammesResponse,
   RegisterApplicantRequest,
+  RegisterApplicantResponse,
+  ResendApplicantVerificationRequest,
   ReviewApplicationRequest,
   SaveApplicationRequest,
   SessionResponse,
   SessionUser,
+  VerifyApplicantEmailRequest,
   ApplicationPayment,
 } from '@stackedu/shared'
 import { api, API_URL, ApiClientError } from './client'
@@ -33,12 +36,24 @@ export async function getProgrammes(): Promise<ProgrammeOption[]> {
   return programmes
 }
 
-/** Creates the account and the draft application, and signs the applicant in. */
+/** Creates the account and draft application. Sign-in happens after email verification. */
 export async function registerApplicant(
   input: RegisterApplicantRequest,
+): Promise<RegisterApplicantResponse> {
+  return api.post<RegisterApplicantResponse>('/apply/register', input)
+}
+
+export async function verifyApplicantEmail(
+  input: VerifyApplicantEmailRequest,
 ): Promise<SessionUser> {
-  const { user } = await api.post<SessionResponse>('/apply/register', input)
+  const { user } = await api.post<SessionResponse>('/apply/verify-email', input)
   return user
+}
+
+export async function resendApplicantVerification(
+  input: ResendApplicantVerificationRequest,
+): Promise<void> {
+  await api.post('/apply/resend-verification', input)
 }
 
 export async function getApplication(): Promise<Application> {
@@ -79,11 +94,6 @@ export async function deleteDocument(documentId: string): Promise<ApplicationDoc
   return documents
 }
 
-/**
- * Presign → PUT bytes to storage → confirm metadata.
- *
- * The PUT goes to R2 or a signed local URL; it is not a JSON API call.
- */
 function mimeForFile(file: File): string {
   if (file.type) return file.type
   const lower = file.name.toLowerCase()

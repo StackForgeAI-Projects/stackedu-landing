@@ -4,13 +4,13 @@ import { CheckCircle2, Copy, Mail, Clock, Bell } from 'lucide-react'
 import { ApplyTopBar } from '@/components/ApplyLayout'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/hooks/useApplication'
-import { requireApplicant } from '@/lib/auth/guards'
+import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { notifySuccess } from '@/lib/notify'
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/apply/confirmation')({
-  beforeLoad: requireApplicant,
+  beforeLoad: requireVerifiedApplicant,
   component: ApplyConfirmationPage,
 })
 

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import {
   createAnnouncementRequestSchema,
   createIctUserRequestSchema,
@@ -10,7 +11,7 @@ import {
   updateRolePermissionsRequestSchema,
   userRoleSchema,
 } from '@stackedu/shared'
-import { validationFailed } from '../lib/errors'
+import { validationFailed, badRequest } from '../lib/errors'
 import { requireAuth, requireRole, type AuthVariables } from '../middleware/auth'
 import type { RequestVariables } from '../middleware/request-context'
 import {
@@ -42,6 +43,7 @@ import {
   updateIctRolePermissions,
   updateIctSettings,
   updateIctUser,
+  uploadInstitutionLogo,
 } from '../services/ict'
 
 type Variables = RequestVariables & Partial<AuthVariables>
@@ -178,6 +180,25 @@ ictRoutes.patch('/ict/settings', ...ictOnly, async (c) => {
   const user = c.get('user')!
   return c.json({ settings: await updateIctSettings(user.institution.id, actor(c), parsed.data) })
 })
+
+ictRoutes.post(
+  '/ict/settings/logo',
+  ...ictOnly,
+  bodyLimit({ maxSize: 2 * 1024 * 1024 }),
+  async (c) => {
+    const mimeType = c.req.header('content-type')?.split(';')[0]?.trim() ?? ''
+    const bytes = Buffer.from(await c.req.arrayBuffer())
+    if (bytes.byteLength === 0) throw badRequest('Choose a logo image to upload.')
+
+    const user = c.get('user')!
+    return c.json({
+      settings: await uploadInstitutionLogo(user.institution.id, actor(c), {
+        body: bytes,
+        mimeType,
+      }),
+    })
+  },
+)
 
 ictRoutes.get('/ict/integrations', ...ictOnly, async (c) => {
   const user = c.get('user')!

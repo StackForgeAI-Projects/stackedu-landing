@@ -143,6 +143,9 @@ export const ictSettingsSchema = z.object({
   timezone: z.string(),
   locale: z.enum(['en', 'fr', 'rw']),
   slug: z.string(),
+  website: z.string().nullable(),
+  location: z.string().nullable(),
+  logoUrl: z.string().nullable(),
 })
 
 export const updateIctSettingsRequestSchema = z.object({
@@ -151,6 +154,17 @@ export const updateIctSettingsRequestSchema = z.object({
   contactEmail: emailSchema.optional(),
   timezone: z.string().trim().min(1).max(64).optional(),
   locale: z.enum(['en', 'fr', 'rw']).optional(),
+  website: z.string().trim().max(500).nullable().optional(),
+  location: z.string().trim().max(200).nullable().optional(),
+})
+
+export const publicInstitutionBrandingSchema = z.object({
+  name: z.string(),
+  shortName: z.string(),
+  slug: z.string(),
+  website: z.string().nullable(),
+  location: z.string().nullable(),
+  logoUrl: z.string().nullable(),
 })
 
 export const ictIntegrationSchema = z.object({
@@ -267,6 +281,7 @@ export type UpdateRolePermissionsRequest = z.infer<typeof updateRolePermissionsR
 export type IctAuditRow = z.infer<typeof ictAuditRowSchema>
 export type IctAuditDetail = z.infer<typeof ictAuditDetailSchema>
 export type IctSettings = z.infer<typeof ictSettingsSchema>
+export type PublicInstitutionBranding = z.infer<typeof publicInstitutionBrandingSchema>
 export type UpdateIctSettingsRequest = z.infer<typeof updateIctSettingsRequestSchema>
 export type IctIntegration = z.infer<typeof ictIntegrationSchema>
 export type AnnouncementAudience = z.infer<typeof announcementAudienceSchema>

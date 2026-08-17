@@ -24,7 +24,7 @@ import type {
   UpdateIctUserRequest,
   UserRole,
 } from '@stackedu/shared'
-import { api } from './client'
+import { api, API_URL, ApiClientError } from './client'
 
 export const ictProfileQueryKey = ['ict', 'me'] as const
 export const ictDashboardQueryKey = ['ict', 'dashboard'] as const
@@ -131,6 +131,37 @@ export async function getIctSettings(): Promise<IctSettings> {
 export async function updateIctSettings(input: UpdateIctSettingsRequest) {
   const { settings } = await api.patch<{ settings: IctSettings }>('/ict/settings', input)
   return settings
+}
+
+export async function uploadIctLogo(file: File): Promise<IctSettings> {
+  const response = await fetch(`${API_URL}/ict/settings/logo`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': file.type || 'application/octet-stream',
+    },
+    body: file,
+  })
+
+  const payload: unknown = await response.json().catch(() => undefined)
+  if (!response.ok) {
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      'error' in payload &&
+      typeof (payload as { error?: { message?: string } }).error?.message === 'string'
+    ) {
+      throw new ApiClientError(
+        'VALIDATION_FAILED',
+        response.status,
+        (payload as { error: { message: string } }).error.message,
+      )
+    }
+    throw new ApiClientError('INTERNAL_ERROR', response.status, 'Could not upload the logo.')
+  }
+
+  return (payload as { settings: IctSettings }).settings
 }
 
 export async function getIctIntegrations(): Promise<IctIntegration[]> {

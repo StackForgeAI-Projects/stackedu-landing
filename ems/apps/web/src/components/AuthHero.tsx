@@ -34,6 +34,7 @@ interface AuthHeroProps {
   subtitle: string
   features: string[]
   institutionName?: string
+  institutionLogoUrl?: string | null
   /** Where the logo goes. Omitted on the sign-in screen, which is already home. */
   logoTo?: string
   logoAriaLabel?: string
@@ -44,6 +45,7 @@ export function AuthHero({
   subtitle,
   features,
   institutionName = INSTITUTION_NAME,
+  institutionLogoUrl,
   logoTo,
   logoAriaLabel,
 }: AuthHeroProps) {
@@ -61,6 +63,7 @@ export function AuthHero({
     >
       <BrandMark
         size={36}
+        institutionLogoUrl={institutionLogoUrl}
         wordmarkClassName="text-lg font-bold tracking-tight"
         {...(logoTo ? { to: logoTo } : {})}
         {...(logoAriaLabel ? { ariaLabel: logoAriaLabel } : {})}

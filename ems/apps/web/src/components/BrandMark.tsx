@@ -10,6 +10,8 @@ interface BrandMarkProps {
   to?: string
   /** Square size of the logo tile in pixels. */
   size?: number
+  /** Institution logo from ICT settings. Falls back to the StackEDU mark. */
+  institutionLogoUrl?: string | null
   wordmarkColor?: string
   wordmarkClassName?: string
   ariaLabel?: string
@@ -23,6 +25,7 @@ interface BrandMarkProps {
 export function BrandMark({
   to,
   size = 32,
+  institutionLogoUrl,
   wordmarkColor = '#FFFFFF',
   wordmarkClassName = 'text-[17px] font-bold tracking-tight truncate',
   ariaLabel = 'StackEDU home',
@@ -30,7 +33,6 @@ export function BrandMark({
 }: BrandMarkProps) {
   const content = (
     <>
-      {/* Logo image, with a lettermark stacked behind it as the fallback. */}
       <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
         <div
           className={cn(
@@ -42,11 +44,17 @@ export function BrandMark({
           S
         </div>
         <img
-          src="/stackedu-logo.png"
+          src={institutionLogoUrl ?? '/stackedu-logo.png'}
           alt="StackEDU"
           className="absolute inset-0"
           style={{ width: size, height: size, objectFit: 'contain' }}
-          onError={(e) => { e.currentTarget.style.display = 'none' }}
+          onError={(e) => {
+            if (institutionLogoUrl) {
+              e.currentTarget.src = '/stackedu-logo.png'
+              return
+            }
+            e.currentTarget.style.display = 'none'
+          }}
         />
       </div>
 

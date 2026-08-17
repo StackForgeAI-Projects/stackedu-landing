@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { userRoleSchema } from '../enums'
-import { emailSchema, isoDateSchema, phoneSchema, uuidSchema } from '../primitives'
+import { emailSchema, isoDateSchema, isoDateTimeSchema, phoneSchema, uuidSchema } from '../primitives'
 
 export const accountProfileSchema = z.object({
   id: uuidSchema,
@@ -10,6 +10,7 @@ export const accountProfileSchema = z.object({
   phone: z.string().nullable(),
   role: userRoleSchema,
   twoFactorEnabled: z.boolean(),
+  emailVerifiedAt: isoDateTimeSchema.nullable(),
   institutionName: z.string(),
   institutionShortName: z.string(),
   studentNumber: z.string().nullable(),

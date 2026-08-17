@@ -1,14 +1,11 @@
+import type { PublicInstitutionBranding } from '@stackedu/shared'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api/client'
 
-export interface InstitutionBranding {
-  name: string
-  shortName: string
-  slug: string
-}
-
 const DEFAULT_SLUG = import.meta.env.VITE_DEFAULT_INSTITUTION_SLUG ?? 'sfu'
 const FALLBACK_NAME = 'StackForgeAI University'
+
+export type InstitutionBranding = PublicInstitutionBranding
 
 export const institutionBrandingQueryKey = ['public', 'institution', DEFAULT_SLUG] as const
 
@@ -27,5 +24,8 @@ export function useInstitutionBranding() {
     ...query,
     institutionName: query.data?.name ?? FALLBACK_NAME,
     institutionShortName: query.data?.shortName ?? 'SFU',
+    logoUrl: query.data?.logoUrl ?? null,
+    website: query.data?.website ?? null,
+    location: query.data?.location ?? null,
   }
 }

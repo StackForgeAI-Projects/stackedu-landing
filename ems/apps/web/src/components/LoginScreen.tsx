@@ -17,7 +17,7 @@ import { queryClient } from '@/lib/query-client'
 
 export function LoginScreen() {
   const navigate = useNavigate()
-  const { institutionName } = useInstitutionBranding()
+  const { institutionName, logoUrl } = useInstitutionBranding()
 
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -57,6 +57,7 @@ export function LoginScreen() {
         subtitle={`Sign in to ${institutionName}`}
         features={SIGN_IN_FEATURES}
         institutionName={institutionName}
+        institutionLogoUrl={logoUrl}
       />
 
       {/* ── Right panel — sign-in form ────────────────────────────────────── */}
@@ -68,6 +69,7 @@ export function LoginScreen() {
         <div className="mb-10 lg:hidden">
           <BrandMark
             size={32}
+            institutionLogoUrl={logoUrl}
             wordmarkColor="var(--foreground)"
             wordmarkClassName="text-base font-bold tracking-tight"
           />

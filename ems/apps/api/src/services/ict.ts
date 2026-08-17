@@ -28,6 +28,7 @@ import type {
 } from '@stackedu/shared'
 import { auditSummary } from '@stackedu/shared'
 import { env } from '../config/env'
+import { writeInstitutionLogo } from '../lib/storage'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions, userDirectory } from '../db/platform/schema'
 import { programmes } from '../db/institution/schema/academic'
@@ -878,14 +879,55 @@ export async function getIctSettings(institutionId: string): Promise<IctSettings
       timezone: institutions.timezone,
       locale: institutions.locale,
       slug: institutions.slug,
+      website: institutions.website,
+      location: institutions.location,
+      logoFileKey: institutions.logoFileKey,
     })
     .from(institutions)
     .where(eq(institutions.id, institutionId))
     .limit(1)
   if (!row) throw notFound('That institution')
+  return mapIctSettings(row)
+}
+
+function publicLogoUrl(slug: string, logoFileKey: string | null): string | null {
+  if (!logoFileKey) return null
+  return `${env().API_PUBLIC_URL.replace(/\/$/, '')}/public/institution/${slug}/logo`
+}
+
+function mapIctSettings(row: {
+  name: string
+  shortName: string
+  contactEmail: string
+  timezone: string
+  locale: string
+  slug: string
+  website: string | null
+  location: string | null
+  logoFileKey: string | null
+}): IctSettings {
   return {
-    ...row,
+    name: row.name,
+    shortName: row.shortName,
+    contactEmail: row.contactEmail,
+    timezone: row.timezone,
     locale: row.locale === 'fr' || row.locale === 'rw' ? row.locale : 'en',
+    slug: row.slug,
+    website: row.website,
+    location: row.location,
+    logoUrl: publicLogoUrl(row.slug, row.logoFileKey),
+  }
+}
+
+function normaliseWebsite(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return null
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`)
+    return url.toString()
+  } catch {
+    throw badRequest('Enter a valid website URL.')
   }
 }
 
@@ -895,6 +937,7 @@ export async function updateIctSettings(
   input: UpdateIctSettingsRequest,
 ): Promise<IctSettings> {
   const current = await getIctSettings(institutionId)
+  const website = normaliseWebsite(input.website)
   await getPlatformDb()
     .update(institutions)
     .set({
@@ -903,6 +946,8 @@ export async function updateIctSettings(
       ...(input.contactEmail ? { contactEmail: input.contactEmail } : {}),
       ...(input.timezone ? { timezone: input.timezone } : {}),
       ...(input.locale ? { locale: input.locale } : {}),
+      ...(website !== undefined ? { website } : {}),
+      ...(input.location !== undefined ? { location: input.location?.trim() || null } : {}),
     })
     .where(eq(institutions.id, institutionId))
 
@@ -917,6 +962,35 @@ export async function updateIctSettings(
     changes: {
       ...(input.name && input.name !== current.name ? { name: { from: current.name, to: input.name } } : {}),
     },
+  })
+
+  return getIctSettings(institutionId)
+}
+
+export async function uploadInstitutionLogo(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  input: { body: Buffer; mimeType: string },
+): Promise<IctSettings> {
+  const logoFileKey = await writeInstitutionLogo({
+    institutionId,
+    body: input.body,
+    mimeType: input.mimeType,
+  })
+
+  await getPlatformDb()
+    .update(institutions)
+    .set({ logoFileKey })
+    .where(eq(institutions.id, institutionId))
+
+  await writeAudit({
+    institutionId,
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: 'settings.logo.upload',
+    targetType: 'institution',
+    targetId: institutionId,
   })
 
   return getIctSettings(institutionId)
