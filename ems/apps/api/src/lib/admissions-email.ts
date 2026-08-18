@@ -1,5 +1,6 @@
 import type { ApplicationStatus, RequestedDocuments } from '@stackedu/shared'
 import { formatApplicationStatus, formatRequestedDocumentsList } from '@stackedu/shared'
+import { env } from '../config/env'
 import { createLogger } from './logger'
 import { escapeHtml, sendEmail } from './email'
 import { buildBrandedEmail, getInstitutionEmailBranding } from './email-layout'
@@ -32,15 +33,19 @@ function layout(input: {
   branding: Awaited<ReturnType<typeof getInstitutionEmailBranding>>
   title: string
   greeting: string
+  leadNote?: string
   paragraphs: string[]
   bodyHtmlExtra?: string
+  trackUrl?: string
 }): { text: string; html: string } {
   return buildBrandedEmail({
     branding: input.branding,
     title: input.title,
     greeting: input.greeting,
+    leadNote: input.leadNote,
     paragraphs: input.paragraphs,
     bodyHtmlExtra: input.bodyHtmlExtra,
+    trackUrl: input.trackUrl,
   })
 }
 
@@ -145,26 +150,52 @@ export async function notifyApplicationDecision(input: {
   try {
     const branding = await getInstitutionEmailBranding(input.institutionId)
     const copy = DECISION_COPY[input.decision]
+    const trimmed = input.comments?.trim()
+    const trackBase = env().WEB_APP_URL.replace(/\/$/, '')
+
+    if (input.decision === 'DocumentsRequested') {
+      const items = input.requestedDocuments
+        ? formatRequestedDocumentsList(input.requestedDocuments)
+        : []
+      const paragraphs = [
+        ...(items.length > 0 ? [`Documents requested: ${items.join(', ')}`] : []),
+        copy.body,
+        `Application ID: ${input.reference}`,
+        `Status: ${formatApplicationStatus(input.decision)}`,
+        'Use the button below to upload the requested documents on Track.',
+      ]
+
+      const content = layout({
+        branding,
+        title: copy.headline,
+        greeting: `Hello ${input.fullName},`,
+        leadNote: trimmed || undefined,
+        paragraphs,
+        trackUrl: `${trackBase}/apply/documents`,
+      })
+
+      await sendEmail({
+        to: input.to,
+        subject: `${copy.headline} — ${input.reference}`,
+        institutionId: input.institutionId,
+        ...content,
+      })
+      return
+    }
+
     const paragraphs = [
       copy.body,
       `Application ID: ${input.reference}`,
       `Status: ${formatApplicationStatus(input.decision)}`,
     ]
-    const trimmed = input.comments?.trim()
     if (trimmed) paragraphs.push(`Note from admissions: ${trimmed}`)
-    if (input.decision === 'DocumentsRequested' && input.requestedDocuments) {
-      const items = formatRequestedDocumentsList(input.requestedDocuments)
-      if (items.length > 0) {
-        paragraphs.push(`Documents requested: ${items.join(', ')}`)
-      }
-    }
-    paragraphs.push('Open Track to view the full request and upload your documents.')
 
     const content = layout({
       branding,
       title: copy.headline,
       greeting: `Hello ${input.fullName},`,
       paragraphs,
+      trackUrl: `${trackBase}/apply/track`,
     })
 
     await sendEmail({

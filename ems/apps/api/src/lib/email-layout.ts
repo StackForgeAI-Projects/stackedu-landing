@@ -21,6 +21,8 @@ export interface BrandedEmailInput {
   branding: InstitutionEmailBranding
   title: string
   greeting: string
+  /** Shown immediately after the greeting — used for admissions notes on document requests. */
+  leadNote?: string
   paragraphs: string[]
   /** Extra HTML inserted after paragraphs and before the CTA button. */
   bodyHtmlExtra?: string
@@ -85,6 +87,7 @@ export function buildBrandedEmail(input: BrandedEmailInput): { text: string; htm
   const text = [
     input.greeting,
     '',
+    ...(input.leadNote ? [input.leadNote, ''] : []),
     ...input.paragraphs,
     '',
     ...(showTrack ? [`Track your application: ${track}`, ''] : []),
@@ -114,6 +117,13 @@ export function buildBrandedEmail(input: BrandedEmailInput): { text: string; htm
     </p>
     <p style="margin:0;font-size:11px;color:#9ca3af">Powered by StackEDU</p>`
 
+  const leadNoteHtml = input.leadNote
+    ? `<div style="margin:0 0 16px;padding:16px;border-radius:12px;background:#fef3c7;border:1px solid #f59e0b">
+        <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.08em;color:#92400e">MESSAGE FROM ADMISSIONS</p>
+        <p style="margin:0;line-height:1.6;color:#1a1a1a;font-size:15px">${escapeHtml(input.leadNote)}</p>
+      </div>`
+    : ''
+
   const html = `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f8">
@@ -140,6 +150,7 @@ export function buildBrandedEmail(input: BrandedEmailInput): { text: string; htm
             <td style="padding:28px 24px">
               <h1 style="margin:0 0 16px;font-size:20px;color:#111">${escapeHtml(input.title)}</h1>
               <p style="margin:0 0 12px;line-height:1.5;color:#1a1a1a">${escapeHtml(input.greeting)}</p>
+              ${leadNoteHtml}
               ${htmlParagraphs}
               ${input.bodyHtmlExtra ?? ''}
               ${trackButton}

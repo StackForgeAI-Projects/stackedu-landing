@@ -4,6 +4,7 @@ import type { Application, ApplicationStatus } from '@stackedu/shared'
 import { formatRequestedDocumentsList } from '@stackedu/shared'
 import {
   ClipboardCheck, Clock, CreditCard, Eye, EyeOff, FileText, GraduationCap, Search, XCircle,
+  AlertCircle,
 } from 'lucide-react'
 import { ApplyLayout } from '@/components/ApplyLayout'
 import { APPLY_FEATURES, AuthHero, INSTITUTION_NAME } from '@/components/AuthHero'
@@ -249,6 +250,9 @@ function ApplicationStatusView() {
   }
 
   const isDraft = application.status === 'Draft'
+  const documentRequest = application.documentRequest
+  const showDocumentRequest =
+    application.status === 'DocumentsRequested' && Boolean(documentRequest)
   const progress = resolveApplicationProgress(application)
   const resumeTo = applyResumeRoute(progress.currentStep)
 
@@ -280,6 +284,10 @@ function ApplicationStatusView() {
         </p>
       </div>
 
+      {showDocumentRequest && documentRequest ? (
+        <DocumentRequestAlert request={documentRequest} />
+      ) : null}
+
       <StatusTimeline application={application} />
 
       <div className="mt-6">
@@ -296,7 +304,7 @@ function ApplicationStatusView() {
               <Button className="font-semibold">Continue application</Button>
             </Link>
           </Card>
-        ) : (
+        ) : showDocumentRequest ? null : (
           <StatusMessage application={application} />
         )}
       </div>
@@ -352,6 +360,75 @@ const STATUS_MESSAGES: Record<
   },
 }
 
+function DocumentRequestAlert({
+  request,
+}: {
+  request: NonNullable<Application['documentRequest']>
+}) {
+  const documents = formatRequestedDocumentsList(request.requestedDocuments)
+
+  return (
+    <div
+      className="mb-6 p-5 sm:p-6 rounded-xl"
+      style={{
+        backgroundColor: 'var(--warning-bg)',
+        border: '1px solid var(--warning)',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <div
+          className="flex items-center justify-center rounded-full flex-shrink-0"
+          style={{ width: 36, height: 36, backgroundColor: 'rgba(245,158,11,0.15)' }}
+        >
+          <AlertCircle size={18} style={{ color: 'var(--warning)' }} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold" style={{ color: 'var(--warning)' }}>
+            Action required — documents requested
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+            Admissions needs updated documents before they can continue your application.
+          </p>
+        </div>
+      </div>
+
+      {request.comments ? (
+        <div
+          className="mb-4 p-4 rounded-lg"
+          style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+        >
+          <p className="t-label mb-2" style={{ color: 'var(--muted-foreground)' }}>
+            MESSAGE FROM ADMISSIONS
+          </p>
+          <p className="text-sm sm:text-base font-medium" style={{ color: 'var(--foreground)', lineHeight: 1.6 }}>
+            {request.comments}
+          </p>
+        </div>
+      ) : null}
+
+      {documents.length > 0 ? (
+        <div className="mb-4">
+          <p className="t-label mb-2" style={{ color: 'var(--muted-foreground)' }}>
+            DOCUMENTS TO UPLOAD
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {documents.map((item) => (
+              <li key={item} className="text-sm" style={{ color: 'var(--foreground)' }}>
+                • {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <Link to="/apply/documents" className="block sm:inline-block">
+        <Button className="w-full sm:w-auto font-semibold">Upload requested documents</Button>
+      </Link>
+    </div>
+  )
+}
+
 function StatusMessage({ application }: { application: Application }) {
   if (application.status === 'Draft') return null
   const message = STATUS_MESSAGES[application.status]
@@ -364,29 +441,6 @@ function StatusMessage({ application }: { application: Application }) {
       <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
         {message.body}
       </p>
-      {application.status === 'DocumentsRequested' && application.documentRequest ? (
-        <div className="mt-4 flex flex-col gap-3">
-          <div
-            className="p-3 rounded-lg text-left"
-            style={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
-          >
-            <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--muted-foreground)' }}>
-              Requested documents
-            </p>
-            <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
-              {formatRequestedDocumentsList(application.documentRequest.requestedDocuments).join(' · ')}
-            </p>
-            {application.documentRequest.comments ? (
-              <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
-                {application.documentRequest.comments}
-              </p>
-            ) : null}
-          </div>
-          <Link to="/apply/documents" className="self-start">
-            <Button className="font-semibold">Upload requested documents</Button>
-          </Link>
-        </div>
-      ) : null}
     </Card>
   )
 }
