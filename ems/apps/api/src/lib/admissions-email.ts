@@ -1,10 +1,7 @@
-import { eq } from 'drizzle-orm'
 import type { ApplicationStatus } from '@stackedu/shared'
-import { getPlatformDb } from '../db/connection'
-import { institutions } from '../db/platform/schema'
-import { env } from '../config/env'
 import { createLogger } from './logger'
 import { escapeHtml, sendEmail } from './email'
+import { buildBrandedEmail, getInstitutionEmailBranding } from './email-layout'
 
 const log = createLogger('info', { service: 'stackedu-api', component: 'admissions-email' })
 
@@ -30,57 +27,20 @@ const DECISION_COPY: Record<
   },
 }
 
-async function institutionName(institutionId: string): Promise<string> {
-  const db = getPlatformDb()
-  const [row] = await db
-    .select({ name: institutions.name })
-    .from(institutions)
-    .where(eq(institutions.id, institutionId))
-    .limit(1)
-  return row?.name ?? 'StackEDU'
-}
-
-function trackUrl(): string {
-  return `${env().WEB_APP_URL.replace(/\/$/, '')}/apply/track`
-}
-
 function layout(input: {
+  branding: Awaited<ReturnType<typeof getInstitutionEmailBranding>>
   title: string
   greeting: string
   paragraphs: string[]
-  institution: string
+  bodyHtmlExtra?: string
 }): { text: string; html: string } {
-  const track = trackUrl()
-  const text = [
-    input.greeting,
-    '',
-    ...input.paragraphs,
-    '',
-    `Track your application: ${track}`,
-    '',
-    `— ${input.institution} (via StackEDU)`,
-  ].join('\n')
-
-  const htmlParagraphs = input.paragraphs
-    .map((p) => `<p style="margin:0 0 12px;line-height:1.5;color:#1a1a1a">${escapeHtml(p)}</p>`)
-    .join('')
-
-  const html = `<!DOCTYPE html>
-<html><body style="font-family:system-ui,-apple-system,sans-serif;background:#f6f7f8;padding:24px">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:28px 24px">
-    <h1 style="margin:0 0 16px;font-size:20px;color:#111">${escapeHtml(input.title)}</h1>
-    <p style="margin:0 0 12px;line-height:1.5;color:#1a1a1a">${escapeHtml(input.greeting)}</p>
-    ${htmlParagraphs}
-    <p style="margin:20px 0 0">
-      <a href="${escapeHtml(track)}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600">
-        Open Track
-      </a>
-    </p>
-    <p style="margin:24px 0 0;font-size:13px;color:#6b7280">— ${escapeHtml(input.institution)} (via StackEDU)</p>
-  </div>
-</body></html>`
-
-  return { text, html }
+  return buildBrandedEmail({
+    branding: input.branding,
+    title: input.title,
+    greeting: input.greeting,
+    paragraphs: input.paragraphs,
+    bodyHtmlExtra: input.bodyHtmlExtra,
+  })
 }
 
 /** Applicant email verification after registration. Never throws. */
@@ -91,7 +51,7 @@ export async function sendApplicantEmailVerification(input: {
   code: string
 }): Promise<boolean> {
   try {
-    const institution = await institutionName(input.institutionId)
+    const branding = await getInstitutionEmailBranding(input.institutionId)
     const digits = input.code.split('')
     const codeBoxes = digits
       .map(
@@ -100,38 +60,27 @@ export async function sendApplicantEmailVerification(input: {
       )
       .join('')
 
-    const paragraphs = [
-      'We sent you this verification code to confirm your email address and secure your account. Enter the code below to complete your registration.',
-      'Enter this code on the verification page to continue your application.',
-      'This code will expire in 15 minutes. If you did not request this verification, please ignore this email.',
-    ]
-
     const content = layout({
+      branding,
       title: 'Verify your account',
       greeting: `Hello ${input.fullName},`,
       paragraphs: [
-        paragraphs[0]!,
-        `Verification code: ${input.code}`,
-        paragraphs[1]!,
-        paragraphs[2]!,
+        'We sent you this verification code to confirm your email address and secure your account. Enter the code below to complete your registration.',
+        'Enter this code on the verification page to continue your application.',
+        'This code will expire in 15 minutes. If you did not request this verification, please ignore this email.',
       ],
-      institution,
-    })
-
-    const html = content.html.replace(
-      `Verification code: ${input.code}`,
-      `<div style="margin:20px 0;padding:16px;border-radius:12px;background:#f3f4f6;text-align:center">
+      bodyHtmlExtra: `<div style="margin:20px 0;padding:16px;border-radius:12px;background:#f3f4f6;text-align:center">
         <p style="margin:0 0 12px;font-size:11px;letter-spacing:0.08em;color:#6b7280">VERIFICATION CODE</p>
         <div>${codeBoxes}</div>
       </div>`,
-    )
+    })
 
     return await sendEmail({
       to: input.to,
-      subject: `Verify your account — ${institution}`,
+      subject: `Verify your account — ${branding.name}`,
       institutionId: input.institutionId,
       text: content.text,
-      html,
+      html: content.html,
     })
   } catch (error) {
     log.error('Failed to send applicant verification email', {
@@ -151,21 +100,21 @@ export async function notifyApplicationSubmitted(input: {
   programmeName: string | null
 }): Promise<void> {
   try {
-    const institution = await institutionName(input.institutionId)
+    const branding = await getInstitutionEmailBranding(input.institutionId)
     const programmeLine = input.programmeName
       ? `Programme: ${input.programmeName}`
       : 'Your selected programme is on file.'
 
     const content = layout({
+      branding,
       title: 'Application received',
       greeting: `Hello ${input.fullName},`,
       paragraphs: [
-        `We have received your application to ${institution}.`,
+        `We have received your application to ${branding.name}.`,
         `Application ID: ${input.reference}`,
         programmeLine,
         'Keep your Application ID safe — you will need it to sign in and track progress.',
       ],
-      institution,
     })
 
     await sendEmail({
@@ -192,7 +141,7 @@ export async function notifyApplicationDecision(input: {
   comments?: string | null
 }): Promise<void> {
   try {
-    const institution = await institutionName(input.institutionId)
+    const branding = await getInstitutionEmailBranding(input.institutionId)
     const copy = DECISION_COPY[input.decision]
     const paragraphs = [
       copy.body,
@@ -203,10 +152,10 @@ export async function notifyApplicationDecision(input: {
     if (trimmed) paragraphs.push(`Note from admissions: ${trimmed}`)
 
     const content = layout({
+      branding,
       title: copy.headline,
       greeting: `Hello ${input.fullName},`,
       paragraphs,
-      institution,
     })
 
     await sendEmail({

@@ -588,9 +588,8 @@ export async function initiatePayment(
 
   const amount = env().APPLICATION_FEE_RWF
   const reference = `PAY-${application.reference}-${randomInt(1000, 9999)}`
-  const sandboxComplete =
-    env().PAYMENT_MODE === 'sandbox' &&
-    (input.method === 'MoMo' || input.method === 'Airtel' || input.method === 'Card')
+  // Demo / sandbox completes every method on first initiate — no second confirm click.
+  const sandboxComplete = env().PAYMENT_MODE === 'sandbox'
 
   if (env().PAYMENT_MODE === 'live') {
     if (input.method === 'MoMo' && !(await isIntegrationEnabled(institutionId, 'MTNMoMo'))) {

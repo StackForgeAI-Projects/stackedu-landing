@@ -78,7 +78,7 @@ const envSchema = z
     /** Application fee in whole Rwandan Francs. */
     APPLICATION_FEE_RWF: z.coerce.number().int().positive().default(10_000),
     /**
-     * `sandbox` completes MoMo/Airtel immediately after initiate (no gateway).
+     * `sandbox` completes every payment method on first initiate (no gateway).
      * `live` records Pending and waits for a gateway webhook / staff confirm.
      */
     PAYMENT_MODE: z.enum(['sandbox', 'live']).default('sandbox'),
