@@ -4,6 +4,7 @@ import { api } from '@/lib/api/client'
 
 const DEFAULT_SLUG = import.meta.env.VITE_DEFAULT_INSTITUTION_SLUG ?? 'sfu'
 const FALLBACK_NAME = 'StackForgeAI University'
+export const FALLBACK_WEBSITE = 'https://stackedu.rw'
 
 export type InstitutionBranding = PublicInstitutionBranding
 
@@ -25,7 +26,7 @@ export function useInstitutionBranding() {
     institutionName: query.data?.name ?? FALLBACK_NAME,
     institutionShortName: query.data?.shortName ?? 'SFU',
     logoUrl: query.data?.logoUrl ?? null,
-    website: query.data?.website ?? null,
+    institutionWebsite: query.data?.website?.trim() || FALLBACK_WEBSITE,
     location: query.data?.location ?? null,
   }
 }

@@ -28,6 +28,7 @@ const INSTITUTION = {
   slug: 'sfu',
   shortName: 'SFU',
   contactEmail: 'registrar@sfu.ac.rw',
+  website: 'https://stackedu.rw',
 } as const
 
 const FACULTY = { code: 'FST', name: 'Faculty of Science and Technology' } as const
@@ -226,6 +227,11 @@ async function main() {
   } else {
     process.stdout.write(`Institution ${INSTITUTION.slug} already present\n`)
   }
+
+  await db
+    .update(institutions)
+    .set({ website: INSTITUTION.website })
+    .where(eq(institutions.id, institution.id))
 
   await seedAcademicStructure(institution.id)
 

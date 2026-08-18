@@ -4,6 +4,7 @@ import { CheckCircle2, Copy, Mail, Clock, Bell } from 'lucide-react'
 import { ApplyTopBar } from '@/components/ApplyLayout'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/hooks/useApplication'
+import { useInstitutionBranding } from '@/hooks/useInstitutionBranding'
 import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { notifySuccess } from '@/lib/notify'
 
@@ -19,6 +20,7 @@ export const Route = createFileRoute('/apply/confirmation')({
 function ApplyConfirmationPage() {
   const [copied, setCopied] = useState(false)
   const { application } = useApplication()
+  const { institutionWebsite } = useInstitutionBranding()
 
   const applicationId = application?.reference ?? ''
 
@@ -176,12 +178,14 @@ function ApplyConfirmationPage() {
                 Track my application
               </Button>
             </Link>
-            <Button
-              variant="outline"
-              className="px-6"
-              onClick={() => window.open('#', '_blank')}
-            >
-              Return to university website
+            <Button variant="outline" className="px-6" asChild>
+              <a
+                href={institutionWebsite}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Return to university website
+              </a>
             </Button>
           </div>
 
