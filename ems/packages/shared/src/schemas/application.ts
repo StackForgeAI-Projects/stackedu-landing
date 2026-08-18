@@ -98,9 +98,42 @@ export const REQUIRED_APPLICATION_DOCUMENT_TYPES = [
   'MedicalInsurance',
 ] as const satisfies ReadonlyArray<z.infer<typeof applicationDocumentTypeSchema>>
 
+/** Stored document keys — standard enum values or `Other:<name>` for ad-hoc requests. */
+export const storedDocumentTypeSchema = z.union([
+  applicationDocumentTypeSchema,
+  z.string().regex(/^Other:.{2,120}$/),
+])
+
+export const requestedDocumentsSchema = z.object({
+  types: z.array(applicationDocumentTypeSchema).default([]),
+  custom: z.array(z.string().trim().min(2).max(120)).default([]),
+})
+
+export const reviewApplicationDecisionSchema = z.enum([
+  'UnderReview',
+  'DocumentsRequested',
+  'Accepted',
+  'Rejected',
+])
+
+export const applicationDocumentRequestSchema = z.object({
+  comments: z.string().nullable(),
+  requestedDocuments: requestedDocumentsSchema,
+  requestedAt: isoDateTimeSchema,
+})
+
+export const applicationReviewSchema = z.object({
+  id: uuidSchema,
+  decision: reviewApplicationDecisionSchema,
+  comments: z.string().nullable(),
+  requestedDocuments: requestedDocumentsSchema.nullable(),
+  reviewerName: z.string(),
+  createdAt: isoDateTimeSchema,
+})
+
 export const applicationDocumentSchema = z.object({
   id: uuidSchema,
-  documentType: applicationDocumentTypeSchema,
+  documentType: storedDocumentTypeSchema,
   fileName: z.string().trim().min(1).max(200),
   fileSizeBytes: z.number().int().nonnegative().nullable(),
   mimeType: z.string().nullable(),
@@ -136,6 +169,7 @@ export const applicationSchema = z.object({
   submittedAt: z.string().nullable(),
   reviewedAt: z.string().nullable(),
   createdAt: z.string(),
+  documentRequest: applicationDocumentRequestSchema.nullable(),
 })
 
 export const applicationResponseSchema = z.object({ application: applicationSchema })
@@ -146,7 +180,7 @@ export const documentsResponseSchema = z.object({
 })
 
 export const presignDocumentSchema = z.object({
-  documentType: applicationDocumentTypeSchema,
+  documentType: storedDocumentTypeSchema,
   fileName: z.string().trim().min(1).max(200),
   mimeType: z
     .string()
@@ -179,17 +213,24 @@ export const paymentResponseSchema = z.object({
   payment: applicationPaymentSchema,
 })
 
-export const reviewApplicationDecisionSchema = z.enum([
-  'UnderReview',
-  'DocumentsRequested',
-  'Accepted',
-  'Rejected',
-])
-
-export const reviewApplicationSchema = z.object({
-  decision: reviewApplicationDecisionSchema,
-  comments: z.string().trim().max(4000).optional(),
-})
+export const reviewApplicationSchema = z
+  .object({
+    decision: reviewApplicationDecisionSchema,
+    comments: z.string().trim().max(4000).optional(),
+    requestedDocuments: requestedDocumentsSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.decision !== 'DocumentsRequested') return
+    const types = value.requestedDocuments?.types ?? []
+    const custom = value.requestedDocuments?.custom ?? []
+    if (types.length + custom.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['requestedDocuments'],
+        message: 'Select at least one document to request.',
+      })
+    }
+  })
 
 export const academicApplicationSummarySchema = z.object({
   id: uuidSchema,
@@ -220,6 +261,7 @@ export const academicApplicationDetailSchema = academicApplicationSummarySchema.
   details: z.record(z.string(), z.unknown()).nullable(),
   documents: z.array(applicationDocumentSchema),
   payment: applicationPaymentSchema.nullable(),
+  reviews: z.array(applicationReviewSchema),
 })
 
 export const academicApplicationDetailResponseSchema = z.object({
@@ -250,6 +292,9 @@ export type ConfirmDocumentRequest = z.infer<typeof confirmDocumentSchema>
 export type InitiatePaymentRequest = z.infer<typeof initiatePaymentSchema>
 export type PaymentResponse = z.infer<typeof paymentResponseSchema>
 export type ReviewApplicationRequest = z.infer<typeof reviewApplicationSchema>
+export type RequestedDocuments = z.infer<typeof requestedDocumentsSchema>
+export type ApplicationDocumentRequest = z.infer<typeof applicationDocumentRequestSchema>
+export type ApplicationReview = z.infer<typeof applicationReviewSchema>
 export type AcademicApplicationSummary = z.infer<typeof academicApplicationSummarySchema>
 export type AcademicApplicationsResponse = z.infer<typeof academicApplicationsResponseSchema>
 export type AcademicApplicationDetail = z.infer<typeof academicApplicationDetailSchema>

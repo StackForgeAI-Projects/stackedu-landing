@@ -3,8 +3,13 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { Upload, FileText, CheckCircle2 } from 'lucide-react'
 import type { ApplicationDocument, ApplicationDocumentType } from '@stackedu/shared'
-import { REQUIRED_APPLICATION_DOCUMENT_TYPES } from '@stackedu/shared'
+import {
+  REQUIRED_APPLICATION_DOCUMENT_TYPES,
+  buildCustomDocumentType,
+  formatRequestedDocumentsList,
+} from '@stackedu/shared'
 import { ApplyLayout, type ApplyStep } from '@/components/ApplyLayout'
+import { useApplication } from '@/hooks/useApplication'
 import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { Button } from '@/components/ui/button'
@@ -38,7 +43,7 @@ const STEPS: ApplyStep[] = [
 ]
 
 interface DocSpec {
-  id:           ApplicationDocumentType
+  id:           string
   label:        string
   required:     boolean
   accept:       string
@@ -114,7 +119,17 @@ function formatSize(bytes: number) {
 
 function ApplyDocumentsPage() {
   const navigate = useNavigate()
-  const [uploadingType, setUploadingType] = useState<ApplicationDocumentType | null>(null)
+  const { application } = useApplication()
+  const [uploadingType, setUploadingType] = useState<string | null>(null)
+
+  const respondMode =
+    application?.status === 'DocumentsRequested' && Boolean(application.documentRequest)
+
+  const respondDocs = respondMode && application?.documentRequest
+    ? buildRespondDocSpecs(application.documentRequest.requestedDocuments)
+    : []
+
+  const visibleDocs = respondMode ? respondDocs : DOCS
 
   const documentsQuery = useQuery({
     queryKey: documentsQueryKey,
@@ -148,10 +163,14 @@ function ApplyDocumentsPage() {
     },
   })
 
-  const requiredDocs = DOCS.filter((d) => d.required)
-  const uploadedCount = documents.length
-  const allRequiredMet = REQUIRED_APPLICATION_DOCUMENT_TYPES.every((type) => byType.has(type))
-  const progressPct = Math.round((uploadedCount / DOCS.length) * 100)
+  const requiredDocs = visibleDocs.filter((d) => d.required)
+  const uploadedCount = visibleDocs.filter((spec) => byType.has(spec.id)).length
+  const allRequiredMet = respondMode
+    ? visibleDocs.every((spec) => byType.has(spec.id))
+    : REQUIRED_APPLICATION_DOCUMENT_TYPES.every((type) => byType.has(type))
+  const progressPct = visibleDocs.length
+    ? Math.round((uploadedCount / visibleDocs.length) * 100)
+    : 0
 
   const handleUpload = (spec: DocSpec, file: File) => {
     if (file.size > spec.maxMB * 1024 * 1024) {
@@ -165,22 +184,43 @@ function ApplyDocumentsPage() {
   return (
     <ApplyLayout
       steps={STEPS}
-      currentStep={6}
-      completedSteps={[1, 2, 3, 4, 5]}
-      progressPercent={APPLY_PROGRESS_BY_STEP[6]}
-      showBanner
+      currentStep={respondMode ? 6 : 6}
+      completedSteps={respondMode ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5]}
+      progressPercent={respondMode ? 100 : APPLY_PROGRESS_BY_STEP[6]}
+      showBanner={!respondMode}
     >
       <div className="mb-6">
         <h2
           className="t-h2"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.01em' }}
         >
-          Upload your documents
+          {respondMode ? 'Upload requested documents' : 'Upload your documents'}
         </h2>
         <p className="t-body mt-1" style={{ color: 'var(--muted-foreground)' }}>
-          Upload clear, readable copies. Accepted formats are PDF, JPG, and PNG.
+          {respondMode
+            ? 'Admissions has requested additional documents. Upload clear copies for each item below.'
+            : 'Upload clear, readable copies. Accepted formats are PDF, JPG, and PNG.'}
         </p>
       </div>
+
+      {respondMode && application?.documentRequest ? (
+        <div
+          className="mb-6 p-4 rounded-xl"
+          style={{ backgroundColor: 'var(--warning-bg)', border: '1px solid var(--warning)' }}
+        >
+          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--warning)' }}>
+            Documents requested
+          </p>
+          <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+            {formatRequestedDocumentsList(application.documentRequest.requestedDocuments).join(' · ')}
+          </p>
+          {application.documentRequest.comments ? (
+            <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+              Note: {application.documentRequest.comments}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         className="flex items-center gap-4 mb-6 px-5 py-4 rounded-xl"
@@ -192,7 +232,7 @@ function ApplyDocumentsPage() {
       >
         <div className="flex-1">
           <p className="text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>
-            {uploadedCount} of {DOCS.length} documents uploaded
+            {uploadedCount} of {visibleDocs.length} documents uploaded
           </p>
           <div className="rounded-full overflow-hidden" style={{ height: 6, backgroundColor: 'var(--muted)' }}>
             <div
@@ -214,7 +254,7 @@ function ApplyDocumentsPage() {
       )}
 
       <div className="flex flex-col gap-4">
-        {DOCS.map((doc) => (
+        {visibleDocs.map((doc) => (
           <DocCard
             key={doc.id}
             spec={doc}
@@ -231,40 +271,74 @@ function ApplyDocumentsPage() {
 
       <div className="mt-8">
         <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => navigate({ to: '/apply/form', search: { step: 5 } })}>
-            ← Back
-          </Button>
-          <Button
-            onClick={() => {
-              if (!allRequiredMet) {
-                notifyError('Upload all required documents before continuing.')
-                return
-              }
-              void navigate({ to: '/apply/payment' })
-            }}
-            disabled={!allRequiredMet || requiredDocs.length === 0}
-            title={!allRequiredMet ? 'Upload all required documents' : undefined}
-            className="font-semibold transition-transform duration-150 hover:-translate-y-px active:translate-y-0"
-          >
-            Continue to payment
-          </Button>
+          {respondMode ? (
+            <Button variant="outline" onClick={() => navigate({ to: '/apply/track' })}>
+              ← Back to track
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => navigate({ to: '/apply/form', search: { step: 5 } })}>
+              ← Back
+            </Button>
+          )}
+          {respondMode ? (
+            <Button
+              onClick={() => navigate({ to: '/apply/track' })}
+              disabled={!allRequiredMet}
+              className="font-semibold"
+            >
+              Return to track
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                if (!allRequiredMet) {
+                  notifyError('Upload all required documents before continuing.')
+                  return
+                }
+                void navigate({ to: '/apply/payment' })
+              }}
+              disabled={!allRequiredMet || requiredDocs.length === 0}
+              title={!allRequiredMet ? 'Upload all required documents' : undefined}
+              className="font-semibold transition-transform duration-150 hover:-translate-y-px active:translate-y-0"
+            >
+              Continue to payment
+            </Button>
+          )}
         </div>
-        <div className="flex justify-center mt-3">
-          <button
-            type="button"
-            onClick={() => {
-              void documentsQuery.refetch()
-              notifySuccess('Progress saved.')
-            }}
-            className="text-sm font-medium transition-opacity hover:opacity-70"
-            style={{ color: '#0D7A28', background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            Save progress
-          </button>
-        </div>
+        {!respondMode ? (
+          <div className="flex justify-center mt-3">
+            <button
+              type="button"
+              onClick={() => {
+                void documentsQuery.refetch()
+                notifySuccess('Progress saved.')
+              }}
+              className="text-sm font-medium transition-opacity hover:opacity-70"
+              style={{ color: '#0D7A28', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              Save progress
+            </button>
+          </div>
+        ) : null}
       </div>
     </ApplyLayout>
   )
+}
+
+function buildRespondDocSpecs(request: {
+  types: ApplicationDocumentType[]
+  custom: string[]
+}): DocSpec[] {
+  const standard = DOCS.filter((doc) => request.types.includes(doc.id as ApplicationDocumentType))
+  const custom = request.custom.map((name) => ({
+    id: buildCustomDocumentType(name),
+    label: name,
+    required: true,
+    accept: '.pdf,.jpg,.jpeg,.png',
+    hint: 'PDF, JPG, PNG',
+    maxMB: 10,
+  }))
+  return [...standard, ...custom]
 }
 
 function DocCard({

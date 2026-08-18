@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import type { ApplicationStatus } from '@stackedu/shared'
+import type { Application, ApplicationStatus } from '@stackedu/shared'
+import { formatRequestedDocumentsList } from '@stackedu/shared'
 import {
   ClipboardCheck, Clock, CreditCard, Eye, EyeOff, FileText, GraduationCap, Search, XCircle,
 } from 'lucide-react'
@@ -296,7 +297,7 @@ function ApplicationStatusView() {
             </Link>
           </Card>
         ) : (
-          <StatusMessage status={application.status} />
+          <StatusMessage application={application} />
         )}
       </div>
     </ApplyLayout>
@@ -351,9 +352,9 @@ const STATUS_MESSAGES: Record<
   },
 }
 
-function StatusMessage({ status }: { status: ApplicationStatus }) {
-  if (status === 'Draft') return null
-  const message = STATUS_MESSAGES[status]
+function StatusMessage({ application }: { application: Application }) {
+  if (application.status === 'Draft') return null
+  const message = STATUS_MESSAGES[application.status]
 
   return (
     <Card accent={message.tone}>
@@ -363,6 +364,29 @@ function StatusMessage({ status }: { status: ApplicationStatus }) {
       <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
         {message.body}
       </p>
+      {application.status === 'DocumentsRequested' && application.documentRequest ? (
+        <div className="mt-4 flex flex-col gap-3">
+          <div
+            className="p-3 rounded-lg text-left"
+            style={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--muted-foreground)' }}>
+              Requested documents
+            </p>
+            <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+              {formatRequestedDocumentsList(application.documentRequest.requestedDocuments).join(' · ')}
+            </p>
+            {application.documentRequest.comments ? (
+              <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+                {application.documentRequest.comments}
+              </p>
+            ) : null}
+          </div>
+          <Link to="/apply/documents" className="self-start">
+            <Button className="font-semibold">Upload requested documents</Button>
+          </Link>
+        </div>
+      ) : null}
     </Card>
   )
 }

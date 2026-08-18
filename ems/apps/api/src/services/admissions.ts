@@ -26,6 +26,11 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { isIntegrationEnabled } from '../lib/integrations'
 import { notifyApplicationSubmitted } from '../lib/admissions-email'
 import {
+  assertDocumentDeleteAllowed,
+  assertDocumentUploadAllowed,
+  mimeRulesForDocumentType,
+} from '../lib/application-documents'
+import {
   buildFileKey,
   createDownloadUrl,
   createUploadTarget,
@@ -33,6 +38,7 @@ import {
 } from '../lib/storage'
 import { createUser } from './users'
 import { issueApplicantEmailVerification } from './verification'
+import { loadLatestDocumentRequest } from './admissions-read'
 
 /**
  * Admissions.
@@ -44,24 +50,6 @@ import { issueApplicantEmailVerification } from './verification'
  */
 
 const REFERENCE_ATTEMPTS = 5
-
-const ALLOWED_MIME: Record<ApplicationDocumentType, readonly string[]> = {
-  NationalId: ['application/pdf', 'image/jpeg', 'image/png'],
-  SchoolCertificate: ['application/pdf'],
-  Transcript: ['application/pdf'],
-  Photo: ['image/jpeg', 'image/png'],
-  MedicalInsurance: ['application/pdf', 'image/jpeg', 'image/png'],
-  BirthCertificate: ['application/pdf', 'image/jpeg', 'image/png'],
-}
-
-const MAX_BYTES: Record<ApplicationDocumentType, number> = {
-  NationalId: 5 * 1024 * 1024,
-  SchoolCertificate: 10 * 1024 * 1024,
-  Transcript: 10 * 1024 * 1024,
-  Photo: 2 * 1024 * 1024,
-  MedicalInsurance: 5 * 1024 * 1024,
-  BirthCertificate: 5 * 1024 * 1024,
-}
 
 function buildReference(): string {
   return `APP-${new Date().getFullYear()}-${String(randomInt(0, 100_000)).padStart(5, '0')}`
@@ -128,7 +116,7 @@ function mapDocument(row: {
 }): ApplicationDocument {
   return {
     id: row.id,
-    documentType: row.documentType as ApplicationDocumentType,
+    documentType: row.documentType,
     fileName: row.fileName,
     fileSizeBytes: row.fileSizeBytes,
     mimeType: row.mimeType,
@@ -318,9 +306,10 @@ export async function getApplicationFor(
 
   if (!row) throw notFound('Your application')
 
-  const [documents, payment] = await Promise.all([
+  const [documents, payment, documentRequest] = await Promise.all([
     loadDocuments(institutionId, row.id),
     loadLatestPayment(institutionId, row.id),
+    loadLatestDocumentRequest(institutionId, row.id),
   ])
 
   return {
@@ -347,6 +336,7 @@ export async function getApplicationFor(
     details: row.details ?? null,
     documents,
     payment,
+    documentRequest,
     submittedAt: row.submittedAt,
     reviewedAt: row.reviewedAt,
     createdAt: row.createdAt,
@@ -421,15 +411,17 @@ export async function presignDocument(
   const db = await getInstitutionDb(institutionId)
   const application = await getApplicationFor(institutionId, applicantUserId)
 
-  if (application.status !== 'Draft') {
-    throw conflict('Your application has been submitted and can no longer be changed.')
-  }
+  assertDocumentUploadAllowed({
+    applicationStatus: application.status,
+    documentType: input.documentType,
+    documentRequest: application.documentRequest?.requestedDocuments ?? null,
+  })
 
-  const allowed = ALLOWED_MIME[input.documentType]
+  const { allowed, maxBytes } = mimeRulesForDocumentType(input.documentType)
   if (!allowed.includes(input.mimeType)) {
     throw badRequest('That file type is not accepted for this document.')
   }
-  if (input.fileSizeBytes > MAX_BYTES[input.documentType]) {
+  if (input.fileSizeBytes > maxBytes) {
     throw badRequest('That file is too large for this document.')
   }
 
@@ -504,11 +496,26 @@ export async function confirmDocument(
   documentId: string,
 ): Promise<ApplicationDocument[]> {
   const application = await getApplicationFor(institutionId, applicantUserId)
-  if (application.status !== 'Draft') {
-    throw conflict('Your application has been submitted and can no longer be changed.')
-  }
-
   const db = await getInstitutionDb(institutionId)
+  const [pending] = await db
+    .select({ documentType: applicationDocuments.documentType })
+    .from(applicationDocuments)
+    .where(
+      and(
+        eq(applicationDocuments.id, documentId),
+        eq(applicationDocuments.applicationId, application.id),
+      ),
+    )
+    .limit(1)
+
+  if (!pending) throw notFound('That document')
+
+  assertDocumentUploadAllowed({
+    applicationStatus: application.status,
+    documentType: pending.documentType,
+    documentRequest: application.documentRequest?.requestedDocuments ?? null,
+  })
+
   const [row] = await db
     .select({ id: applicationDocuments.id })
     .from(applicationDocuments)
@@ -530,9 +537,10 @@ export async function deleteDocument(
   documentId: string,
 ): Promise<ApplicationDocument[]> {
   const application = await getApplicationFor(institutionId, applicantUserId)
-  if (application.status !== 'Draft') {
-    throw conflict('Your application has been submitted and can no longer be changed.')
-  }
+  assertDocumentDeleteAllowed({
+    applicationStatus: application.status,
+    documentRequest: application.documentRequest?.requestedDocuments ?? null,
+  })
 
   await removeDocumentRow(institutionId, application.id, documentId)
   return loadDocuments(institutionId, application.id)

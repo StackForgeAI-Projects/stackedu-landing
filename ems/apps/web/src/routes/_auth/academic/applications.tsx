@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ApplicationStatus } from '@stackedu/shared'
 import { AcademicShell } from '@/components/AcademicShell'
 import { DataTable } from '@/components/DataTable'
+import { ApplicationStatusBadge } from '@/lib/application-status'
 import {
   academicApplicationsQueryKey,
   listAcademicApplications,
@@ -26,14 +27,6 @@ const STATUS_TABS: { label: string; value: ApplicationStatus | 'All' }[] = [
   { label: 'Accepted',            value: 'Accepted' },
   { label: 'Rejected',            value: 'Rejected' },
 ]
-
-function statusColors(status: ApplicationStatus) {
-  if (status === 'Accepted') return { bg: 'var(--success-bg)', color: 'var(--success)' }
-  if (status === 'Rejected') return { bg: 'var(--error-bg)', color: 'var(--error)' }
-  if (status === 'DocumentsRequested') return { bg: 'var(--warning-bg)', color: 'var(--warning)' }
-  if (status === 'UnderReview') return { bg: 'var(--info-bg)', color: 'var(--info)' }
-  return { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
-}
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
@@ -168,10 +161,7 @@ function ApplicationsPage() {
               id: 'status',
               header: 'Status',
               value: (app) => app.status,
-              cell: (app) => {
-                const sc = statusColors(app.status)
-                return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{app.status}</span>
-              },
+              cell: (app) => <ApplicationStatusBadge status={app.status} />,
             },
             {
               id: 'review',

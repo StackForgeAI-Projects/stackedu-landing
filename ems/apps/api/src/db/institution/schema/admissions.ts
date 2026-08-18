@@ -103,6 +103,10 @@ export const applicationReviews = pgTable(
     reviewerId: uuid('reviewer_id').references(() => users.id, { onDelete: 'set null' }),
     decision: applicationStatusEnum('decision').notNull(),
     comments: text('comments'),
+    requestedDocuments: jsonb('requested_documents').$type<{
+      types: string[]
+      custom: string[]
+    }>(),
     createdAt: timestamps().createdAt,
   },
   (t) => [index('application_reviews_application_idx').on(t.applicationId, t.createdAt)],

@@ -104,7 +104,7 @@ function mimeForFile(file: File): string {
 }
 
 export async function uploadApplicationDocument(input: {
-  documentType: PresignDocumentRequest['documentType']
+  documentType: PresignDocumentRequest['documentType'] | string
   file: File
 }): Promise<ApplicationDocument[]> {
   const reservation = await presignDocument({

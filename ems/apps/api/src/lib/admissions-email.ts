@@ -1,4 +1,5 @@
-import type { ApplicationStatus } from '@stackedu/shared'
+import type { ApplicationStatus, RequestedDocuments } from '@stackedu/shared'
+import { formatApplicationStatus, formatRequestedDocumentsList } from '@stackedu/shared'
 import { createLogger } from './logger'
 import { escapeHtml, sendEmail } from './email'
 import { buildBrandedEmail, getInstitutionEmailBranding } from './email-layout'
@@ -139,6 +140,7 @@ export async function notifyApplicationDecision(input: {
   reference: string
   decision: Exclude<ApplicationStatus, 'Draft' | 'Submitted'>
   comments?: string | null
+  requestedDocuments?: RequestedDocuments | null
 }): Promise<void> {
   try {
     const branding = await getInstitutionEmailBranding(input.institutionId)
@@ -146,10 +148,17 @@ export async function notifyApplicationDecision(input: {
     const paragraphs = [
       copy.body,
       `Application ID: ${input.reference}`,
-      `Status: ${input.decision}`,
+      `Status: ${formatApplicationStatus(input.decision)}`,
     ]
     const trimmed = input.comments?.trim()
     if (trimmed) paragraphs.push(`Note from admissions: ${trimmed}`)
+    if (input.decision === 'DocumentsRequested' && input.requestedDocuments) {
+      const items = formatRequestedDocumentsList(input.requestedDocuments)
+      if (items.length > 0) {
+        paragraphs.push(`Documents requested: ${items.join(', ')}`)
+      }
+    }
+    paragraphs.push('Open Track to view the full request and upload your documents.')
 
     const content = layout({
       branding,

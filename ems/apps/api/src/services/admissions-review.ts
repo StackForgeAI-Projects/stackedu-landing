@@ -4,7 +4,6 @@ import {
   type AcademicApplicationDetail,
   type AcademicApplicationSummary,
   type ApplicationDocument,
-  type ApplicationDocumentType,
   type ApplicationPayment,
   type ReviewApplicationRequest,
 } from '@stackedu/shared'
@@ -20,6 +19,10 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { notifyApplicationDecision } from '../lib/admissions-email'
 import { createDownloadUrl } from '../lib/storage'
 import { confirmPayment } from './admissions'
+import {
+  loadApplicationReviews,
+  mapRequestedDocumentsForStorage,
+} from './admissions-read'
 
 function mapDocument(row: {
   id: string
@@ -31,7 +34,7 @@ function mapDocument(row: {
 }): ApplicationDocument {
   return {
     id: row.id,
-    documentType: row.documentType as ApplicationDocumentType,
+    documentType: row.documentType,
     fileName: row.fileName,
     fileSizeBytes: row.fileSizeBytes,
     mimeType: row.mimeType,
@@ -216,6 +219,7 @@ export async function getApplicationForReview(
     details: row.details ?? null,
     documents: docs.map(mapDocument),
     payment: payment ? mapPayment(payment) : null,
+    reviews: await loadApplicationReviews(institutionId, applicationId),
   }
 }
 
@@ -239,11 +243,21 @@ export async function reviewApplication(
     throw badRequest('Confirm the application fee is paid before accepting.')
   }
 
+  const requestedDocuments =
+    input.decision === 'DocumentsRequested'
+      ? mapRequestedDocumentsForStorage(input.requestedDocuments)
+      : null
+
+  if (input.decision === 'DocumentsRequested' && !requestedDocuments) {
+    throw badRequest('Select at least one document to request.')
+  }
+
   await db.insert(applicationReviews).values({
     applicationId,
     reviewerId,
     decision: input.decision,
     comments: input.comments?.trim() || null,
+    requestedDocuments,
   })
 
   await db
@@ -264,6 +278,7 @@ export async function reviewApplication(
     reference: updated.reference,
     decision: input.decision,
     comments: input.comments,
+    requestedDocuments,
   })
 
   return updated

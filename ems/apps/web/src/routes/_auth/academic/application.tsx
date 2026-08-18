@@ -1,8 +1,21 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import type { ApplicationStatus, ReviewApplicationRequest } from '@stackedu/shared'
-import { ChevronLeft, FileText } from 'lucide-react'
+import type {
+  ApplicationDocumentType,
+  ApplicationStatus,
+  ReviewApplicationRequest,
+  RequestedDocuments,
+} from '@stackedu/shared'
+import {
+  APPLICATION_DOCUMENT_LABELS,
+  REQUESTABLE_APPLICATION_DOCUMENT_TYPES,
+  formatDocumentTypeLabel,
+  formatPaymentMethod,
+  formatPaymentStatus,
+  formatRequestedDocumentsList,
+} from '@stackedu/shared'
+import { ChevronLeft, FileText, Upload } from 'lucide-react'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -10,6 +23,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { AcademicShell } from '@/components/AcademicShell'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import {
   academicApplicationsQueryKey,
@@ -18,12 +35,11 @@ import {
   getAcademicApplication,
   getAcademicDocumentUrl,
 } from '@/lib/api/admissions'
+import { ApplicationStatusBadge, formatApplicationStatus } from '@/lib/application-status'
 import { apiErrorMessage } from '@/lib/api/client'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { queryClient } from '@/lib/query-client'
 import { formatCurrency } from '@/lib/utils'
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/_auth/academic/application')({
   validateSearch: (s: Record<string, unknown>) => ({ id: (s.id as string) || '' }),
@@ -32,25 +48,37 @@ export const Route = createFileRoute('/_auth/academic/application')({
 
 type DecisionChoice = ReviewApplicationRequest['decision']
 
-function statusColors(status: ApplicationStatus) {
-  if (status === 'Accepted') return { bg: 'var(--success-bg)', color: 'var(--success)' }
-  if (status === 'Rejected') return { bg: 'var(--error-bg)', color: 'var(--error)' }
-  if (status === 'DocumentsRequested') return { bg: 'var(--warning-bg)', color: 'var(--warning)' }
-  if (status === 'UnderReview') return { bg: 'var(--info-bg)', color: 'var(--info)' }
-  return { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
-}
+const DECISION_OPTIONS: ReadonlyArray<{ value: DecisionChoice; label: string }> = [
+  { value: 'UnderReview', label: 'Mark under review' },
+  { value: 'DocumentsRequested', label: 'Request documents' },
+  { value: 'Accepted', label: 'Accept' },
+  { value: 'Rejected', label: 'Reject' },
+]
 
 function detailString(details: Record<string, unknown> | null, key: string): string {
   const value = details?.[key]
   return typeof value === 'string' && value.trim() ? value : '—'
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+function formatDateTime(value: string): string {
+  const parsed = new Date(value.replace(' ', 'T'))
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 function ApplicationDetailPage() {
   const { id } = Route.useSearch()
   const [decision, setDecision] = useState<DecisionChoice>('UnderReview')
   const [comments, setComments] = useState('')
+  const [requestedTypes, setRequestedTypes] = useState<ApplicationDocumentType[]>([])
+  const [customDocuments, setCustomDocuments] = useState<string[]>([])
+  const [otherDocumentName, setOtherDocumentName] = useState('')
 
   const detailQuery = useQuery({
     queryKey: [...academicApplicationsQueryKey, id],
@@ -61,11 +89,19 @@ function ApplicationDetailPage() {
   const app = detailQuery.data
 
   const decide = useMutation({
-    mutationFn: () =>
-      decideAcademicApplication(id, {
+    mutationFn: () => {
+      const payload: ReviewApplicationRequest = {
         decision,
         comments: comments.trim() || undefined,
-      }),
+      }
+      if (decision === 'DocumentsRequested') {
+        payload.requestedDocuments = {
+          types: requestedTypes,
+          custom: customDocuments,
+        }
+      }
+      return decideAcademicApplication(id, payload)
+    },
     onSuccess: async (updated) => {
       queryClient.setQueryData([...academicApplicationsQueryKey, id], updated)
       await queryClient.invalidateQueries({ queryKey: academicApplicationsQueryKey })
@@ -86,6 +122,8 @@ function ApplicationDetailPage() {
       notifyError(apiErrorMessage(error, 'Could not confirm payment.'))
     },
   })
+
+  const activity = useMemo(() => (app ? buildApplicationActivity(app) : []), [app])
 
   if (!id) {
     return (
@@ -111,8 +149,20 @@ function ApplicationDetailPage() {
     )
   }
 
-  const sc = statusColors(app.status)
   const finalised = app.status === 'Accepted' || app.status === 'Rejected'
+
+  const toggleRequestedType = (type: ApplicationDocumentType, checked: boolean) => {
+    setRequestedTypes((current) =>
+      checked ? [...new Set([...current, type])] : current.filter((entry) => entry !== type),
+    )
+  }
+
+  const addCustomDocument = () => {
+    const name = otherDocumentName.trim()
+    if (!name) return
+    setCustomDocuments((current) => [...new Set([...current, name])])
+    setOtherDocumentName('')
+  }
 
   return (
     <AcademicShell pageTitle="Application Detail">
@@ -136,9 +186,7 @@ function ApplicationDetailPage() {
             </h1>
             <span className="t-mono text-sm" style={{ color: 'var(--muted-foreground)' }}>{app.reference}</span>
           </div>
-          <span className="t-label px-3 py-1.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>
-            {app.status}
-          </span>
+          <ApplicationStatusBadge status={app.status} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
@@ -183,10 +231,10 @@ function ApplicationDetailPage() {
                         <FileText size={16} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
-                            {doc.documentType}
+                            {formatDocumentTypeLabel(doc.documentType)}
                           </p>
                           <p className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
-                            {doc.fileName}
+                            {doc.fileName} · {formatDateTime(doc.uploadedAt)}
                           </p>
                         </div>
                       </div>
@@ -209,6 +257,18 @@ function ApplicationDetailPage() {
                 )}
               </div>
             </SectionCard>
+
+            <SectionCard title="Activity">
+              {activity.length === 0 ? (
+                <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No review activity yet.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {activity.map((entry) => (
+                    <ActivityEntry key={entry.id} entry={entry} />
+                  ))}
+                </div>
+              )}
+            </SectionCard>
           </div>
 
           <aside className="flex flex-col gap-4">
@@ -216,10 +276,13 @@ function ApplicationDetailPage() {
               {app.payment ? (
                 <div className="flex flex-col gap-2">
                   <p className="text-sm" style={{ color: 'var(--foreground)' }}>
-                    {formatCurrency(app.payment.amount)} · {app.payment.method}
+                    {formatCurrency(app.payment.amount)} · {formatPaymentMethod(app.payment.method)}
                   </p>
                   <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                    Status: <strong style={{ color: 'var(--foreground)' }}>{app.payment.status}</strong>
+                    Status:{' '}
+                    <strong style={{ color: 'var(--foreground)' }}>
+                      {formatPaymentStatus(app.payment.status)}
+                    </strong>
                   </p>
                   <p className="t-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     {app.payment.reference}
@@ -242,28 +305,81 @@ function ApplicationDetailPage() {
             <SectionCard title="Decision">
               {finalised ? (
                 <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                  This application already has a final decision ({app.status}).
+                  This application already has a final decision ({formatApplicationStatus(app.status)}).
                 </p>
               ) : (
-                <div className="flex flex-col gap-3">
-                  {(
-                    [
-                      ['UnderReview', 'Mark under review'],
-                      ['DocumentsRequested', 'Request documents'],
-                      ['Accepted', 'Accept'],
-                      ['Rejected', 'Reject'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <label key={value} className="flex items-center gap-2 text-sm" style={{ color: 'var(--foreground)' }}>
-                      <input
-                        type="radio"
-                        name="decision"
-                        checked={decision === value}
-                        onChange={() => setDecision(value)}
-                      />
-                      {label}
-                    </label>
-                  ))}
+                <div className="flex flex-col gap-4">
+                  <RadioGroup
+                    value={decision}
+                    onValueChange={(value) => setDecision(value as DecisionChoice)}
+                    className="gap-3"
+                  >
+                    {DECISION_OPTIONS.map((option) => (
+                      <label
+                        key={option.value}
+                        htmlFor={`decision-${option.value}`}
+                        className="flex items-center gap-3 text-sm cursor-pointer"
+                        style={{ color: 'var(--foreground)' }}
+                      >
+                        <RadioGroupItem id={`decision-${option.value}`} value={option.value} />
+                        {option.label}
+                      </label>
+                    ))}
+                  </RadioGroup>
+
+                  {decision === 'DocumentsRequested' && (
+                    <div
+                      className="flex flex-col gap-3 p-3 rounded-lg"
+                      style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
+                    >
+                      <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                        Select documents to request
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {REQUESTABLE_APPLICATION_DOCUMENT_TYPES.map((type) => (
+                          <label key={type} className="flex items-start gap-3 text-sm cursor-pointer">
+                            <Checkbox
+                              checked={requestedTypes.includes(type)}
+                              onCheckedChange={(checked) =>
+                                toggleRequestedType(type, checked === true)
+                              }
+                            />
+                            <span style={{ color: 'var(--foreground)' }}>
+                              {APPLICATION_DOCUMENT_LABELS[type]}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="other-document">Other document</Label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            id="other-document"
+                            placeholder="e.g. Proof of residence"
+                            value={otherDocumentName}
+                            onChange={(e) => setOtherDocumentName(e.target.value)}
+                          />
+                          <Button type="button" variant="outline" onClick={addCustomDocument}>
+                            Add
+                          </Button>
+                        </div>
+                        {customDocuments.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {customDocuments.map((name) => (
+                              <span
+                                key={name}
+                                className="text-xs px-2 py-1 rounded-full"
+                                style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+                              >
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <Textarea
                     placeholder="Notes for the file (optional)"
                     value={comments}
@@ -280,7 +396,9 @@ function ApplicationDetailPage() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Confirm decision</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Apply status <strong>{decision}</strong> to {app.fullName}? This is recorded on the application and shown on track.
+                          Apply status{' '}
+                          <strong>{formatApplicationStatus(decision)}</strong> to {app.fullName}?
+                          This is recorded on the application and shown on track.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -296,6 +414,83 @@ function ApplicationDetailPage() {
         </div>
       </div>
     </AcademicShell>
+  )
+}
+
+type ActivityItem =
+  | {
+      id: string
+      kind: 'review'
+      at: string
+      title: string
+      body?: string
+      requestedDocuments?: RequestedDocuments | null
+    }
+  | {
+      id: string
+      kind: 'upload'
+      at: string
+      title: string
+      body: string
+    }
+
+function buildApplicationActivity(
+  app: NonNullable<Awaited<ReturnType<typeof getAcademicApplication>>>,
+): ActivityItem[] {
+  const reviewItems: ActivityItem[] = (app.reviews ?? []).map((review) => ({
+    id: review.id,
+    kind: 'review',
+    at: review.createdAt,
+    title: `${review.reviewerName} · ${formatApplicationStatus(review.decision)}`,
+    body: review.comments ?? undefined,
+    requestedDocuments: review.requestedDocuments,
+  }))
+
+  const uploadItems: ActivityItem[] = app.documents.map((doc) => ({
+    id: `upload-${doc.id}`,
+    kind: 'upload',
+    at: doc.uploadedAt,
+    title: 'Student uploaded document',
+    body: `${formatDocumentTypeLabel(doc.documentType)} · ${doc.fileName}`,
+  }))
+
+  return [...reviewItems, ...uploadItems].sort(
+    (a, b) => new Date(a.at.replace(' ', 'T')).getTime() - new Date(b.at.replace(' ', 'T')).getTime(),
+  )
+}
+
+function ActivityEntry({ entry }: { entry: ActivityItem }) {
+  const Icon = entry.kind === 'upload' ? Upload : FileText
+  return (
+    <div
+      className="flex gap-3 p-3 rounded-lg"
+      style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
+    >
+      <div
+        className="flex items-center justify-center rounded-full flex-shrink-0"
+        style={{ width: 32, height: 32, backgroundColor: 'var(--card)' }}
+      >
+        <Icon size={14} style={{ color: 'var(--muted-foreground)' }} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+          {entry.title}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+          {formatDateTime(entry.at)}
+        </p>
+        {entry.kind === 'review' && entry.requestedDocuments ? (
+          <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+            Requested: {formatRequestedDocumentsList(entry.requestedDocuments).join(', ')}
+          </p>
+        ) : null}
+        {entry.body ? (
+          <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+            {entry.body}
+          </p>
+        ) : null}
+      </div>
+    </div>
   )
 }
 

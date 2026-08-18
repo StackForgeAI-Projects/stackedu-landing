@@ -15,6 +15,7 @@ import {
   academicDashboardQueryKey,
   getAcademicDashboard,
 } from '@/lib/api/academic'
+import { ApplicationStatusBadge } from '@/lib/application-status'
 import { apiErrorMessage } from '@/lib/api/client'
 
 export const Route = createFileRoute('/_auth/academic/dashboard')({
@@ -26,14 +27,6 @@ function formatDateTime(value: string | null): string {
   const parsed = new Date(value.replace(' ', 'T'))
   if (Number.isNaN(parsed.getTime())) return value
   return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-function applicationStatusColors(status: string) {
-  if (status === 'Accepted') return { bg: 'var(--success-bg)', color: 'var(--success)' }
-  if (status === 'Rejected') return { bg: 'var(--error-bg)', color: 'var(--error)' }
-  if (status === 'DocumentsRequested') return { bg: 'var(--warning-bg)', color: 'var(--warning)' }
-  if (status === 'UnderReview') return { bg: 'var(--info-bg)', color: 'var(--info)' }
-  return { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
 }
 
 function eventColors(type: string) {
@@ -112,10 +105,7 @@ function RecentApplicationsCard({ applications }: { applications: AcademicDashbo
           { id: 'submitted', header: 'Date Submitted', value: (app) => formatDateTime(app.submittedAt), cell: (app) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDateTime(app.submittedAt)}</span> },
           {
             id: 'status', header: 'Status', value: (app) => app.status,
-            cell: (app) => {
-              const sc = applicationStatusColors(app.status)
-              return <span className="t-label px-2 py-0.5" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{app.status}</span>
-            },
+            cell: (app) => <ApplicationStatusBadge status={app.status} />,
           },
           {
             id: 'review', header: '', className: 'text-right',
