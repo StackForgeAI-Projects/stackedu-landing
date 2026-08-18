@@ -9,7 +9,12 @@ export const isoDateTimeSchema = z.string().datetime({ offset: true })
 /** Calendar date with no time component, e.g. a date of birth. */
 export const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
 
-export const emailSchema = z.string().trim().toLowerCase().email().max(255)
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email('Email address is not valid.')
+  .max(255, 'Email address is too long.')
 
 /**
  * Rwandan numbers are stored in full international form so SMS providers and
@@ -18,7 +23,10 @@ export const emailSchema = z.string().trim().toLowerCase().email().max(255)
 export const phoneSchema = z
   .string()
   .trim()
-  .regex(/^\+[1-9]\d{7,14}$/, 'Phone must be in international format, e.g. +250788123456')
+  .regex(
+    /^\+[1-9]\d{7,14}$/,
+    'Phone number must be in international format, e.g. +250788123456.',
+  )
 
 /**
  * Money is always a whole number of Rwandan Francs. Never a float — decimals

@@ -18,8 +18,8 @@ export const loginRequestSchema = z.object({
    * field rather than three, because people do not reliably know which of
    * their identifiers is which.
    */
-  identifier: z.string().min(1, 'Enter your email or ID').max(320),
-  password: z.string().min(1, 'Enter your password').max(200),
+  identifier: z.string().min(1, 'Enter your email or ID.').max(320, 'Email or ID is too long.'),
+  password: z.string().min(1, 'Enter your password.').max(200, 'Password is too long.'),
   /** Extends the session beyond the working day on a trusted device. */
   rememberMe: z.boolean().optional().default(false),
 })

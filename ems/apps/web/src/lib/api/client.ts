@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorCode } from '@stackedu/shared'
+import { firstValidationDetail, type ApiError, type ApiErrorCode } from '@stackedu/shared'
 
 /**
  * The single place the web app talks to the API.
@@ -47,7 +47,15 @@ export class ApiClientError extends Error {
  */
 export function apiErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof ApiClientError)) return fallback
-  return Object.values(error.details ?? {})[0]?.[0] ?? error.message
+
+  const detail = firstValidationDetail(error.details)
+  if (detail) return detail
+
+  if (error.code === 'VALIDATION_FAILED') {
+    return 'Please check the form and fix the highlighted fields.'
+  }
+
+  return error.message
 }
 
 export interface RequestOptions {

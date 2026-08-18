@@ -24,22 +24,25 @@ export const programmeOptionSchema = z.object({
 })
 
 export const registerApplicantSchema = z.object({
-  fullName: z.string().min(2, 'Enter your full name').max(160),
+  fullName: z
+    .string()
+    .min(2, 'Full name must be at least 2 characters.')
+    .max(160, 'Full name is too long.'),
   email: emailSchema,
   phone: phoneSchema,
   programmeId: uuidSchema,
   password: z
     .string()
-    .min(8, 'Use at least 8 characters')
-    .max(200)
-    .regex(/[0-9]/, 'Include at least one number')
-    .regex(/[a-zA-Z]/, 'Include at least one letter'),
+    .min(8, 'Password must be at least 8 characters.')
+    .max(200, 'Password is too long.')
+    .regex(/[0-9]/, 'Password must include at least one number.')
+    .regex(/[a-zA-Z]/, 'Password must include at least one letter.'),
 })
 
 export const verifyApplicantEmailSchema = z.object({
   email: emailSchema,
-  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
-  password: z.string().min(1, 'Enter your password').max(200),
+  code: z.string().regex(/^\d{6}$/, 'Verification code must be 6 digits.'),
+  password: z.string().min(1, 'Enter your password.').max(200, 'Password is too long.'),
 })
 
 export const resendApplicantVerificationSchema = z.object({

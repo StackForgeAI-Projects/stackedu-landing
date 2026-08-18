@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { PageContent } from '@/components/PageContent'
 import { Link } from '@tanstack/react-router'
 import {
-  Search, User, Lock, LogOut, CheckCircle2, Info, X, ChevronDown,
+  Search, User, Lock, LogOut, CheckCircle2, Info, X, ChevronDown, ClipboardList,
 } from 'lucide-react'
 import { LogoutDialog, useLogoutDialog } from '@/components/LogoutDialog'
 import { useApplication } from '@/hooks/useApplication'
@@ -294,16 +294,16 @@ export function ApplyTopBar({
       {/* Mobile spacer so logo and actions sit at opposite ends */}
       <div className="flex-1 md:hidden min-w-0" aria-hidden />
 
-      {/* Right — track (icon on small screens) + profile */}
+      {/* Right — track link on sm+; on mobile it lives in the profile menu */}
       <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
         <Link
           to="/apply/track"
           aria-label="Track application"
-          className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+          className="hidden sm:flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
           style={{ color: '#0D7A28', textDecoration: 'none' }}
         >
           <Search size={14} />
-          <span className="hidden sm:inline">Track application</span>
+          Track application
         </Link>
 
         <DropdownMenu>
@@ -338,6 +338,15 @@ export function ApplyTopBar({
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="gap-2 cursor-pointer sm:hidden">
+              <Link
+                to="/apply/track"
+                style={{ color: '#0D7A28', textDecoration: 'none' }}
+              >
+                <ClipboardList size={14} />
+                Track application
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onOpenProfile} className="gap-2 cursor-pointer">
               <User size={14} style={{ color: 'var(--muted-foreground)' }} />
               Personal Information

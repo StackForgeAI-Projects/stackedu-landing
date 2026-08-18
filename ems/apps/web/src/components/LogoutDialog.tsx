@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { logout } from '@/lib/api/auth'
+import { logout, sessionQueryKey } from '@/lib/api/auth'
 import { queryClient } from '@/lib/query-client'
 
 /**
@@ -35,9 +35,15 @@ export function LogoutDialog({
 
   const confirm = async () => {
     setIsLeaving(true)
-    await logout().catch(() => undefined)
-    queryClient.clear()
-    await navigate({ to: redirectTo })
+    try {
+      await logout().catch(() => undefined)
+      queryClient.clear()
+      queryClient.setQueryData(sessionQueryKey, null)
+      onOpenChange(false)
+      await navigate({ to: redirectTo, replace: true })
+    } finally {
+      setIsLeaving(false)
+    }
   }
 
   return (

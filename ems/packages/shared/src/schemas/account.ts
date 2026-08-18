@@ -25,19 +25,29 @@ const phoneInputSchema = z
   .trim()
   .transform((value) => value.replace(/[\s-]/g, ''))
   .refine((value) => value === '' || phoneSchema.safeParse(value).success, {
-    message: 'Phone must be in international format, e.g. +250788123456',
+    message: 'Phone number must be in international format, e.g. +250788123456.',
   })
   .transform((value) => (value === '' ? null : value))
 
 export const updateAccountProfileRequestSchema = z.object({
-  fullName: z.string().trim().min(2).max(200),
+  fullName: z
+    .string()
+    .trim()
+    .min(2, 'Full name must be at least 2 characters.')
+    .max(200, 'Full name is too long.'),
   email: emailSchema,
   phone: z.union([z.null(), phoneInputSchema]).optional(),
 })
 
 export const changePasswordRequestSchema = z.object({
-  currentPassword: z.string().min(1).max(200),
-  newPassword: z.string().min(8, 'New password must be at least 8 characters.').max(200),
+  currentPassword: z
+    .string()
+    .min(1, 'Enter your current password.')
+    .max(200, 'Current password is too long.'),
+  newPassword: z
+    .string()
+    .min(8, 'New password must be at least 8 characters.')
+    .max(200, 'New password is too long.'),
 })
 
 export const updateAccountSecurityRequestSchema = z.object({

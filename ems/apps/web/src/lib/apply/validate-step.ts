@@ -1,3 +1,5 @@
+import { formatFieldValidationMessage } from '@stackedu/shared'
+
 /**
  * Per-step rules for the admissions form.
  *
@@ -90,7 +92,7 @@ function identityNumber(values: ApplicationFormValues): string | undefined {
 function phone(value: string, label = 'phone number'): string | undefined {
   if (!value.trim()) return `Enter the ${label}`
   if (!INTERNATIONAL_PHONE.test(value.trim())) {
-    return 'Use international format, e.g. +250788123456'
+    return 'Phone number must be in international format, e.g. +250788123456.'
   }
   return undefined
 }
@@ -213,6 +215,8 @@ export function validateApplicationStep(
 }
 
 export function firstErrorMessage(errors: FieldErrors): string {
-  const first = Object.values(errors).find(Boolean)
-  return first ?? 'Please complete the required fields.'
+  for (const [field, message] of Object.entries(errors)) {
+    if (message) return formatFieldValidationMessage(field, message)
+  }
+  return 'Please complete the required fields.'
 }
