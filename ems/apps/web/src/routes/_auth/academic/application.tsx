@@ -15,13 +15,14 @@ import {
   formatPaymentStatus,
   formatRequestedDocumentsList,
 } from '@stackedu/shared'
-import { ChevronLeft, FileText, Upload } from 'lucide-react'
+import { ChevronLeft, FileText } from 'lucide-react'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { AcademicShell } from '@/components/AcademicShell'
+import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -54,6 +55,77 @@ const DECISION_OPTIONS: ReadonlyArray<{ value: DecisionChoice; label: string }> 
   { value: 'Accepted', label: 'Accept' },
   { value: 'Rejected', label: 'Reject' },
 ]
+
+function decisionConfirmCopy(input: {
+  decision: DecisionChoice
+  applicantName: string
+  hasNotes: boolean
+  requestedDocumentCount: number
+}): { title: string; lines: string[]; success: string } {
+  const { decision, applicantName, hasNotes, requestedDocumentCount } = input
+  const emailLine = `${applicantName} will receive an email about this update.`
+  const trackLine = 'The update will also show on their Track application page.'
+
+  if (decision === 'DocumentsRequested') {
+    return {
+      title: 'Send document request?',
+      lines: [
+        `You are about to ask ${applicantName} to upload more documents before admissions can continue.`,
+        requestedDocumentCount > 0
+          ? `You selected ${requestedDocumentCount} document${requestedDocumentCount === 1 ? '' : 's'} for them to upload.`
+          : 'Select at least one document before you save this request.',
+        hasNotes
+          ? 'Your note will appear first in the email and on their Track page so they know exactly what to do.'
+          : 'Add a note if you want to explain exactly what you need from the student.',
+        emailLine,
+        'The email will include a link where they can upload the requested files.',
+        trackLine,
+        'This request will be saved in the application activity history.',
+      ],
+      success: `Document request saved. ${applicantName} has been emailed and can upload the files from Track.`,
+    }
+  }
+
+  if (decision === 'UnderReview') {
+    return {
+      title: 'Mark as under review?',
+      lines: [
+        `You are about to mark ${applicantName}'s application as Under Review.`,
+        'This tells the student that admissions is actively reviewing their file.',
+        emailLine,
+        trackLine,
+        'This update will be saved in the application activity history.',
+      ],
+      success: `Application marked under review. ${applicantName} has been emailed about the update.`,
+    }
+  }
+
+  if (decision === 'Accepted') {
+    return {
+      title: 'Accept this application?',
+      lines: [
+        `You are about to accept ${applicantName}'s application.`,
+        'This is a final decision. The student will be told that they have been offered a place.',
+        emailLine,
+        trackLine,
+        'This decision will be saved in the application activity history.',
+      ],
+      success: `Application accepted. ${applicantName} has been emailed about the offer.`,
+    }
+  }
+
+  return {
+    title: 'Reject this application?',
+    lines: [
+      `You are about to reject ${applicantName}'s application.`,
+      'This is a final decision. The student will be told that their application was not successful.',
+      emailLine,
+      trackLine,
+      'This decision will be saved in the application activity history.',
+    ],
+    success: `Application rejected. ${applicantName} has been emailed about the decision.`,
+  }
+}
 
 function detailString(details: Record<string, unknown> | null, key: string): string {
   const value = details?.[key]
@@ -105,7 +177,14 @@ function ApplicationDetailPage() {
     onSuccess: async (updated) => {
       queryClient.setQueryData([...academicApplicationsQueryKey, id], updated)
       await queryClient.invalidateQueries({ queryKey: academicApplicationsQueryKey })
-      notifySuccess('Decision saved.')
+      notifySuccess(
+        decisionConfirmCopy({
+          decision,
+          applicantName: updated.fullName,
+          hasNotes: Boolean(comments.trim()),
+          requestedDocumentCount: requestedTypes.length + customDocuments.length,
+        }).success,
+      )
     },
     onError: (error: unknown) => {
       notifyError(apiErrorMessage(error, 'Could not save that decision.'))
@@ -150,6 +229,12 @@ function ApplicationDetailPage() {
   }
 
   const finalised = app.status === 'Accepted' || app.status === 'Rejected'
+  const confirmCopy = decisionConfirmCopy({
+    decision,
+    applicantName: app.fullName,
+    hasNotes: Boolean(comments.trim()),
+    requestedDocumentCount: requestedTypes.length + customDocuments.length,
+  })
 
   const toggleRequestedType = (type: ApplicationDocumentType, checked: boolean) => {
     setRequestedTypes((current) =>
@@ -258,17 +343,29 @@ function ApplicationDetailPage() {
               </div>
             </SectionCard>
 
-            <SectionCard title="Activity">
-              {activity.length === 0 ? (
-                <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No review activity yet.</p>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {activity.map((entry) => (
-                    <ActivityEntry key={entry.id} entry={entry} />
-                  ))}
-                </div>
-              )}
-            </SectionCard>
+            <div className="flex flex-col gap-3">
+              <p className="t-label" style={{ color: 'var(--muted-foreground)' }}>ACTIVITY</p>
+              <p className="text-sm -mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                A short history of document uploads and admissions decisions on this application.
+              </p>
+              <DataTable
+                rows={activity}
+                rowKey={(row) => row.id}
+                searchPlaceholder="Search activity…"
+                empty="No activity yet. Uploads and decisions will show here."
+                defaultPageSize={5}
+                pageSizeOptions={[5, 10, 25]}
+                filters={[
+                  {
+                    id: 'type',
+                    label: 'Type',
+                    allLabel: 'All activity',
+                    getValue: (row) => row.typeLabel,
+                  },
+                ]}
+                columns={ACTIVITY_TABLE_COLUMNS}
+              />
+            </div>
           </div>
 
           <aside className="flex flex-col gap-4">
@@ -392,18 +489,24 @@ function ApplicationDetailPage() {
                         {decide.isPending ? 'Saving…' : 'Save decision'}
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="max-w-md">
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Confirm decision</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Apply status{' '}
-                          <strong>{formatApplicationStatus(decision)}</strong> to {app.fullName}?
-                          This is recorded on the application and shown on track.
+                        <AlertDialogTitle>{confirmCopy.title}</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                          <div className="flex flex-col gap-2 text-left">
+                            {confirmCopy.lines.map((line) => (
+                              <p key={line} className="text-sm leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
+                                {line}
+                              </p>
+                            ))}
+                          </div>
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => decide.mutate()}>Confirm</AlertDialogAction>
+                        <AlertDialogCancel>Go back</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => decide.mutate()}>
+                          Confirm and notify student
+                        </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -417,80 +520,140 @@ function ApplicationDetailPage() {
   )
 }
 
-type ActivityItem =
-  | {
-      id: string
-      kind: 'review'
-      at: string
-      title: string
-      body?: string
-      requestedDocuments?: RequestedDocuments | null
-    }
-  | {
-      id: string
-      kind: 'upload'
-      at: string
-      title: string
-      body: string
-    }
+type ActivityRow = {
+  id: string
+  at: string
+  typeLabel: 'Upload' | 'Review'
+  action: string
+  details: string
+}
+
+const ACTIVITY_TABLE_COLUMNS: DataTableColumn<ActivityRow>[] = [
+  {
+    id: 'at',
+    header: 'When',
+    sortable: true,
+    sortValue: (row) => new Date(row.at.replace(' ', 'T')).getTime(),
+    value: (row) => formatDateTime(row.at),
+    className: 'whitespace-nowrap align-top',
+    cell: (row) => (
+      <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+        {formatDateTime(row.at)}
+      </span>
+    ),
+  },
+  {
+    id: 'action',
+    header: 'What happened',
+    sortable: true,
+    value: (row) => row.action,
+    className: 'align-top min-w-[140px]',
+    cell: (row) => (
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+          {row.action}
+        </span>
+        <span
+          className="t-caption inline-flex w-fit px-2 py-0.5 rounded-full"
+          style={{
+            backgroundColor: row.typeLabel === 'Upload' ? 'var(--muted)' : 'rgba(59,130,246,0.12)',
+            color: row.typeLabel === 'Upload' ? 'var(--muted-foreground)' : 'var(--info)',
+          }}
+        >
+          {row.typeLabel}
+        </span>
+      </div>
+    ),
+  },
+  {
+    id: 'details',
+    header: 'What this means',
+    value: (row) => row.details,
+    className: 'align-top min-w-[220px]',
+    cell: (row) => (
+      <span className="text-sm leading-relaxed" style={{ color: 'var(--foreground)' }}>
+        {row.details}
+      </span>
+    ),
+  },
+]
+
+function buildReviewActivityDetails(review: {
+  reviewerName: string
+  decision: ApplicationStatus
+  comments: string | null
+  requestedDocuments: RequestedDocuments | null
+}): string {
+  const note = review.comments?.trim()
+  const status = formatApplicationStatus(review.decision)
+
+  if (review.decision === 'DocumentsRequested') {
+    const requested = review.requestedDocuments
+      ? formatRequestedDocumentsList(review.requestedDocuments).join(', ')
+      : null
+    const parts = [
+      `${review.reviewerName} asked the student to upload more documents before admissions can continue.`,
+      requested ? `Documents needed: ${requested}.` : null,
+      note ? `Note to student: ${note}` : null,
+      'The student was emailed and can see this on their Track page.',
+    ]
+    return parts.filter(Boolean).join(' ')
+  }
+
+  if (review.decision === 'UnderReview') {
+    return [
+      `${review.reviewerName} marked this application as ${status}.`,
+      'This tells the student that admissions is reviewing their file.',
+      note ? `Note: ${note}` : null,
+      'The student was emailed about this update.',
+    ].filter(Boolean).join(' ')
+  }
+
+  if (review.decision === 'Accepted') {
+    return [
+      `${review.reviewerName} accepted this application.`,
+      'The student was told they have been offered a place.',
+      note ? `Note: ${note}` : null,
+      'The student was emailed about the offer.',
+    ].filter(Boolean).join(' ')
+  }
+
+  if (review.decision === 'Rejected') {
+    return [
+      `${review.reviewerName} rejected this application.`,
+      'The student was told their application was not successful.',
+      note ? `Note: ${note}` : null,
+      'The student was emailed about the decision.',
+    ].filter(Boolean).join(' ')
+  }
+
+  return [
+    `${review.reviewerName} updated the application to ${status}.`,
+    note ? `Note: ${note}` : null,
+  ].filter(Boolean).join(' ')
+}
 
 function buildApplicationActivity(
   app: NonNullable<Awaited<ReturnType<typeof getAcademicApplication>>>,
-): ActivityItem[] {
-  const reviewItems: ActivityItem[] = (app.reviews ?? []).map((review) => ({
+): ActivityRow[] {
+  const reviewItems: ActivityRow[] = (app.reviews ?? []).map((review) => ({
     id: review.id,
-    kind: 'review',
     at: review.createdAt,
-    title: `${review.reviewerName} · ${formatApplicationStatus(review.decision)}`,
-    body: review.comments ?? undefined,
-    requestedDocuments: review.requestedDocuments,
+    typeLabel: 'Review',
+    action: formatApplicationStatus(review.decision),
+    details: buildReviewActivityDetails(review),
   }))
 
-  const uploadItems: ActivityItem[] = app.documents.map((doc) => ({
+  const uploadItems: ActivityRow[] = app.documents.map((doc) => ({
     id: `upload-${doc.id}`,
-    kind: 'upload',
     at: doc.uploadedAt,
-    title: 'Student uploaded document',
-    body: `${formatDocumentTypeLabel(doc.documentType)} · ${doc.fileName}`,
+    typeLabel: 'Upload',
+    action: 'Document uploaded',
+    details: `The student uploaded their ${formatDocumentTypeLabel(doc.documentType)}. File name: ${doc.fileName}.`,
   }))
 
   return [...reviewItems, ...uploadItems].sort(
-    (a, b) => new Date(a.at.replace(' ', 'T')).getTime() - new Date(b.at.replace(' ', 'T')).getTime(),
-  )
-}
-
-function ActivityEntry({ entry }: { entry: ActivityItem }) {
-  const Icon = entry.kind === 'upload' ? Upload : FileText
-  return (
-    <div
-      className="flex gap-3 p-3 rounded-lg"
-      style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
-    >
-      <div
-        className="flex items-center justify-center rounded-full flex-shrink-0"
-        style={{ width: 32, height: 32, backgroundColor: 'var(--card)' }}
-      >
-        <Icon size={14} style={{ color: 'var(--muted-foreground)' }} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-          {entry.title}
-        </p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-          {formatDateTime(entry.at)}
-        </p>
-        {entry.kind === 'review' && entry.requestedDocuments ? (
-          <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
-            Requested: {formatRequestedDocumentsList(entry.requestedDocuments).join(', ')}
-          </p>
-        ) : null}
-        {entry.body ? (
-          <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
-            {entry.body}
-          </p>
-        ) : null}
-      </div>
-    </div>
+    (a, b) => new Date(b.at.replace(' ', 'T')).getTime() - new Date(a.at.replace(' ', 'T')).getTime(),
   )
 }
 
