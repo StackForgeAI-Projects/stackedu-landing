@@ -37,7 +37,12 @@ import {
   formValuesFromApplication,
   toSaveApplicationRequest,
 } from '@/lib/apply/form-values'
-import { APPLY_PROGRESS_BY_STEP, resolveApplicationProgress } from '@/lib/apply/progress'
+import {
+  APPLY_PROGRESS_BY_STEP,
+  applyResumeRoute,
+  formStepFromProgress,
+  resolveApplicationProgress,
+} from '@/lib/apply/progress'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { queryClient } from '@/lib/query-client'
@@ -46,6 +51,16 @@ import { queryClient } from '@/lib/query-client'
 
 export const Route = createFileRoute('/apply/form')({
   beforeLoad: requireVerifiedApplicant,
+  validateSearch: (search: Record<string, unknown>) => {
+    const raw = search.step
+    let step: number | undefined
+    if (typeof raw === 'number' && Number.isFinite(raw)) step = raw
+    else if (typeof raw === 'string' && raw) {
+      const parsed = Number.parseInt(raw, 10)
+      if (Number.isFinite(parsed)) step = parsed
+    }
+    return { step }
+  },
   component: ApplyFormPage,
 })
 
@@ -63,6 +78,7 @@ const FORM_STEPS: ApplyStep[] = [
 
 function ApplyFormPage() {
   const navigate = useNavigate()
+  const { step: stepFromSearch } = Route.useSearch()
   const { application, isLoading } = useApplication()
 
   const [currentStep, setCurrentStep] = useState(1)
@@ -73,12 +89,22 @@ function ApplyFormPage() {
 
   useEffect(() => {
     if (!application || loadedFor === application.id) return
-    setValues(formValuesFromApplication(application))
+
     const progress = resolveApplicationProgress(application)
-    setCurrentStep(Math.min(progress.currentStep, 5))
+    const explicitStep = typeof stepFromSearch === 'number' && Number.isFinite(stepFromSearch)
+      ? Math.min(Math.max(Math.trunc(stepFromSearch), 1), 5)
+      : null
+
+    if (!explicitStep && progress.currentStep > 5) {
+      void navigate({ to: applyResumeRoute(progress.currentStep), replace: true })
+      return
+    }
+
+    setValues(formValuesFromApplication(application))
+    setCurrentStep(explicitStep ?? formStepFromProgress(progress.currentStep))
     setCompletedSteps(progress.completedSteps.filter((step) => step <= 5))
     setLoadedFor(application.id)
-  }, [application, loadedFor])
+  }, [application, loadedFor, navigate, stepFromSearch])
 
   const { data: programmes = [] } = useQuery({
     queryKey: programmesQueryKey,
@@ -121,7 +147,7 @@ function ApplyFormPage() {
     const updatedCompleted = completedSteps.includes(currentStep)
       ? completedSteps
       : [...completedSteps, currentStep]
-    const nextStep = currentStep < 5 ? currentStep + 1 : currentStep
+    const nextStep = currentStep < 5 ? currentStep + 1 : 6
 
     setCompletedSteps(updatedCompleted)
 

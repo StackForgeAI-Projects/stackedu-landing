@@ -117,3 +117,17 @@ export function progressDetailsPatch(
     [FORM_PROGRESS_KEYS.completedSteps]: completedSteps,
   }
 }
+
+export type ApplyResumeRoute = '/apply/form' | '/apply/documents' | '/apply/payment'
+
+/** Route where the applicant should pick up the seven-step flow. */
+export function applyResumeRoute(currentStep: number): ApplyResumeRoute {
+  if (currentStep >= 7) return '/apply/payment'
+  if (currentStep >= 6) return '/apply/documents'
+  return '/apply/form'
+}
+
+/** Clamp a stored step to the five form pages. */
+export function formStepFromProgress(currentStep: number): number {
+  return Math.min(Math.max(Math.trunc(currentStep), 1), 5)
+}

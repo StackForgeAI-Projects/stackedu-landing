@@ -15,7 +15,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { login, sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
-import { resolveApplicationProgress } from '@/lib/apply/progress'
+import { applyResumeRoute, resolveApplicationProgress } from '@/lib/apply/progress'
 import { notifyError } from '@/lib/notify'
 import { queryClient } from '@/lib/query-client'
 
@@ -234,7 +234,7 @@ function ApplicationStatusView() {
           <p className="text-sm" style={{ color: 'var(--foreground)' }}>
             We could not find an application on your account.
           </p>
-          <Link to="/apply/form" className="mt-4 inline-block">
+          <Link to="/apply/form" search={{ step: undefined }} className="mt-4 inline-block">
             <Button className="font-semibold">Start your application</Button>
           </Link>
         </Card>
@@ -244,6 +244,7 @@ function ApplicationStatusView() {
 
   const isDraft = application.status === 'Draft'
   const progress = resolveApplicationProgress(application)
+  const resumeTo = applyResumeRoute(progress.currentStep)
 
   return (
     <ApplyLayout
@@ -285,7 +286,7 @@ function ApplicationStatusView() {
               Your application has been saved but not sent. You can pick up where you left off, and
               nothing is reviewed until you send it.
             </p>
-            <Link to="/apply/form" className="mt-4 inline-block">
+            <Link to={resumeTo} className="mt-4 inline-block">
               <Button className="font-semibold">Continue application</Button>
             </Link>
           </Card>
@@ -462,7 +463,7 @@ function StatusTimeline({ application }: { application: NonNullable<ReturnType<t
                     size={12}
                     style={{
                       color:
-                        stage.done || active ? 'var(--brand-ink)' : 'var(--muted-foreground)',
+                        stage.done || active ? '#FFFFFF' : 'var(--muted-foreground)',
                       position: 'relative',
                     }}
                   />

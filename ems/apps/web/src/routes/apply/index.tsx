@@ -296,7 +296,7 @@ function ApplyCreateAccountPage() {
                   notifySuccess('Email verified. Let us start your application.')
                   setVerifyOpen(false)
                   setRegistered(null)
-                  await navigate({ to: '/apply/form' })
+                  await navigate({ to: '/apply/form', search: { step: undefined } })
                 }}
               />
             ) : null}

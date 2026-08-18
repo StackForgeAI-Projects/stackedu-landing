@@ -231,7 +231,7 @@ function ApplyDocumentsPage() {
 
       <div className="mt-8">
         <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => navigate({ to: '/apply/form' })}>
+          <Button variant="outline" onClick={() => navigate({ to: '/apply/form', search: { step: 5 } })}>
             ← Back
           </Button>
           <Button

@@ -75,7 +75,7 @@ function ApplyVerifyPage() {
               fullName={fullName.trim() || email.trim()}
               password={password}
               onVerified={async () => {
-                await navigate({ to: '/apply/form' })
+                await navigate({ to: '/apply/form', search: { step: undefined } })
               }}
             />
           ) : (

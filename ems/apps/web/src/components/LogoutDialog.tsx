@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { logout, sessionQueryKey } from '@/lib/api/auth'
+import { APPLICANT_SIGN_IN_PATH } from '@/lib/auth/portals'
 import { queryClient } from '@/lib/query-client'
 
 /**
@@ -31,16 +32,29 @@ export function LogoutDialog({
   redirectTo?: string
 }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [isLeaving, setIsLeaving] = useState(false)
 
   const confirm = async () => {
     setIsLeaving(true)
     try {
+      const destination = pathname.startsWith('/apply')
+        ? APPLICANT_SIGN_IN_PATH
+        : redirectTo
+
       await logout().catch(() => undefined)
       queryClient.clear()
       queryClient.setQueryData(sessionQueryKey, null)
       onOpenChange(false)
-      await navigate({ to: redirectTo, replace: true })
+
+      // Hard navigation clears in-flight apply routes so guards cannot bounce
+      // the user back into the form after the session ends.
+      if (destination === APPLICANT_SIGN_IN_PATH) {
+        window.location.replace(destination)
+        return
+      }
+
+      await navigate({ to: destination, replace: true })
     } finally {
       setIsLeaving(false)
     }

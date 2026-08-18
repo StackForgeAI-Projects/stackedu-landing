@@ -5,6 +5,7 @@ import {
   Search, User, Lock, LogOut, CheckCircle2, Info, X, ChevronDown, ClipboardList,
 } from 'lucide-react'
 import { LogoutDialog, useLogoutDialog } from '@/components/LogoutDialog'
+import { APPLICANT_SIGN_IN_PATH } from '@/lib/auth/portals'
 import { useApplication } from '@/hooks/useApplication'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { initialsFrom } from '@/lib/utils'
@@ -377,7 +378,7 @@ export function ApplyTopBar({
       <LogoutDialog
         open={logoutDialog.open}
         onOpenChange={logoutDialog.setOpen}
-        redirectTo="/apply/track"
+        redirectTo={APPLICANT_SIGN_IN_PATH}
       />
     </header>
   )

@@ -18,6 +18,9 @@ const PORTALS: ReadonlyArray<{ prefix: string; role: UserRole; home: string }> =
   { prefix: '/ict', role: 'ICTManager', home: '/ict/dashboard' },
 ]
 
+/** Where applicants sign in to track or continue an application. */
+export const APPLICANT_SIGN_IN_PATH = '/apply/track'
+
 /** Where this role starts, and where the logo returns them to. */
 export function dashboardFor(role: UserRole): string {
   return PORTALS.find((portal) => portal.role === role)?.home ?? '/'
