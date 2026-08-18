@@ -20,6 +20,7 @@ import {
   applicationPayments,
   applications,
 } from '../db/institution/schema/admissions'
+import { users } from '../db/institution/schema/people'
 import { programmes } from '../db/institution/schema/academic'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { isIntegrationEnabled } from '../lib/integrations'
@@ -364,9 +365,17 @@ export async function saveApplication(
     throw conflict('Your application has been submitted and can no longer be changed.')
   }
 
+  const nextFirstName =
+    input.fullName === undefined ? undefined : splitName(input.fullName).firstName
+  const nextLastName =
+    input.fullName === undefined ? undefined : splitName(input.fullName).lastName
+
   await db
     .update(applications)
     .set({
+      ...(nextFirstName === undefined ? {} : { firstName: nextFirstName }),
+      ...(nextLastName === undefined ? {} : { lastName: nextLastName }),
+      ...(input.phone === undefined ? {} : { phone: input.phone }),
       ...(input.dateOfBirth === undefined ? {} : { dateOfBirth: input.dateOfBirth }),
       ...(input.gender === undefined ? {} : { gender: input.gender }),
       ...(input.nationalId === undefined ? {} : { nationalId: input.nationalId }),
@@ -382,6 +391,16 @@ export async function saveApplication(
         : { details: { ...(current.details ?? {}), ...input.details } }),
     })
     .where(eq(applications.id, current.id))
+
+  if (input.fullName !== undefined || input.phone !== undefined) {
+    await db
+      .update(users)
+      .set({
+        ...(input.fullName === undefined ? {} : { fullName: input.fullName.trim() }),
+        ...(input.phone === undefined ? {} : { phone: input.phone }),
+      })
+      .where(eq(users.id, applicantUserId))
+  }
 
   return getApplicationFor(institutionId, applicantUserId)
 }

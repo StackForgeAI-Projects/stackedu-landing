@@ -8,7 +8,11 @@ import { formatFieldValidationMessage } from '@stackedu/shared'
  * a signed declaration). Save-as-draft stays loose; Continue does not.
  */
 
+import { getRegionFieldLabels } from '@/lib/apply/geography'
+
 export interface ApplicationFormValues {
+  fullName: string
+  phone: string
   dateOfBirth: string
   gender: string
   nationality: string
@@ -113,6 +117,8 @@ export function validateApplicationStep(
   }
 
   if (step === 1) {
+    fail('fullName', required(values.fullName, 'Enter your full name'))
+    fail('phone', phone(values.phone, 'phone number'))
     fail('dateOfBirth', ageAtLeast16(values.dateOfBirth))
     fail('gender', required(values.gender, 'Select your gender'))
     fail('nationality', required(values.nationality, 'Select your nationality'))
@@ -120,11 +126,15 @@ export function validateApplicationStep(
     fail('nationalId', identityNumber(values))
     fail('countryOfBirth', required(values.countryOfBirth, 'Select country of birth'))
     fail('countryOfResidence', required(values.countryOfResidence, 'Select country of residence'))
+    const regionLabels = getRegionFieldLabels(values.countryOfResidence)
     fail(
       'districtOfResidence',
-      required(values.districtOfResidence, 'Enter your district of residence'),
+      required(values.districtOfResidence, `Select your ${regionLabels.division.toLowerCase()}`),
     )
-    fail('cityOfResidence', required(values.cityOfResidence, 'Enter your city or sector'))
+    fail(
+      'cityOfResidence',
+      required(values.cityOfResidence, `Select or enter your ${regionLabels.subdivision.toLowerCase()}`),
+    )
     fail('address', required(values.address, 'Enter your physical address'))
   }
 

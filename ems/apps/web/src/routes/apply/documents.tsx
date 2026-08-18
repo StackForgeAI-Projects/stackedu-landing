@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/admissions'
 import { apiErrorMessage } from '@/lib/api/client'
 import { queryClient } from '@/lib/query-client'
+import { APPLY_PROGRESS_BY_STEP } from '@/lib/apply/progress'
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -166,7 +167,7 @@ function ApplyDocumentsPage() {
       steps={STEPS}
       currentStep={6}
       completedSteps={[1, 2, 3, 4, 5]}
-      progressPercent={100}
+      progressPercent={APPLY_PROGRESS_BY_STEP[6]}
       showBanner
     >
       <div className="mb-6">

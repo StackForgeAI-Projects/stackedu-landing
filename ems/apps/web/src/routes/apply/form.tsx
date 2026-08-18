@@ -2,8 +2,9 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Info } from 'lucide-react'
-import type { Application, Gender, SaveApplicationRequest } from '@stackedu/shared'
+import type { Application, SaveApplicationRequest } from '@stackedu/shared'
 import { ApplyLayout, type ApplyStep } from '@/components/ApplyLayout'
+import { SearchableSelect } from '@/components/apply/SearchableSelect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,8 +22,22 @@ import { apiErrorMessage } from '@/lib/api/client'
 import {
   firstErrorMessage,
   validateApplicationStep,
+  type ApplicationFormValues,
   type FieldErrors,
 } from '@/lib/apply/validate-step'
+import {
+  APPLY_COUNTRIES,
+  getCountryDivisions,
+  getCountrySubdivisions,
+  getRegionFieldLabels,
+  residenceFieldLabels,
+} from '@/lib/apply/geography'
+import {
+  EMPTY_FORM_VALUES,
+  formValuesFromApplication,
+  toSaveApplicationRequest,
+} from '@/lib/apply/form-values'
+import { APPLY_PROGRESS_BY_STEP, resolveApplicationProgress } from '@/lib/apply/progress'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { queryClient } from '@/lib/query-client'
@@ -46,154 +61,22 @@ const FORM_STEPS: ApplyStep[] = [
   { id: 7, label: 'Application Fee'     },
 ]
 
-const PROGRESS_MAP: Record<number, number> = { 1: 20, 2: 40, 3: 60, 4: 80, 5: 100 }
-
-/**
- * Everything the five form steps collect.
- *
- * Held as one flat object so a step can be moved or split without rewriting how
- * the answers are stored, and so saving is a single call rather than one per
- * step.
- */
-interface FormValues {
-  dateOfBirth: string
-  gender: string
-  nationality: string
-  idDocumentType: string
-  nationalId: string
-  countryOfBirth: string
-  countryOfResidence: string
-  districtOfResidence: string
-  cityOfResidence: string
-  address: string
-  previousInstitution: string
-  institutionCountry: string
-  previousQualification: string
-  examIndexNumber: string
-  aLevelCombination: string
-  completionYear: string
-  grade: string
-  subjects: string
-  awards: string
-  programmeId: string
-  entryYear: string
-  studyMode: string
-  hearAbout: string
-  financialAid: boolean
-  guardianType: string
-  guardianName: string
-  guardianRelationship: string
-  guardianPhone: string
-  guardianEmail: string
-  guardianOccupation: string
-  guardianEmployer: string
-  statement: string
-  hasSpecialNeeds: boolean
-  specialNeeds: string
-  emergencyName: string
-  emergencyPhone: string
-  emergencyRelationship: string
-  declared: boolean
-}
-
-const EMPTY_VALUES: FormValues = {
-  dateOfBirth: '',
-  gender: '',
-  nationality: 'Rwanda',
-  idDocumentType: 'National ID',
-  nationalId: '',
-  countryOfBirth: 'Rwanda',
-  countryOfResidence: 'Rwanda',
-  districtOfResidence: '',
-  cityOfResidence: '',
-  address: '',
-  previousInstitution: '',
-  institutionCountry: 'Rwanda',
-  previousQualification: '',
-  examIndexNumber: '',
-  aLevelCombination: '',
-  completionYear: '',
-  grade: '',
-  subjects: '',
-  awards: '',
-  programmeId: '',
-  entryYear: '',
-  studyMode: 'Full-time',
-  hearAbout: '',
-  financialAid: false,
-  guardianType: '',
-  guardianName: '',
-  guardianRelationship: '',
-  guardianPhone: '',
-  guardianEmail: '',
-  guardianOccupation: '',
-  guardianEmployer: '',
-  statement: '',
-  hasSpecialNeeds: false,
-  specialNeeds: '',
-  emergencyName: '',
-  emergencyPhone: '',
-  emergencyRelationship: '',
-  declared: false,
-}
-
-/** Reads saved answers back out, so a returning applicant sees their own work. */
-function valuesFrom(application: Application): FormValues {
-  const details = (application.details ?? {}) as Partial<Record<keyof FormValues, unknown>>
-  const saved = Object.fromEntries(
-    Object.entries(details).filter(([, value]) => value !== null && value !== undefined),
-  ) as Partial<FormValues>
-
-  return {
-    ...EMPTY_VALUES,
-    ...saved,
-    dateOfBirth: application.dateOfBirth ?? '',
-    gender: application.gender ?? '',
-    nationalId: application.nationalId ?? '',
-    previousInstitution: application.previousInstitution ?? '',
-    previousQualification: application.previousQualification ?? '',
-    programmeId: application.programme?.id ?? '',
-  }
-}
-
-/**
- * Splits the answers between the columns the admissions office queries on and
- * the document that holds the long-form rest.
- */
-function toSaveRequest(values: FormValues): SaveApplicationRequest {
-  const {
-    dateOfBirth, gender, nationalId, previousInstitution, previousQualification,
-    programmeId, ...details
-  } = values
-
-  return {
-    ...(dateOfBirth ? { dateOfBirth } : {}),
-    ...(gender ? { gender: gender as Gender } : {}),
-    ...(nationalId ? { nationalId } : {}),
-    ...(previousInstitution ? { previousInstitution } : {}),
-    ...(previousQualification ? { previousQualification } : {}),
-    ...(programmeId ? { programmeId } : {}),
-    details,
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 function ApplyFormPage() {
   const navigate = useNavigate()
   const { application, isLoading } = useApplication()
 
   const [currentStep, setCurrentStep] = useState(1)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
-  const [values, setValues] = useState<FormValues>(EMPTY_VALUES)
+  const [values, setValues] = useState<ApplicationFormValues>(EMPTY_FORM_VALUES)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
 
-  // Fill the form from the saved application once it arrives, and only once, so
-  // typing is never overwritten by a refetch.
   useEffect(() => {
     if (!application || loadedFor === application.id) return
-    setValues(valuesFrom(application))
+    setValues(formValuesFromApplication(application))
+    const progress = resolveApplicationProgress(application)
+    setCurrentStep(Math.min(progress.currentStep, 5))
+    setCompletedSteps(progress.completedSteps.filter((step) => step <= 5))
     setLoadedFor(application.id)
   }, [application, loadedFor])
 
@@ -203,7 +86,10 @@ function ApplyFormPage() {
   })
 
   const save = useMutation({
-    mutationFn: () => saveApplication(toSaveRequest(values)),
+    mutationFn: (request?: SaveApplicationRequest) =>
+      saveApplication(
+        request ?? toSaveApplicationRequest(values, { currentStep, completedSteps }),
+      ),
     onSuccess: (updated) => {
       queryClient.setQueryData(applicationQueryKey, updated)
     },
@@ -214,12 +100,11 @@ function ApplyFormPage() {
     },
   })
 
-  const set = (patch: Partial<FormValues>) => {
+  const set = (patch: Partial<ApplicationFormValues>) => {
     setValues((prev) => ({ ...prev, ...patch }))
-    // Clear errors for fields the applicant is fixing.
     setErrors((prev) => {
       const next = { ...prev }
-      for (const key of Object.keys(patch) as Array<keyof FormValues>) delete next[key]
+      for (const key of Object.keys(patch) as Array<keyof ApplicationFormValues>) delete next[key]
       return next
     })
   }
@@ -233,14 +118,24 @@ function ApplyFormPage() {
     }
 
     setErrors({})
-    setCompletedSteps((prev) => (prev.includes(currentStep) ? prev : [...prev, currentStep]))
+    const updatedCompleted = completedSteps.includes(currentStep)
+      ? completedSteps
+      : [...completedSteps, currentStep]
+    const nextStep = currentStep < 5 ? currentStep + 1 : currentStep
 
-    // Each step is saved as it is left, so a dropped connection costs one step
-    // of typing rather than the whole form.
-    await save.mutateAsync().catch(() => undefined)
+    setCompletedSteps(updatedCompleted)
+
+    await save
+      .mutateAsync(
+        toSaveApplicationRequest(values, {
+          currentStep: nextStep,
+          completedSteps: updatedCompleted,
+        }),
+      )
+      .catch(() => undefined)
 
     if (currentStep < 5) {
-      setCurrentStep((step) => step + 1)
+      setCurrentStep(nextStep)
       return
     }
     await navigate({ to: '/apply/documents' })
@@ -252,7 +147,11 @@ function ApplyFormPage() {
   }
 
   const saveProgress = async () => {
-    const updated = await save.mutateAsync().catch(() => null)
+    const updated = await save
+      .mutateAsync(
+        toSaveApplicationRequest(values, { currentStep, completedSteps }),
+      )
+      .catch(() => null)
     if (updated) notifySuccess('Your progress has been saved.')
   }
 
@@ -270,7 +169,7 @@ function ApplyFormPage() {
       steps={FORM_STEPS}
       currentStep={currentStep}
       completedSteps={completedSteps}
-      progressPercent={PROGRESS_MAP[currentStep]}
+      progressPercent={APPLY_PROGRESS_BY_STEP[currentStep] ?? 0}
       showBanner
     >
       {isLoading ? (
@@ -295,9 +194,9 @@ function ApplyFormPage() {
 // ── Shared layout helpers ─────────────────────────────────────────────────────
 
 interface StepProps {
-  values: FormValues
+  values: ApplicationFormValues
   errors: FieldErrors
-  set: (patch: Partial<FormValues>) => void
+  set: (patch: Partial<ApplicationFormValues>) => void
   onNext: () => void
   onSave: () => void
   saving: boolean
@@ -392,7 +291,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
       <SelectContent>
-        {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+        {APPLY_COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
       </SelectContent>
     </Select>
   )
@@ -446,19 +345,6 @@ function NavRow({
 
 // ── Country list (abbreviated for UI purposes) ────────────────────────────────
 
-const COUNTRIES = [
-  'Rwanda', 'Burundi', 'Democratic Republic of Congo', 'Kenya',
-  'Tanzania', 'Uganda', 'Ethiopia', 'Nigeria', 'South Africa', 'Other',
-]
-
-const RWANDA_DISTRICTS = [
-  'Gasabo', 'Kicukiro', 'Nyarugenge', 'Bugesera', 'Gatsibo', 'Kayonza', 'Kirehe',
-  'Ngoma', 'Nyagatare', 'Rwamagana', 'Burera', 'Gakenke', 'Gicumbi', 'Musanze',
-  'Rulindo', 'Gisagara', 'Huye', 'Kamonyi', 'Muhanga', 'Nyamagabe', 'Nyanza',
-  'Nyaruguru', 'Ruhango', 'Karongi', 'Ngororero', 'Nyabihu', 'Nyamasheke',
-  'Rubavu', 'Rusizi', 'Rutsiro', 'Other / Outside Rwanda',
-]
-
 const A_LEVEL_COMBINATIONS = [
   'PCM (Physics, Chemistry, Mathematics)',
   'PCB (Physics, Chemistry, Biology)',
@@ -478,6 +364,14 @@ const A_LEVEL_COMBINATIONS = [
 function Step1({
   values, errors, set, onNext, onSave, saving, application,
 }: StepProps & { application: Application | null }) {
+  const regionLabels = getRegionFieldLabels(values.countryOfResidence)
+  const { divisionLabel, subdivisionLabel } = residenceFieldLabels(values.countryOfResidence)
+  const divisions = getCountryDivisions(values.countryOfResidence)
+  const subdivisions = getCountrySubdivisions(
+    values.countryOfResidence,
+    values.districtOfResidence,
+  )
+
   return (
     <StepCard>
       <h2 className="t-h3" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>
@@ -489,7 +383,13 @@ function Step1({
 
       <SectionDivider title="BASIC INFORMATION" />
       <FieldGrid>
-        <LockedField label="Full name" value={application?.fullName ?? ''} />
+        <Field label="Full name" required error={errors.fullName}>
+          <Input
+            placeholder="e.g. Amina Uwase"
+            value={values.fullName}
+            onChange={(e) => set({ fullName: e.target.value })}
+          />
+        </Field>
         <Field label="Date of birth" required error={errors.dateOfBirth}>
           <Input
             type="date"
@@ -549,32 +449,39 @@ function Step1({
 
       <SectionDivider title="CONTACT & RESIDENCE" alt />
       <FieldGrid>
-        <LockedField label="Phone number" value={application?.phone ?? ''} />
+        <Field label="Phone number" required error={errors.phone}>
+          <Input
+            type="tel"
+            placeholder="+250788123456"
+            value={values.phone}
+            onChange={(e) => set({ phone: e.target.value })}
+          />
+        </Field>
         <LockedField label="Email address" value={application?.email ?? ''} />
         <Field label="Country of residence" required error={errors.countryOfResidence}>
           <CountrySelect
             value={values.countryOfResidence}
-            onChange={(countryOfResidence) => set({ countryOfResidence })}
+            onChange={(countryOfResidence) =>
+              set({ countryOfResidence, districtOfResidence: '', cityOfResidence: '' })
+            }
           />
         </Field>
-        <Field label="District of residence" required error={errors.districtOfResidence}>
-          <Select
+        <Field label={divisionLabel} required error={errors.districtOfResidence}>
+          <SearchableSelect
             value={values.districtOfResidence}
-            onValueChange={(districtOfResidence) => set({ districtOfResidence })}
-          >
-            <SelectTrigger><SelectValue placeholder="Select district" /></SelectTrigger>
-            <SelectContent>
-              {RWANDA_DISTRICTS.map((d) => (
-                <SelectItem key={d} value={d}>{d}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(districtOfResidence) =>
+              set({ districtOfResidence, cityOfResidence: '' })
+            }
+            options={divisions}
+            placeholder={regionLabels.divisionPlaceholder}
+          />
         </Field>
-        <Field label="City / Sector" required error={errors.cityOfResidence}>
-          <Input
-            placeholder="e.g. Remera, Huye"
+        <Field label={subdivisionLabel} required error={errors.cityOfResidence}>
+          <SearchableSelect
             value={values.cityOfResidence}
-            onChange={(e) => set({ cityOfResidence: e.target.value })}
+            onChange={(cityOfResidence) => set({ cityOfResidence })}
+            options={subdivisions}
+            placeholder={regionLabels.subdivisionPlaceholder}
           />
         </Field>
         <Field label="Physical address" required full error={errors.address}>

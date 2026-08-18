@@ -62,6 +62,13 @@ export const registerApplicantResponseSchema = z.object({
  * application is a normal state rather than an error.
  */
 export const saveApplicationSchema = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .min(2, 'Full name must be at least 2 characters.')
+    .max(160, 'Full name is too long.')
+    .optional(),
+  phone: phoneSchema.optional(),
   dateOfBirth: z.string().date().optional(),
   gender: genderSchema.optional(),
   nationalId: z.string().max(60).optional(),

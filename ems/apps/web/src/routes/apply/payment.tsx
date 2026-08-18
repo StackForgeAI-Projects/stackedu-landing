@@ -18,6 +18,7 @@ import { apiErrorMessage } from '@/lib/api/client'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { queryClient } from '@/lib/query-client'
+import { APPLY_PROGRESS_BY_STEP } from '@/lib/apply/progress'
 import { formatCurrency } from '@/lib/utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,7 +141,7 @@ function ApplyPaymentPage() {
       steps={STEPS}
       currentStep={7}
       completedSteps={[1, 2, 3, 4, 5, 6]}
-      progressPercent={100}
+      progressPercent={APPLY_PROGRESS_BY_STEP[7]}
       showBanner={false}
     >
       <div className="mb-6">

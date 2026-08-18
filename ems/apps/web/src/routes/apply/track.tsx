@@ -15,6 +15,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { login, sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
+import { resolveApplicationProgress } from '@/lib/apply/progress'
 import { notifyError } from '@/lib/notify'
 import { queryClient } from '@/lib/query-client'
 
@@ -242,9 +243,16 @@ function ApplicationStatusView() {
   }
 
   const isDraft = application.status === 'Draft'
+  const progress = resolveApplicationProgress(application)
 
   return (
-    <ApplyLayout showSidebar={false} showBanner={false}>
+    <ApplyLayout
+      showSidebar={false}
+      showBanner={false}
+      progressPercent={progress.progressPercent}
+      currentStep={progress.currentStep}
+      completedSteps={progress.completedSteps}
+    >
       <div className="mb-6">
         <h2
           className="t-h2"
