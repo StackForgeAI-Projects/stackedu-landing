@@ -30,6 +30,10 @@ export function SearchableSelect({
   }, [value])
 
   useEffect(() => {
+    setOpen(false)
+  }, [options])
+
+  useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -78,23 +82,23 @@ export function SearchableSelect({
             'pr-9',
           )}
         />
-        <ChevronDown
-          size={14}
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-          style={{ color: 'var(--muted-foreground)' }}
-        />
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled}
+          onClick={() => setOpen((current) => !current)}
+          className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md"
+          style={{ color: 'var(--muted-foreground)', background: 'transparent', border: 'none' }}
+          aria-label="Show options"
+        >
+          <ChevronDown size={14} />
+        </button>
       </div>
 
       {open && !disabled && (
-        <div
-          className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border shadow-md"
-          style={{
-            backgroundColor: 'var(--popover)',
-            borderColor: 'var(--border)',
-          }}
-        >
+        <div className="absolute z-[100] mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md">
           {filtered.length === 0 ? (
-            <p className="px-3 py-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="bg-popover px-3 py-2 text-sm text-muted-foreground">
               {allowCustom ? 'Keep typing to use your entry.' : 'No matches found.'}
             </p>
           ) : (
@@ -106,11 +110,11 @@ export function SearchableSelect({
                   event.preventDefault()
                   commit(option)
                 }}
-                className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-                style={{
-                  color: 'var(--foreground)',
-                  backgroundColor: option === value ? 'var(--muted)' : 'transparent',
-                }}
+                className={cn(
+                  'block w-full bg-popover px-3 py-2 text-left text-sm transition-colors',
+                  'hover:bg-muted',
+                  option === value && 'bg-muted',
+                )}
               >
                 {option}
               </button>

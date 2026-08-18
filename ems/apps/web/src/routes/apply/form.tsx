@@ -468,6 +468,7 @@ function Step1({
         </Field>
         <Field label={divisionLabel} required error={errors.districtOfResidence}>
           <SearchableSelect
+            key={`division-${values.countryOfResidence}`}
             value={values.districtOfResidence}
             onChange={(districtOfResidence) =>
               set({ districtOfResidence, cityOfResidence: '' })
@@ -478,10 +479,12 @@ function Step1({
         </Field>
         <Field label={subdivisionLabel} required error={errors.cityOfResidence}>
           <SearchableSelect
+            key={`subdivision-${values.countryOfResidence}-${values.districtOfResidence}`}
             value={values.cityOfResidence}
             onChange={(cityOfResidence) => set({ cityOfResidence })}
             options={subdivisions}
             placeholder={regionLabels.subdivisionPlaceholder}
+            disabled={!values.districtOfResidence.trim()}
           />
         </Field>
         <Field label="Physical address" required full error={errors.address}>
