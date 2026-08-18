@@ -15,14 +15,13 @@ import {
   formatPaymentStatus,
   formatRequestedDocumentsList,
 } from '@stackedu/shared'
-import { ChevronLeft, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, Mail, Monitor, Upload, AlertTriangle, CheckCircle2, XCircle, FileUp } from 'lucide-react'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { AcademicShell } from '@/components/AcademicShell'
-import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -56,46 +55,73 @@ const DECISION_OPTIONS: ReadonlyArray<{ value: DecisionChoice; label: string }> 
   { value: 'Rejected', label: 'Reject' },
 ]
 
+type DecisionNoticeIcon = 'email' | 'track' | 'documents'
+
+type DecisionConfirmCopy = {
+  title: string
+  success: string
+  tone: 'info' | 'success' | 'warning' | 'destructive'
+  statusLabel: string
+  summary: string
+  notices: ReadonlyArray<{ icon: DecisionNoticeIcon; label: string }>
+  caution?: string
+}
+
+const DECISION_TONE_STYLES = {
+  info: { bg: 'var(--info-bg)', border: 'var(--info)', accent: 'var(--info)' },
+  success: { bg: 'var(--success-bg)', border: 'var(--success)', accent: 'var(--success)' },
+  warning: { bg: 'var(--warning-bg)', border: 'var(--warning)', accent: 'var(--warning)' },
+  destructive: { bg: 'var(--error-bg)', border: 'var(--error)', accent: 'var(--error)' },
+} as const
+
+const DECISION_NOTICE_ICONS: Record<DecisionNoticeIcon, typeof Mail> = {
+  email: Mail,
+  track: Monitor,
+  documents: FileUp,
+}
+
 function decisionConfirmCopy(input: {
   decision: DecisionChoice
   applicantName: string
   hasNotes: boolean
   requestedDocumentCount: number
-}): { title: string; lines: string[]; success: string } {
+}): DecisionConfirmCopy {
   const { decision, applicantName, hasNotes, requestedDocumentCount } = input
-  const emailLine = `${applicantName} will receive an email about this update.`
-  const trackLine = 'The update will also show on their Track application page.'
-
+  const studentNotices = [
+    { icon: 'email' as const, label: `${applicantName} will receive an email about this update.` },
+    { icon: 'track' as const, label: 'The update will appear on their Track application page.' },
+  ]
   if (decision === 'DocumentsRequested') {
+    const notices = [
+      ...studentNotices,
+      requestedDocumentCount > 0
+        ? {
+            icon: 'documents' as const,
+            label: `${requestedDocumentCount} document${requestedDocumentCount === 1 ? '' : 's'} requested${hasNotes ? ', with your note at the top of the email' : ''}.`,
+          }
+        : null,
+    ].filter(Boolean) as DecisionConfirmCopy['notices']
+
     return {
       title: 'Send document request?',
-      lines: [
-        `You are about to ask ${applicantName} to upload more documents before admissions can continue.`,
+      tone: 'warning',
+      statusLabel: 'Documents requested',
+      summary:
         requestedDocumentCount > 0
-          ? `You selected ${requestedDocumentCount} document${requestedDocumentCount === 1 ? '' : 's'} for them to upload.`
-          : 'Select at least one document before you save this request.',
-        hasNotes
-          ? 'Your note will appear first in the email and on their Track page so they know exactly what to do.'
-          : 'Add a note if you want to explain exactly what you need from the student.',
-        emailLine,
-        'The email will include a link where they can upload the requested files.',
-        trackLine,
-        'This request will be saved in the application activity history.',
-      ],
-      success: `Document request saved. ${applicantName} has been emailed and can upload the files from Track.`,
+          ? `Ask ${applicantName} to upload the selected documents before admissions can continue.`
+          : `Select at least one document before sending this request to ${applicantName}.`,
+      notices,
+      success: `Document request saved. ${applicantName} has been emailed and can upload from Track.`,
     }
   }
 
   if (decision === 'UnderReview') {
     return {
       title: 'Mark as under review?',
-      lines: [
-        `You are about to mark ${applicantName}'s application as Under Review.`,
-        'This tells the student that admissions is actively reviewing their file.',
-        emailLine,
-        trackLine,
-        'This update will be saved in the application activity history.',
-      ],
+      tone: 'info',
+      statusLabel: 'Under review',
+      summary: `Tell ${applicantName} that admissions is now actively reviewing their application.`,
+      notices: studentNotices,
       success: `Application marked under review. ${applicantName} has been emailed about the update.`,
     }
   }
@@ -103,28 +129,104 @@ function decisionConfirmCopy(input: {
   if (decision === 'Accepted') {
     return {
       title: 'Accept this application?',
-      lines: [
-        `You are about to accept ${applicantName}'s application.`,
-        'This is a final decision. The student will be told that they have been offered a place.',
-        emailLine,
-        trackLine,
-        'This decision will be saved in the application activity history.',
-      ],
+      tone: 'success',
+      statusLabel: 'Accepted',
+      summary: `Offer ${applicantName} a place on their chosen programme.`,
+      notices: studentNotices,
+      caution: 'This is a final decision.',
       success: `Application accepted. ${applicantName} has been emailed about the offer.`,
     }
   }
 
   return {
     title: 'Reject this application?',
-    lines: [
-      `You are about to reject ${applicantName}'s application.`,
-      'This is a final decision. The student will be told that their application was not successful.',
-      emailLine,
-      trackLine,
-      'This decision will be saved in the application activity history.',
-    ],
+    tone: 'destructive',
+    statusLabel: 'Rejected',
+    summary: `Tell ${applicantName} that their application was not successful.`,
+    notices: studentNotices,
+    caution: 'This is a final decision.',
     success: `Application rejected. ${applicantName} has been emailed about the decision.`,
   }
+}
+
+function DecisionConfirmPanel({ copy }: { copy: DecisionConfirmCopy }) {
+  const tone = DECISION_TONE_STYLES[copy.tone]
+  const StatusIcon =
+    copy.tone === 'success' ? CheckCircle2
+      : copy.tone === 'destructive' ? XCircle
+        : copy.tone === 'warning' ? FileUp
+          : FileText
+
+  return (
+    <div className="flex flex-col gap-3 text-left">
+      <div
+        className="rounded-xl p-4"
+        style={{ backgroundColor: tone.bg, border: `1px solid ${tone.border}` }}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+            style={{ backgroundColor: 'var(--card)' }}
+          >
+            <StatusIcon size={18} style={{ color: tone.accent }} />
+          </div>
+          <div className="min-w-0">
+            <p className="t-label" style={{ color: tone.accent }}>New status</p>
+            <p className="text-base font-semibold mt-0.5" style={{ color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
+              {copy.statusLabel}
+            </p>
+            <p className="text-sm mt-1 leading-relaxed" style={{ color: 'var(--foreground)' }}>
+              {copy.summary}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {copy.caution ? (
+        <div
+          className="flex items-start gap-2 rounded-lg px-3 py-2.5"
+          style={{
+            backgroundColor: copy.tone === 'destructive' ? 'var(--error-bg)' : 'var(--warning-bg)',
+            border: `1px solid ${copy.tone === 'destructive' ? 'var(--error)' : 'var(--warning)'}`,
+          }}
+        >
+          <AlertTriangle
+            size={16}
+            className="flex-shrink-0 mt-0.5"
+            style={{ color: copy.tone === 'destructive' ? 'var(--error)' : 'var(--warning)' }}
+          />
+          <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+            {copy.caution}
+          </p>
+        </div>
+      ) : null}
+
+      <div
+        className="rounded-xl p-3"
+        style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
+      >
+        <p className="t-label mb-2" style={{ color: 'var(--muted-foreground)' }}>What happens next</p>
+        <ul className="flex flex-col gap-2">
+          {copy.notices.map((notice) => {
+            const Icon = DECISION_NOTICE_ICONS[notice.icon]
+            return (
+              <li key={notice.label} className="flex items-start gap-2.5">
+                <div
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+                  style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+                >
+                  <Icon size={13} style={{ color: 'var(--info)' }} />
+                </div>
+                <span className="text-sm leading-relaxed pt-0.5" style={{ color: 'var(--foreground)' }}>
+                  {notice.label}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </div>
+  )
 }
 
 function detailString(details: Record<string, unknown> | null, key: string): string {
@@ -132,9 +234,31 @@ function detailString(details: Record<string, unknown> | null, key: string): str
   return typeof value === 'string' && value.trim() ? value : '—'
 }
 
-function formatDateTime(value: string): string {
-  const parsed = new Date(value.replace(' ', 'T'))
-  if (Number.isNaN(parsed.getTime())) return value
+const ACTIVITY_PAGE_SIZES = [5, 10, 25, 50, 100] as const
+
+function parseActivityTimestamp(value: string): Date | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  let iso = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T')
+  if (/[+-]\d{2}$/.test(iso)) iso = `${iso}:00`
+
+  let parsed = new Date(iso)
+  if (!Number.isNaN(parsed.getTime())) return parsed
+
+  iso = trimmed.replace(' ', 'T').replace(/\.\d+/, '')
+  if (/[+-]\d{2}$/.test(iso)) iso = `${iso}:00`
+  parsed = new Date(iso)
+  if (!Number.isNaN(parsed.getTime())) return parsed
+
+  return null
+}
+
+function formatActivityDateTime(value: string): string {
+  const parsed = parseActivityTimestamp(value)
+  if (!parsed) {
+    return value.replace(/\.\d+/, '').replace(/([+-]\d{2}(?::\d{2})?)$/, '').trim()
+  }
   return parsed.toLocaleString('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -319,7 +443,7 @@ function ApplicationDetailPage() {
                             {formatDocumentTypeLabel(doc.documentType)}
                           </p>
                           <p className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
-                            {doc.fileName} · {formatDateTime(doc.uploadedAt)}
+                            {doc.fileName} · {formatActivityDateTime(doc.uploadedAt)}
                           </p>
                         </div>
                       </div>
@@ -343,29 +467,12 @@ function ApplicationDetailPage() {
               </div>
             </SectionCard>
 
-            <div className="flex flex-col gap-3">
-              <p className="t-label" style={{ color: 'var(--muted-foreground)' }}>ACTIVITY</p>
-              <p className="text-sm -mt-1" style={{ color: 'var(--muted-foreground)' }}>
+            <SectionCard title="Activity">
+              <p className="text-sm mb-4" style={{ color: 'var(--muted-foreground)' }}>
                 A short history of document uploads and admissions decisions on this application.
               </p>
-              <DataTable
-                rows={activity}
-                rowKey={(row) => row.id}
-                searchPlaceholder="Search activity…"
-                empty="No activity yet. Uploads and decisions will show here."
-                defaultPageSize={5}
-                pageSizeOptions={[5, 10, 25]}
-                filters={[
-                  {
-                    id: 'type',
-                    label: 'Type',
-                    allLabel: 'All activity',
-                    getValue: (row) => row.typeLabel,
-                  },
-                ]}
-                columns={ACTIVITY_TABLE_COLUMNS}
-              />
-            </div>
+              <ApplicationActivityFeed rows={activity} />
+            </SectionCard>
           </div>
 
           <aside className="flex flex-col gap-4">
@@ -489,22 +596,21 @@ function ApplicationDetailPage() {
                         {decide.isPending ? 'Saving…' : 'Save decision'}
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="max-w-md">
+                    <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[440px]">
                       <AlertDialogHeader>
-                        <AlertDialogTitle>{confirmCopy.title}</AlertDialogTitle>
+                        <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>
+                          {confirmCopy.title}
+                        </AlertDialogTitle>
                         <AlertDialogDescription asChild>
-                          <div className="flex flex-col gap-2 text-left">
-                            {confirmCopy.lines.map((line) => (
-                              <p key={line} className="text-sm leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
-                                {line}
-                              </p>
-                            ))}
-                          </div>
+                          <DecisionConfirmPanel copy={confirmCopy} />
                         </AlertDialogDescription>
                       </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Go back</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => decide.mutate()}>
+                      <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+                        <AlertDialogCancel className="mt-0 w-full sm:w-auto">Go back</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="w-full sm:w-auto"
+                          onClick={() => decide.mutate()}
+                        >
                           Confirm and notify student
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -528,55 +634,135 @@ type ActivityRow = {
   details: string
 }
 
-const ACTIVITY_TABLE_COLUMNS: DataTableColumn<ActivityRow>[] = [
-  {
-    id: 'at',
-    header: 'When',
-    sortable: true,
-    sortValue: (row) => new Date(row.at.replace(' ', 'T')).getTime(),
-    value: (row) => formatDateTime(row.at),
-    className: 'whitespace-nowrap align-top',
-    cell: (row) => (
-      <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-        {formatDateTime(row.at)}
-      </span>
-    ),
-  },
-  {
-    id: 'action',
-    header: 'What happened',
-    sortable: true,
-    value: (row) => row.action,
-    className: 'align-top min-w-[140px]',
-    cell: (row) => (
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-          {row.action}
-        </span>
-        <span
-          className="t-caption inline-flex w-fit px-2 py-0.5 rounded-full"
-          style={{
-            backgroundColor: row.typeLabel === 'Upload' ? 'var(--muted)' : 'rgba(59,130,246,0.12)',
-            color: row.typeLabel === 'Upload' ? 'var(--muted-foreground)' : 'var(--info)',
-          }}
-        >
-          {row.typeLabel}
-        </span>
+function ApplicationActivityFeed({ rows }: { rows: ActivityRow[] }) {
+  const [pageSize, setPageSize] = useState<number>(ACTIVITY_PAGE_SIZES[0])
+  const [page, setPage] = useState(1)
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pageRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const from = rows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const to = Math.min(currentPage * pageSize, rows.length)
+
+  if (rows.length === 0) {
+    return (
+      <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+        No activity yet. Uploads and decisions will show here.
+      </p>
+    )
+  }
+
+  return (
+    <div
+      className="overflow-hidden rounded-xl"
+      style={{ border: '1px solid var(--border)' }}
+    >
+      <div>
+        {pageRows.map((entry, index) => (
+          <ActivityEntry
+            key={entry.id}
+            entry={entry}
+            isLast={index === pageRows.length - 1}
+          />
+        ))}
       </div>
-    ),
-  },
-  {
-    id: 'details',
-    header: 'What this means',
-    value: (row) => row.details,
-    className: 'align-top min-w-[220px]',
-    cell: (row) => (
-      <span className="text-sm leading-relaxed" style={{ color: 'var(--foreground)' }}>
-        {row.details}
-      </span>
-    ),
-  },
-]
+
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3"
+        style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Show</span>
+          <select
+            value={pageSize}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value))
+              setPage(1)
+            }}
+            className="h-8 rounded-lg px-2 text-sm outline-none"
+            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            aria-label="Rows per page"
+          >
+            {ACTIVITY_PAGE_SIZES.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+          <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>
+            per page · {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>
+            {rows.length === 0 ? '0 entries' : `Showing ${from}–${to} of ${rows.length}`}
+          </span>
+          <button
+            type="button"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg"
+            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', opacity: currentPage <= 1 ? 0.4 : 1 }}
+            disabled={currentPage <= 1}
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg"
+            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', opacity: currentPage >= totalPages ? 0.4 : 1 }}
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            aria-label="Next page"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ActivityEntry({ entry, isLast }: { entry: ActivityRow; isLast: boolean }) {
+  const Icon = entry.typeLabel === 'Upload' ? Upload : FileText
+  const iconColor = entry.typeLabel === 'Upload' ? 'var(--muted-foreground)' : 'var(--info)'
+
+  return (
+    <div
+      className="flex gap-3 px-3 py-3 sm:px-4"
+      style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}
+    >
+      <div
+        className="flex items-center justify-center rounded-full flex-shrink-0 mt-0.5"
+        style={{ width: 32, height: 32, backgroundColor: 'var(--muted)' }}
+      >
+        <Icon size={14} style={{ color: iconColor }} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+              {entry.action}
+            </p>
+            <span
+              className="t-caption inline-flex w-fit mt-1 px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: entry.typeLabel === 'Upload' ? 'var(--muted)' : 'rgba(59,130,246,0.12)',
+                color: entry.typeLabel === 'Upload' ? 'var(--muted-foreground)' : 'var(--info)',
+              }}
+            >
+              {entry.typeLabel}
+            </span>
+          </div>
+          <p className="text-xs flex-shrink-0 sm:text-right" style={{ color: 'var(--muted-foreground)' }}>
+            {formatActivityDateTime(entry.at)}
+          </p>
+        </div>
+        <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--foreground)' }}>
+          {entry.details}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 function buildReviewActivityDetails(review: {
   reviewerName: string
@@ -653,7 +839,7 @@ function buildApplicationActivity(
   }))
 
   return [...reviewItems, ...uploadItems].sort(
-    (a, b) => new Date(b.at.replace(' ', 'T')).getTime() - new Date(a.at.replace(' ', 'T')).getTime(),
+    (a, b) => (parseActivityTimestamp(b.at)?.getTime() ?? 0) - (parseActivityTimestamp(a.at)?.getTime() ?? 0),
   )
 }
 
