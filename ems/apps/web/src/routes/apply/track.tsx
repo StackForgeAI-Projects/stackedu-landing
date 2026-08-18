@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { ApplicationStatus } from '@stackedu/shared'
 import {
-  ClipboardCheck, Clock, Eye, EyeOff, FileText, GraduationCap, Search, XCircle,
+  ClipboardCheck, Clock, CreditCard, Eye, EyeOff, FileText, GraduationCap, Search, XCircle,
 } from 'lucide-react'
 import { ApplyLayout } from '@/components/ApplyLayout'
 import { APPLY_FEATURES, AuthHero, INSTITUTION_NAME } from '@/components/AuthHero'
@@ -15,7 +15,12 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { login, sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
-import { applyResumeRoute, resolveApplicationProgress } from '@/lib/apply/progress'
+import {
+  applyResumeRoute,
+  buildTrackTimelineStages,
+  resolveApplicationProgress,
+  trackTimelineSubtitle,
+} from '@/lib/apply/progress'
 import { notifyError } from '@/lib/notify'
 import { queryClient } from '@/lib/query-client'
 
@@ -364,54 +369,22 @@ function StatusMessage({ status }: { status: ApplicationStatus }) {
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
 
-function formatDate(value: string | null): string | null {
-  if (!value) return null
+const TRACK_STAGE_ICONS = {
+  started: FileText,
+  payment: CreditCard,
+  sent: Search,
+  reviewed: ClipboardCheck,
+  decision: GraduationCap,
+} as const
 
-  // Postgres hands back "2026-08-11 22:57:45+00", which only some browsers
-  // will parse. Turning the space into a T makes it ISO-8601 everywhere.
-  const parsed = new Date(value.replace(' ', 'T'))
-  if (Number.isNaN(parsed.getTime())) return null
-
-  return parsed.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
-}
-
-/**
- * Four stages, each shown only as far as the record actually proves. A stage
- * with no date has genuinely not happened.
- */
 function StatusTimeline({ application }: { application: NonNullable<ReturnType<typeof useApplication>['application']> }) {
   const decided = application.status === 'Accepted' || application.status === 'Rejected'
-
-  const stages = [
-    {
-      icon: FileText,
-      label: 'Application started',
-      date: formatDate(application.createdAt),
-      done: true,
-    },
-    {
-      icon: Search,
-      label: 'Application sent',
-      date: formatDate(application.submittedAt),
-      done: application.submittedAt !== null,
-    },
-    {
-      icon: ClipboardCheck,
-      label: 'Reviewed',
-      date: formatDate(application.reviewedAt),
-      done: application.reviewedAt !== null,
-    },
-    {
-      icon: decided && application.status === 'Rejected' ? XCircle : GraduationCap,
-      label: 'Decision',
-      date: decided ? formatDate(application.reviewedAt) : null,
-      done: decided,
-    },
-  ]
+  const stages = buildTrackTimelineStages(application).map((stage) => ({
+    ...stage,
+    icon: stage.key === 'decision' && decided && application.status === 'Rejected'
+      ? XCircle
+      : TRACK_STAGE_ICONS[stage.key],
+  }))
 
   const activeIndex = stages.findIndex((stage) => !stage.done)
 
@@ -441,7 +414,7 @@ function StatusTimeline({ application }: { application: NonNullable<ReturnType<t
               : 'var(--muted-foreground)'
 
           return (
-            <div key={stage.label} className="flex gap-4">
+            <div key={stage.key} className="flex gap-4">
               <div className="flex flex-col items-center" style={{ width: 24, flexShrink: 0 }}>
                 <div
                   className="flex items-center justify-center rounded-full flex-shrink-0"
@@ -486,7 +459,7 @@ function StatusTimeline({ application }: { application: NonNullable<ReturnType<t
                   {stage.label}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                  {stage.date ?? (active ? 'Waiting' : 'Not yet')}
+                  {trackTimelineSubtitle(stage, active)}
                 </p>
               </div>
             </div>

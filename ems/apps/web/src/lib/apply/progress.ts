@@ -131,3 +131,89 @@ export function applyResumeRoute(currentStep: number): ApplyResumeRoute {
 export function formStepFromProgress(currentStep: number): number {
   return Math.min(Math.max(Math.trunc(currentStep), 1), 5)
 }
+
+export interface TrackTimelineStage {
+  key: 'started' | 'payment' | 'sent' | 'reviewed' | 'decision'
+  label: string
+  done: boolean
+  subtitle: string
+}
+
+function formatTrackDate(value: string | null | undefined): string | null {
+  if (!value) return null
+
+  const parsed = new Date(value.replace(' ', 'T'))
+  if (Number.isNaN(parsed.getTime())) return null
+
+  return parsed.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function paymentTrackSubtitle(application: Application): string {
+  const payment = application.payment
+
+  if (payment?.status === 'Completed') {
+    return formatTrackDate(payment.paidAt) ?? 'Paid'
+  }
+  if (payment?.status === 'Pending') return 'Pending confirmation'
+  if (payment?.status === 'Failed') return 'Payment failed'
+  if (payment?.status === 'Voided') return 'Payment voided'
+  return 'Not yet'
+}
+
+/** Track dashboard timeline — payment must complete before "Application sent". */
+export function buildTrackTimelineStages(application: Application): TrackTimelineStage[] {
+  const paymentCompleted = application.payment?.status === 'Completed'
+  const submitted = application.submittedAt !== null
+  const decided = application.status === 'Accepted' || application.status === 'Rejected'
+
+  return [
+    {
+      key: 'started',
+      label: 'Application started',
+      done: true,
+      subtitle: formatTrackDate(application.createdAt) ?? 'Started',
+    },
+    {
+      key: 'payment',
+      label: 'Application fee payment',
+      done: paymentCompleted,
+      subtitle: paymentTrackSubtitle(application),
+    },
+    {
+      key: 'sent',
+      label: 'Application sent',
+      done: submitted,
+      subtitle: submitted
+        ? (formatTrackDate(application.submittedAt) ?? 'Sent')
+        : 'Not yet',
+    },
+    {
+      key: 'reviewed',
+      label: 'Reviewed',
+      done: application.reviewedAt !== null,
+      subtitle: application.reviewedAt
+        ? (formatTrackDate(application.reviewedAt) ?? 'Reviewed')
+        : 'Not yet',
+    },
+    {
+      key: 'decision',
+      label: 'Decision',
+      done: decided,
+      subtitle: decided
+        ? (formatTrackDate(application.reviewedAt)
+          ?? (application.status === 'Rejected' ? 'Not successful' : 'Offered'))
+        : 'Not yet',
+    },
+  ]
+}
+
+export function trackTimelineSubtitle(stage: TrackTimelineStage, active: boolean): string {
+  if (stage.done || !active) return stage.subtitle
+  if (stage.key === 'payment' && stage.subtitle === 'Not yet') return 'Waiting'
+  if (stage.key === 'sent') return 'Waiting'
+  return stage.subtitle === 'Not yet' ? 'Waiting' : stage.subtitle
+}
