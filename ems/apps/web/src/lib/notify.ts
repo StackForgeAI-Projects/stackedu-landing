@@ -1,4 +1,6 @@
+import { AlertCircle, CheckCircle2, Info } from 'lucide-react'
 import { toast } from 'sonner'
+import { createElement } from 'react'
 
 /**
  * App-wide feedback.
@@ -8,14 +10,32 @@ import { toast } from 'sonner'
  * The Toaster itself is mounted once in the root route.
  */
 
-export function notifySuccess(message: string): void {
-  toast.success(message)
+const TOAST_CLASS_NAMES = {
+  toast: 'rounded-xl border shadow-sm',
+  title: 'text-sm font-semibold',
+  description: 'text-sm leading-relaxed',
 }
 
-export function notifyError(message: string): void {
-  toast.error(message)
+export function notifySuccess(message: string, description?: string): void {
+  toast.success(message, {
+    description,
+    icon: createElement(CheckCircle2, { className: 'h-4 w-4', style: { color: 'var(--success)' } }),
+    classNames: TOAST_CLASS_NAMES,
+  })
 }
 
-export function notifyInfo(message: string): void {
-  toast.message(message)
+export function notifyError(message: string, description?: string): void {
+  toast.error(message, {
+    description,
+    icon: createElement(AlertCircle, { className: 'h-4 w-4', style: { color: 'var(--error)' } }),
+    classNames: TOAST_CLASS_NAMES,
+  })
+}
+
+export function notifyInfo(message: string, description?: string): void {
+  toast.message(message, {
+    description,
+    icon: createElement(Info, { className: 'h-4 w-4', style: { color: 'var(--info)' } }),
+    classNames: TOAST_CLASS_NAMES,
+  })
 }

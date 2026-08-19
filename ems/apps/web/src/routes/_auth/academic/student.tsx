@@ -2,11 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { ChevronLeft, CheckCircle2, AlertCircle, Clock, RotateCcw, XCircle } from 'lucide-react'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { AcademicShell } from '@/components/AcademicShell'
 import { DataTable } from '@/components/DataTable'
 import { studentStatusColors, gradeColors } from '@/data/academic'
@@ -317,23 +313,25 @@ function StudentProfilePage() {
                           </div>
                         ))}
                       </div>
-                      <AlertDialog open={graduateDialogOpen} onOpenChange={setGraduateDialogOpen}>
-                        <button type="button" disabled={!isGradEligible} onClick={() => { if (isGradEligible) setGraduateDialogOpen(true) }}
-                          className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 mb-1.5"
-                          style={{ backgroundColor: isGradEligible ? 'var(--brand)' : 'var(--muted)', color: isGradEligible ? 'var(--brand-ink)' : 'var(--muted-foreground)', border: 'none', cursor: isGradEligible ? 'pointer' : 'not-allowed' }}>
-                          Graduate student
-                        </button>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Graduate student?</AlertDialogTitle>
-                            <AlertDialogDescription>Confirm graduation for {s.fullName}. This cannot be undone.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => setGraduateDialogOpen(false)}>Confirm</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <button type="button" disabled={!isGradEligible} onClick={() => { if (isGradEligible) setGraduateDialogOpen(true) }}
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 mb-1.5"
+                        style={{ backgroundColor: isGradEligible ? 'var(--brand)' : 'var(--muted)', color: isGradEligible ? 'var(--brand-ink)' : 'var(--muted-foreground)', border: 'none', cursor: isGradEligible ? 'pointer' : 'not-allowed' }}>
+                        Graduate student
+                      </button>
+                      <ConfirmAlertDialog
+                        open={graduateDialogOpen}
+                        onOpenChange={setGraduateDialogOpen}
+                        title="Graduate student?"
+                        tone="success"
+                        headlineLabel="Action"
+                        headline="Graduate student"
+                        summary={`Confirm graduation for ${s.fullName}.`}
+                        notices={[{ icon: 'user', label: 'The student will be marked as graduated on their record.' }]}
+                        caution="This cannot be undone."
+                        confirmLabel="Confirm"
+                        confirmVariant="brand"
+                        onConfirm={() => setGraduateDialogOpen(false)}
+                      />
                       <button type="button" onClick={() => setShowGradCheck(false)} className="w-full py-1.5 rounded-lg text-xs font-medium transition-colors duration-150"
                         style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>
                         Hide checklist
@@ -361,27 +359,39 @@ function SectionCard({ title, children }: { title: string; children: React.React
   )
 }
 
-function ActionButton({ label, color, confirmTitle, confirmDesc }: { label: string; color: string; confirmTitle: string; confirmDesc: string }) {
+function ActionButton({
+  label,
+  color,
+  confirmTitle,
+  confirmDesc,
+  confirmHeadline,
+  tone = 'info',
+}: {
+  label: string
+  color: string
+  confirmTitle: string
+  confirmDesc: string
+  confirmHeadline?: string
+  tone?: 'info' | 'warning' | 'destructive'
+}) {
   const isDestructive = color === 'var(--error)'
   const borderColor = isDestructive ? 'var(--error)' : 'var(--border)'
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
+    <ConfirmAlertDialog
+      trigger={
         <button type="button" className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
           style={{ border: `1px solid ${borderColor}`, color, backgroundColor: 'transparent', cursor: 'pointer' }}>
           {label}
         </button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
-          <AlertDialogDescription>{confirmDesc}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction>Confirm</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      }
+      title={confirmTitle}
+      tone={isDestructive ? 'destructive' : tone}
+      headlineLabel="Action"
+      headline={confirmHeadline ?? label}
+      summary={confirmDesc}
+      notices={[{ icon: 'user', label: 'This update will be recorded on the student profile.' }]}
+      confirmLabel="Confirm"
+      confirmVariant={isDestructive ? 'destructive' : 'default'}
+    />
   )
 }

@@ -7,10 +7,7 @@ import { StatTile } from '@/components/StatTile'
 import {
   Sheet, SheetContent,
 } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -584,27 +581,20 @@ function FeeStructurePage() {
         </SheetContent>
       </Sheet>
 
-      {/* Delete AlertDialog */}
-      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this fee item?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <strong>"{deleteItem?.name}"</strong> will be permanently removed from the fee structure.
-              This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={!!deleteItem}
+        onOpenChange={(open) => !open && setDeleteItem(null)}
+        title="Delete this fee item?"
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Delete fee item"
+        summary={`"${deleteItem?.name}" will be permanently removed from the fee structure.`}
+        notices={[{ icon: 'trash', label: 'This fee will no longer appear on student accounts or receipts.' }]}
+        caution="This cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={handleDelete}
+      />
     </AppShell>
   )
 }

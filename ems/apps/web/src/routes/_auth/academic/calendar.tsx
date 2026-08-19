@@ -6,11 +6,7 @@ import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { AcademicShell } from '@/components/AcademicShell'
 import { calEventColors } from '@/data/academic'
 import {
@@ -301,26 +297,21 @@ function CalendarPage() {
         </SheetContent>
       </Sheet>
 
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteTarget?.title}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove the event from the academic calendar.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget) }}
-              disabled={deleteMutation.isPending}
-              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
-            >
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title={`Delete ${deleteTarget?.title}?`}
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Delete event"
+        summary="This will permanently remove the event from the academic calendar."
+        notices={[{ icon: 'trash', label: 'The event will be removed for all staff and students viewing the calendar.' }]}
+        caution="This cannot be undone."
+        confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+        confirmVariant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget) }}
+      />
     </AcademicShell>
   )
 }

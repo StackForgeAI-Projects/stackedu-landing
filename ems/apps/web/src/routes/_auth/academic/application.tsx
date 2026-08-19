@@ -15,13 +15,9 @@ import {
   formatPaymentStatus,
   formatRequestedDocumentsList,
 } from '@stackedu/shared'
-import { ChevronLeft, ChevronRight, FileText, Mail, Monitor, Upload, AlertTriangle, CheckCircle2, XCircle, FileUp } from 'lucide-react'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
+import { ChevronLeft, ChevronRight, FileText, Upload } from 'lucide-react'
 import { AcademicShell } from '@/components/AcademicShell'
+import { ConfirmAlertDialog, type ConfirmAlertPanelProps } from '@/components/ConfirmAlertDialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -55,29 +51,9 @@ const DECISION_OPTIONS: ReadonlyArray<{ value: DecisionChoice; label: string }> 
   { value: 'Rejected', label: 'Reject' },
 ]
 
-type DecisionNoticeIcon = 'email' | 'track' | 'documents'
-
-type DecisionConfirmCopy = {
+type DecisionConfirmCopy = ConfirmAlertPanelProps & {
   title: string
   success: string
-  tone: 'info' | 'success' | 'warning' | 'destructive'
-  statusLabel: string
-  summary: string
-  notices: ReadonlyArray<{ icon: DecisionNoticeIcon; label: string }>
-  caution?: string
-}
-
-const DECISION_TONE_STYLES = {
-  info: { bg: 'var(--info-bg)', border: 'var(--info)', accent: 'var(--info)' },
-  success: { bg: 'var(--success-bg)', border: 'var(--success)', accent: 'var(--success)' },
-  warning: { bg: 'var(--warning-bg)', border: 'var(--warning)', accent: 'var(--warning)' },
-  destructive: { bg: 'var(--error-bg)', border: 'var(--error)', accent: 'var(--error)' },
-} as const
-
-const DECISION_NOTICE_ICONS: Record<DecisionNoticeIcon, typeof Mail> = {
-  email: Mail,
-  track: Monitor,
-  documents: FileUp,
 }
 
 function decisionConfirmCopy(input: {
@@ -105,7 +81,8 @@ function decisionConfirmCopy(input: {
     return {
       title: 'Send document request?',
       tone: 'warning',
-      statusLabel: 'Documents requested',
+      headlineLabel: 'New status',
+      headline: 'Documents requested',
       summary:
         requestedDocumentCount > 0
           ? `Ask ${applicantName} to upload the selected documents before admissions can continue.`
@@ -119,7 +96,8 @@ function decisionConfirmCopy(input: {
     return {
       title: 'Mark as under review?',
       tone: 'info',
-      statusLabel: 'Under review',
+      headlineLabel: 'New status',
+      headline: 'Under review',
       summary: `Tell ${applicantName} that admissions is now actively reviewing their application.`,
       notices: studentNotices,
       success: `Application marked under review. ${applicantName} has been emailed about the update.`,
@@ -130,7 +108,8 @@ function decisionConfirmCopy(input: {
     return {
       title: 'Accept this application?',
       tone: 'success',
-      statusLabel: 'Accepted',
+      headlineLabel: 'New status',
+      headline: 'Accepted',
       summary: `Offer ${applicantName} a place on their chosen programme.`,
       notices: studentNotices,
       caution: 'This is a final decision.',
@@ -141,92 +120,13 @@ function decisionConfirmCopy(input: {
   return {
     title: 'Reject this application?',
     tone: 'destructive',
-    statusLabel: 'Rejected',
+    headlineLabel: 'New status',
+    headline: 'Rejected',
     summary: `Tell ${applicantName} that their application was not successful.`,
     notices: studentNotices,
     caution: 'This is a final decision.',
     success: `Application rejected. ${applicantName} has been emailed about the decision.`,
   }
-}
-
-function DecisionConfirmPanel({ copy }: { copy: DecisionConfirmCopy }) {
-  const tone = DECISION_TONE_STYLES[copy.tone]
-  const StatusIcon =
-    copy.tone === 'success' ? CheckCircle2
-      : copy.tone === 'destructive' ? XCircle
-        : copy.tone === 'warning' ? FileUp
-          : FileText
-
-  return (
-    <div className="flex flex-col gap-3 text-left">
-      <div
-        className="rounded-xl p-4"
-        style={{ backgroundColor: tone.bg, border: `1px solid ${tone.border}` }}
-      >
-        <div className="flex items-start gap-3">
-          <div
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
-            style={{ backgroundColor: 'var(--card)' }}
-          >
-            <StatusIcon size={18} style={{ color: tone.accent }} />
-          </div>
-          <div className="min-w-0">
-            <p className="t-label" style={{ color: tone.accent }}>New status</p>
-            <p className="text-base font-semibold mt-0.5" style={{ color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
-              {copy.statusLabel}
-            </p>
-            <p className="text-sm mt-1 leading-relaxed" style={{ color: 'var(--foreground)' }}>
-              {copy.summary}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {copy.caution ? (
-        <div
-          className="flex items-start gap-2 rounded-lg px-3 py-2.5"
-          style={{
-            backgroundColor: copy.tone === 'destructive' ? 'var(--error-bg)' : 'var(--warning-bg)',
-            border: `1px solid ${copy.tone === 'destructive' ? 'var(--error)' : 'var(--warning)'}`,
-          }}
-        >
-          <AlertTriangle
-            size={16}
-            className="flex-shrink-0 mt-0.5"
-            style={{ color: copy.tone === 'destructive' ? 'var(--error)' : 'var(--warning)' }}
-          />
-          <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-            {copy.caution}
-          </p>
-        </div>
-      ) : null}
-
-      <div
-        className="rounded-xl p-3"
-        style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
-      >
-        <p className="t-label mb-2" style={{ color: 'var(--muted-foreground)' }}>What happens next</p>
-        <ul className="flex flex-col gap-2">
-          {copy.notices.map((notice) => {
-            const Icon = DECISION_NOTICE_ICONS[notice.icon]
-            return (
-              <li key={notice.label} className="flex items-start gap-2.5">
-                <div
-                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
-                  style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
-                >
-                  <Icon size={13} style={{ color: 'var(--info)' }} />
-                </div>
-                <span className="text-sm leading-relaxed pt-0.5" style={{ color: 'var(--foreground)' }}>
-                  {notice.label}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
-    </div>
-  )
 }
 
 function detailString(details: Record<string, unknown> | null, key: string): string {
@@ -590,32 +490,24 @@ function ApplicationDetailPage() {
                     onChange={(e) => setComments(e.target.value)}
                     rows={4}
                   />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
+                  <ConfirmAlertDialog
+                    trigger={
                       <Button disabled={decide.isPending}>
                         {decide.isPending ? 'Saving…' : 'Save decision'}
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[440px]">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>
-                          {confirmCopy.title}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription asChild>
-                          <DecisionConfirmPanel copy={confirmCopy} />
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
-                        <AlertDialogCancel className="mt-0 w-full sm:w-auto">Go back</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="w-full sm:w-auto"
-                          onClick={() => decide.mutate()}
-                        >
-                          Confirm and notify student
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    }
+                    title={confirmCopy.title}
+                    tone={confirmCopy.tone}
+                    headlineLabel={confirmCopy.headlineLabel}
+                    headline={confirmCopy.headline}
+                    summary={confirmCopy.summary}
+                    notices={confirmCopy.notices}
+                    caution={confirmCopy.caution}
+                    cancelLabel="Go back"
+                    confirmLabel="Confirm and notify student"
+                    confirmDisabled={decide.isPending}
+                    onConfirm={() => decide.mutate()}
+                  />
                 </div>
               )}
             </SectionCard>

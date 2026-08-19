@@ -10,10 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { toast } from 'sonner'
 import {
   LIBRARIAN, LIBRARY_COLLECTIONS, CATALOGUE_RESOURCES,
@@ -108,26 +105,20 @@ function CollectionsPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Delete AlertDialog */}
-      <AlertDialog open={deleteTarget !== null} onOpenChange={open => { if (!open) setDeleteTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>
-            Delete "{deleteTarget?.name}"?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            Resources will not be deleted — only removed from this collection. This action cannot be undone.
-          </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
-              onClick={handleDelete}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title={`Delete "${deleteTarget?.name}"?`}
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Delete collection"
+        summary="Resources will not be deleted — only removed from this collection."
+        notices={[{ icon: 'archive', label: 'The resources themselves will stay in the catalogue.' }]}
+        caution="This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={handleDelete}
+      />
     </LibrarianShell>
   )
 }

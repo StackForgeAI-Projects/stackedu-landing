@@ -8,10 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { toast } from 'sonner'
 import {
   CATALOGUE_RESOURCES, type CatalogueResource, type ResourceType, type ResourceStatus,
@@ -233,26 +230,19 @@ function CataloguePage() {
         </SheetContent>
       </Sheet>
 
-      {/* Archive AlertDialog */}
-      <AlertDialog open={archiveTarget !== null} onOpenChange={open => { if (!open) setArchiveTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>
-            Archive "{archiveTarget?.title}"?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            It will no longer appear in the student E-Library but can be restored at any time.
-          </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              style={{ backgroundColor: 'var(--warning)', color: '#fff' }}
-              onClick={handleArchive}
-            >
-              Archive
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={archiveTarget !== null}
+        onOpenChange={(open) => { if (!open) setArchiveTarget(null) }}
+        title={`Archive "${archiveTarget?.title}"?`}
+        tone="warning"
+        headlineLabel="Action"
+        headline="Archive resource"
+        summary="It will no longer appear in the student E-Library."
+        notices={[{ icon: 'archive', label: 'You can restore this resource from the archive at any time.' }]}
+        confirmLabel="Archive"
+        confirmVariant="warning"
+        onConfirm={handleArchive}
+      />
     </LibrarianShell>
   )
 }

@@ -6,10 +6,7 @@ import { DataTable } from '@/components/DataTable'
 import {
   Sheet, SheetContent,
 } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -252,36 +249,32 @@ function ReceiptsPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Void AlertDialog */}
-      <AlertDialog open={!!voidTarget} onOpenChange={(o) => !o && setVoidTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Void Receipt {voidTarget?.receiptNo}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This cannot be undone and will be recorded in the audit log. Please provide a reason.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="px-1 pb-2">
-            <textarea
-              placeholder="Reason for voiding this receipt…"
-              value={voidReason}
-              onChange={(e) => setVoidReason(e.target.value)}
-              rows={3}
-              className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none"
-              style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }}
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setVoidReason('')}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleVoid}
-              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
-            >
-              Void receipt
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={!!voidTarget}
+        onOpenChange={(open) => !open && setVoidTarget(null)}
+        title={`Void Receipt ${voidTarget?.receiptNo}?`}
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Void receipt"
+        summary="This cannot be undone and will be recorded in the audit log."
+        notices={[
+          { icon: 'file', label: 'Please provide a clear reason for the audit trail.' },
+          { icon: 'shield', label: 'This action is permanently logged for compliance.' },
+        ]}
+        confirmLabel="Void receipt"
+        confirmVariant="destructive"
+        onCancel={() => setVoidReason('')}
+        onConfirm={handleVoid}
+      >
+        <textarea
+          placeholder="Reason for voiding this receipt…"
+          value={voidReason}
+          onChange={(e) => setVoidReason(e.target.value)}
+          rows={3}
+          className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none"
+          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }}
+        />
+      </ConfirmAlertDialog>
     </AppShell>
   )
 }

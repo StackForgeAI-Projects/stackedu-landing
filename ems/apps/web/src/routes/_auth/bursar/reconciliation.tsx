@@ -7,10 +7,7 @@ import { StatTile } from '@/components/StatTile'
 import {
   Sheet, SheetContent,
 } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -387,37 +384,32 @@ function ReconciliationPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Escalate AlertDialog */}
-      <AlertDialog open={!!escalateTarget} onOpenChange={(o) => !o && setEscalate(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Escalate to ICT Manager?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Transaction <strong>{escalateTarget?.txnId}</strong> will be flagged and escalated
-              to the ICT Manager for investigation. Please provide a reason.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="px-1 pb-2">
-            <textarea
-              placeholder="Reason for escalation…"
-              value={escalateReason}
-              onChange={(e) => setEscalateReason(e.target.value)}
-              rows={3}
-              className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none"
-              style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }}
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setEscalateReason('')}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleEscalate}
-              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
-            >
-              Escalate to ICT Manager
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={!!escalateTarget}
+        onOpenChange={(open) => !open && setEscalate(null)}
+        title="Escalate to ICT Manager?"
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Escalate transaction"
+        summary={`Transaction ${escalateTarget?.txnId} will be flagged and escalated to the ICT Manager for investigation.`}
+        notices={[
+          { icon: 'shield', label: 'ICT will investigate the mismatch or payment issue.' },
+          { icon: 'file', label: 'Your reason will be saved with the escalation record.' },
+        ]}
+        confirmLabel="Escalate to ICT Manager"
+        confirmVariant="destructive"
+        onCancel={() => setEscalateReason('')}
+        onConfirm={handleEscalate}
+      >
+        <textarea
+          placeholder="Reason for escalation…"
+          value={escalateReason}
+          onChange={(e) => setEscalateReason(e.target.value)}
+          rows={3}
+          className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none"
+          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }}
+        />
+      </ConfirmAlertDialog>
     </AppShell>
   )
 }

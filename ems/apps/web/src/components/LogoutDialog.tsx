@@ -1,15 +1,6 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { logout, sessionQueryKey } from '@/lib/api/auth'
 import { APPLICANT_SIGN_IN_PATH } from '@/lib/auth/portals'
 import { queryClient } from '@/lib/query-client'
@@ -61,36 +52,24 @@ export function LogoutDialog({
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[420px]">
-        <AlertDialogHeader>
-          <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>
-            Log out?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            You will need to sign in again to get back to your account.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
-          <AlertDialogCancel disabled={isLeaving} className="mt-0 w-full sm:w-auto">
-            Cancel
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={(event) => {
-              // Keep the dialog up while the request is in flight, so the
-              // button can show progress instead of vanishing.
-              event.preventDefault()
-              void confirm()
-            }}
-            disabled={isLeaving}
-            className="w-full sm:w-auto"
-            style={{ backgroundColor: 'var(--error)', color: '#FFFFFF' }}
-          >
-            {isLeaving ? 'Logging out…' : 'Log out'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmAlertDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Log out?"
+      tone="destructive"
+      headlineLabel="Action"
+      headline="Sign out"
+      summary="You will need to sign in again to get back to your account."
+      notices={[{ icon: 'lock', label: 'Your current session will end on this device.' }]}
+      cancelLabel="Cancel"
+      confirmLabel={isLeaving ? 'Logging out…' : 'Log out'}
+      confirmVariant="destructive"
+      loading={isLeaving}
+      onConfirm={(event) => {
+        event.preventDefault()
+        void confirm()
+      }}
+    />
   )
 }
 

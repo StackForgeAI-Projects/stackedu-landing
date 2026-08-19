@@ -4,10 +4,7 @@ import { BookMarked, Eye, Pencil, Minus, BookOpen, Plus } from 'lucide-react'
 import { DataTable } from '@/components/DataTable'
 import { LibrarianShell } from '@/components/LibrarianShell'
 import { Button } from '@/components/ui/button'
-import {
-  AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { toast } from 'sonner'
 import {
   CATALOGUE_RESOURCES, LIBRARY_COLLECTIONS,
@@ -250,26 +247,19 @@ function CollectionDetailPage() {
         </div>
       </div>
 
-      {/* Remove AlertDialog */}
-      <AlertDialog open={removeTarget !== null} onOpenChange={open => { if (!open) setRemoveTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>
-            Remove from collection?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            "{removeTarget?.title}" will be removed from {collection.name}. The resource will remain in the catalogue.
-          </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
-              onClick={handleRemove}
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => { if (!open) setRemoveTarget(null) }}
+        title="Remove from collection?"
+        tone="warning"
+        headlineLabel="Action"
+        headline="Remove resource"
+        summary={`"${removeTarget?.title}" will be removed from ${collection.name}.`}
+        notices={[{ icon: 'info', label: 'The resource will remain in the catalogue.' }]}
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        onConfirm={handleRemove}
+      />
     </LibrarianShell>
   )
 }

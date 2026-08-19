@@ -7,11 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import {
@@ -196,28 +192,24 @@ function MarksEntryTable({ course, assessment }: { course: typeof LECTURER_COURS
       </div>
 
       <div className="flex items-center gap-3">
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
+        <ConfirmAlertDialog
+          trigger={
             <Button style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}>Submit for publishing</Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Submit results for publishing?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Once submitted, results will be reviewed by the Academic Admin before publishing to students. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleSubmit}
-                style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}
-              >
-                Submit
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          }
+          title="Submit results for publishing?"
+          tone="info"
+          headlineLabel="Action"
+          headline="Submit for review"
+          summary="Once submitted, results will be reviewed by the Academic Admin before publishing to students."
+          notices={[
+            { icon: 'file', label: 'Your draft will move to the admin review queue.' },
+            { icon: 'user', label: 'Students cannot see these results until they are approved and published.' },
+          ]}
+          caution="This action cannot be undone."
+          confirmLabel="Submit"
+          confirmVariant="brand"
+          onConfirm={handleSubmit}
+        />
         <Button variant="outline" onClick={() => toast.success('Draft saved')}>Save draft</Button>
       </div>
     </div>

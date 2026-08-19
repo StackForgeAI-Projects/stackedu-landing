@@ -1,13 +1,4 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 
 interface InactivityDialogProps {
   open: boolean
@@ -18,26 +9,21 @@ interface InactivityDialogProps {
 
 export function InactivityDialog({ open, secondsLeft, onStay, onLogout }: InactivityDialogProps) {
   return (
-    <AlertDialog open={open}>
-      <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[420px]">
-        <AlertDialogHeader>
-          <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>
-            Are you still there?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            You have been inactive for a few minutes. For your security you will be signed out in{' '}
-            <strong>{secondsLeft}s</strong> unless you stay signed in.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
-          <AlertDialogCancel onClick={onLogout} className="mt-0 w-full sm:w-auto">
-            Log out now
-          </AlertDialogCancel>
-          <AlertDialogAction onClick={onStay} className="w-full sm:w-auto">
-            Stay signed in
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmAlertDialog
+      open={open}
+      title="Are you still there?"
+      tone="warning"
+      headlineLabel="Security check"
+      headline="Session ending soon"
+      summary={`You have been inactive for a few minutes. For your security you will be signed out in ${secondsLeft}s unless you stay signed in.`}
+      notices={[
+        { icon: 'shield', label: 'Stay signed in to keep working without interruption.' },
+        { icon: 'lock', label: 'Choose log out now if you are finished on this device.' },
+      ]}
+      cancelLabel="Log out now"
+      confirmLabel="Stay signed in"
+      onCancel={onLogout}
+      onConfirm={onStay}
+    />
   )
 }

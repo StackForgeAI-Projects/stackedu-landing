@@ -6,11 +6,7 @@ import { Download, Search } from 'lucide-react'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { AcademicShell } from '@/components/AcademicShell'
 import { DataTable } from '@/components/DataTable'
 import { gradeColors } from '@/data/academic'
@@ -172,31 +168,31 @@ function ResultManagementPage() {
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'pointer' }}>
                         Review & Approve
                       </button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
+                      <ConfirmAlertDialog
+                        trigger={
                           <button type="button" className="text-xs font-medium px-3 py-1.5 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>Return</button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Return to lecturer?</AlertDialogTitle>
-                            <AlertDialogDescription>Return results for {r.courseName} to {r.lecturer ?? 'the lecturer'} for revision.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <div className="px-1 py-2">
-                            <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Reason (required)</label>
-                            <textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} rows={3} placeholder="Explain what needs to be corrected…"
-                              className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }} />
-                          </div>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              disabled={returnReason.trim().length < 4 || rejectMutation.isPending}
-                              onClick={() => rejectMutation.mutate({ id: r.id, reason: returnReason.trim() })}
-                            >
-                              Return
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                        }
+                        title="Return to lecturer?"
+                        tone="warning"
+                        headlineLabel="Action"
+                        headline="Return for revision"
+                        summary={`Return results for ${r.courseName} to ${r.lecturer ?? 'the lecturer'} for revision.`}
+                        notices={[
+                          { icon: 'bell', label: 'The lecturer will be notified to review and resubmit the results.' },
+                          { icon: 'file', label: 'Your reason will be saved with this decision.' },
+                        ]}
+                        confirmLabel="Return"
+                        confirmVariant="warning"
+                        confirmDisabled={returnReason.trim().length < 4 || rejectMutation.isPending}
+                        loading={rejectMutation.isPending}
+                        onConfirm={() => rejectMutation.mutate({ id: r.id, reason: returnReason.trim() })}
+                      >
+                        <div>
+                          <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Reason (required)</label>
+                          <textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} rows={3} placeholder="Explain what needs to be corrected…"
+                            className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }} />
+                        </div>
+                      </ConfirmAlertDialog>
                     </div>
                   ),
                 },
@@ -293,23 +289,26 @@ function ResultManagementPage() {
                 <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows={3} placeholder="Optional comments before publishing…"
                   className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }} />
               </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
+              <ConfirmAlertDialog
+                trigger={
                   <button type="button" className="w-full py-2.5 rounded-xl text-sm font-semibold" style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'pointer' }}>
                     {approveMutation.isPending ? 'Publishing…' : 'Approve and publish'}
                   </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Publish these results?</AlertDialogTitle>
-                    <AlertDialogDescription>Results for <strong>{viewResult.courseCode}</strong> will be published immediately.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => approveMutation.mutate(viewResult.id)}>Publish</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="Publish these results?"
+                tone="success"
+                headlineLabel="Action"
+                headline="Publish results"
+                summary={`Results for ${viewResult.courseCode} will be published immediately.`}
+                notices={[
+                  { icon: 'user', label: 'Students will be able to view their grades once published.' },
+                  { icon: 'bell', label: 'The lecturer will be notified that results are live.' },
+                ]}
+                confirmLabel="Publish"
+                confirmVariant="brand"
+                loading={approveMutation.isPending}
+                onConfirm={() => approveMutation.mutate(viewResult.id)}
+              />
             </div>
           </SheetContent>
         </Sheet>

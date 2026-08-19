@@ -6,11 +6,7 @@ import { Pencil, Archive, Plus } from 'lucide-react'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { AcademicShell } from '@/components/AcademicShell'
 import { DataTable } from '@/components/DataTable'
 import {
@@ -237,25 +233,23 @@ function CoursesCataloguePage() {
         />
       </div>
 
-      <AlertDialog open={archiveTarget !== null} onOpenChange={(open) => { if (!open) setArchiveTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Archive {archiveTarget?.code}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will mark the course as inactive. Students already enrolled will remain on record.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { if (archiveTarget) archiveMutation.mutate(archiveTarget) }}
-              disabled={archiveMutation.isPending}
-            >
-              {archiveMutation.isPending ? 'Archiving…' : 'Archive'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={archiveTarget !== null}
+        onOpenChange={(open) => { if (!open) setArchiveTarget(null) }}
+        title={`Archive ${archiveTarget?.code}?`}
+        tone="warning"
+        headlineLabel="Action"
+        headline="Archive course"
+        summary="This will mark the course as inactive."
+        notices={[
+          { icon: 'archive', label: 'Students already enrolled will remain on record.' },
+          { icon: 'info', label: 'The course will no longer appear as active for new registrations.' },
+        ]}
+        confirmLabel={archiveMutation.isPending ? 'Archiving…' : 'Archive'}
+        confirmVariant="warning"
+        loading={archiveMutation.isPending}
+        onConfirm={() => { if (archiveTarget) archiveMutation.mutate(archiveTarget) }}
+      />
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="p-0 overflow-y-auto sheet-lg">

@@ -7,10 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import {
-  AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
-} from '@/components/ui/alert-dialog'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { toast } from 'sonner'
 import {
   RESOURCE_REQUESTS, CATALOGUE_RESOURCES,
@@ -301,32 +298,28 @@ function RequestsPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Decline AlertDialog */}
-      <AlertDialog open={declineTarget !== null} onOpenChange={open => { if (!open) setDeclineTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogTitle style={{ fontFamily: 'var(--font-display)' }}>Decline Request</AlertDialogTitle>
-          <AlertDialogDescription>
-            Please provide a reason for declining this request. The requester will be notified.
-          </AlertDialogDescription>
-          <Textarea
-            value={declineReason}
-            onChange={e => setDeclineReason(e.target.value)}
-            placeholder="Reason for declining (required)…"
-            rows={3}
-            className="mt-2"
-          />
-          <AlertDialogFooter className="mt-4">
-            <AlertDialogCancel onClick={() => setDeclineReason('')}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
-              onClick={handleDecline}
-              disabled={!declineReason.trim()}
-            >
-              Decline request
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmAlertDialog
+        open={declineTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeclineTarget(null) }}
+        title="Decline request?"
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Decline request"
+        summary="Please provide a reason for declining this request."
+        notices={[{ icon: 'bell', label: 'The requester will be notified with your reason.' }]}
+        confirmLabel="Decline request"
+        confirmVariant="destructive"
+        confirmDisabled={!declineReason.trim()}
+        onCancel={() => setDeclineReason('')}
+        onConfirm={handleDecline}
+      >
+        <Textarea
+          value={declineReason}
+          onChange={(e) => setDeclineReason(e.target.value)}
+          placeholder="Reason for declining (required)…"
+          rows={3}
+        />
+      </ConfirmAlertDialog>
     </LibrarianShell>
   )
 }
