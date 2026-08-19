@@ -15,7 +15,8 @@
     "db:generate": "bun run --filter '@stackedu/api' db:generate",
     "db:migrate": "bun run --filter '@stackedu/api' db:migrate",
     "db:seed": "bun run --filter '@stackedu/api' db:seed",
-    "institution:create": "bun run --filter '@stackedu/api' institution:create"
+    "institution:create": "bun run --filter '@stackedu/api' institution:create",
+    "purge-applicants": "bun run --filter '@stackedu/api' purge-applicants"
   },
   "devDependencies": {
     "turbo": "^2",

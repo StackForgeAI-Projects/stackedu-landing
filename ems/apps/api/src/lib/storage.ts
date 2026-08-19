@@ -1,12 +1,14 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { createReadStream, createWriteStream, existsSync, mkdirSync } from 'node:fs'
-import { unlink } from 'node:fs/promises'
+import { unlink, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
@@ -232,6 +234,50 @@ export async function deleteStoredObject(fileKey: string): Promise<void> {
 
   const filePath = localPathFor(fileKey)
   if (existsSync(filePath)) await unlink(filePath)
+}
+
+/** Deletes every stored object under a prefix. Returns how many objects were removed. */
+export async function deleteStoredObjectsByPrefix(prefix: string): Promise<number> {
+  const normalised = prefix.endsWith('/') ? prefix : `${prefix}/`
+
+  if (env().STORAGE_DRIVER === 'r2') {
+    const bucket = env().R2_BUCKET!
+    let deleted = 0
+    let continuationToken: string | undefined
+
+    do {
+      const page = await r2Client().send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: normalised,
+          ContinuationToken: continuationToken,
+        }),
+      )
+
+      const keys = (page.Contents ?? [])
+        .map((entry) => entry.Key)
+        .filter((key): key is string => Boolean(key))
+
+      if (keys.length > 0) {
+        await r2Client().send(
+          new DeleteObjectsCommand({
+            Bucket: bucket,
+            Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+          }),
+        )
+        deleted += keys.length
+      }
+
+      continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined
+    } while (continuationToken)
+
+    return deleted
+  }
+
+  const directory = localPathFor(normalised.slice(0, -1))
+  if (!existsSync(directory)) return 0
+  await rm(directory, { recursive: true, force: true })
+  return 1
 }
 
 export function buildInstitutionLogoKey(institutionId: string): string {

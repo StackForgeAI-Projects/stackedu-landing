@@ -13,7 +13,8 @@
     "db:generate": "drizzle-kit generate --config=drizzle/platform.config.ts && drizzle-kit generate --config=drizzle/institution.config.ts",
     "db:migrate": "tsx src/db/cli/migrate.ts",
     "db:seed": "tsx src/db/cli/seed.ts",
-    "institution:create": "tsx src/db/cli/create-institution.ts"
+    "institution:create": "tsx src/db/cli/create-institution.ts",
+    "purge-applicants": "tsx src/db/cli/purge-applicants.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1108.0",
