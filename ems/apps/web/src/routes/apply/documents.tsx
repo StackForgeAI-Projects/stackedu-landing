@@ -17,6 +17,7 @@ import {
   applicationQueryKey,
   deleteDocument,
   listDocuments,
+  submitDocumentResponse,
   uploadApplicationDocument,
 } from '@/lib/api/admissions'
 import { apiErrorMessage } from '@/lib/api/client'
@@ -125,6 +126,8 @@ function ApplyDocumentsPage() {
   const respondMode =
     application?.status === 'DocumentsRequested' && Boolean(application.documentRequest)
 
+  const responseSubmitted = Boolean(application?.documentRequest?.responseSubmittedAt)
+
   const respondDocs = respondMode && application?.documentRequest
     ? buildRespondDocSpecs(application.documentRequest.requestedDocuments)
     : []
@@ -163,6 +166,19 @@ function ApplyDocumentsPage() {
     },
   })
 
+  const submitMutation = useMutation({
+    mutationFn: submitDocumentResponse,
+    onSuccess: async (updated) => {
+      queryClient.setQueryData(applicationQueryKey, updated)
+      await queryClient.invalidateQueries({ queryKey: applicationQueryKey })
+      notifySuccess('Your documents have been submitted for review.')
+      void navigate({ to: '/apply/track' })
+    },
+    onError: (error: unknown) => {
+      notifyError(apiErrorMessage(error, 'We could not submit your documents. Please try again.'))
+    },
+  })
+
   const requiredDocs = visibleDocs.filter((d) => d.required)
   const uploadedCount = visibleDocs.filter((spec) => byType.has(spec.id)).length
   const allRequiredMet = respondMode
@@ -173,6 +189,7 @@ function ApplyDocumentsPage() {
     : 0
 
   const handleUpload = (spec: DocSpec, file: File) => {
+    if (responseSubmitted) return
     if (file.size > spec.maxMB * 1024 * 1024) {
       notifyError(`That file is larger than ${spec.maxMB} MB.`)
       return
@@ -206,19 +223,33 @@ function ApplyDocumentsPage() {
       {respondMode && application?.documentRequest ? (
         <div
           className="mb-6 p-4 rounded-xl"
-          style={{ backgroundColor: 'var(--warning-bg)', border: '1px solid var(--warning)' }}
+          style={{
+            backgroundColor: responseSubmitted ? 'var(--info-bg, #eff6ff)' : 'var(--warning-bg)',
+            border: `1px solid ${responseSubmitted ? 'var(--info, #2563eb)' : 'var(--warning)'}`,
+          }}
         >
-          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--warning)' }}>
-            Documents requested
+          <p
+            className="text-sm font-semibold mb-1"
+            style={{ color: responseSubmitted ? 'var(--info, #2563eb)' : 'var(--warning)' }}
+          >
+            {responseSubmitted ? 'Documents submitted for review' : 'Documents requested'}
           </p>
-          <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
-            {formatRequestedDocumentsList(application.documentRequest.requestedDocuments).join(' · ')}
-          </p>
-          {application.documentRequest.comments ? (
-            <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
-              Note: {application.documentRequest.comments}
+          {!responseSubmitted ? (
+            <>
+              <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+                {formatRequestedDocumentsList(application.documentRequest.requestedDocuments).join(' · ')}
+              </p>
+              {application.documentRequest.comments ? (
+                <p className="text-sm mt-2" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+                  Note: {application.documentRequest.comments}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
+              Admissions has your updated documents. You will hear back once the review is complete.
             </p>
-          ) : null}
+          )}
         </div>
       ) : null}
 
@@ -259,7 +290,8 @@ function ApplyDocumentsPage() {
             key={doc.id}
             spec={doc}
             document={byType.get(doc.id) ?? null}
-            busy={uploadingType === doc.id || removeMutation.isPending}
+            busy={uploadingType === doc.id || removeMutation.isPending || submitMutation.isPending}
+            readOnly={responseSubmitted}
             onUpload={(f) => handleUpload(doc, f)}
             onRemove={() => {
               const existing = byType.get(doc.id)
@@ -272,37 +304,53 @@ function ApplyDocumentsPage() {
       <div className="mt-8">
         <div className="flex items-center justify-between">
           {respondMode ? (
-            <Button variant="outline" onClick={() => navigate({ to: '/apply/track' })}>
-              ← Back to track
-            </Button>
+            responseSubmitted ? (
+              <Button
+                onClick={() => navigate({ to: '/apply/track' })}
+                className="w-full sm:w-auto ml-auto font-semibold"
+              >
+                Back to track
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => navigate({ to: '/apply/track' })}>
+                  ← Back to track
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!allRequiredMet) {
+                      notifyError('Upload every requested document before submitting.')
+                      return
+                    }
+                    submitMutation.mutate()
+                  }}
+                  disabled={!allRequiredMet || submitMutation.isPending}
+                  className="font-semibold"
+                >
+                  {submitMutation.isPending ? 'Submitting…' : 'Submit documents'}
+                </Button>
+              </>
+            )
           ) : (
-            <Button variant="outline" onClick={() => navigate({ to: '/apply/form', search: { step: 5 } })}>
-              ← Back
-            </Button>
-          )}
-          {respondMode ? (
-            <Button
-              onClick={() => navigate({ to: '/apply/track' })}
-              disabled={!allRequiredMet}
-              className="font-semibold"
-            >
-              Return to track
-            </Button>
-          ) : (
-            <Button
-              onClick={() => {
-                if (!allRequiredMet) {
-                  notifyError('Upload all required documents before continuing.')
-                  return
-                }
-                void navigate({ to: '/apply/payment' })
-              }}
-              disabled={!allRequiredMet || requiredDocs.length === 0}
-              title={!allRequiredMet ? 'Upload all required documents' : undefined}
-              className="font-semibold transition-transform duration-150 hover:-translate-y-px active:translate-y-0"
-            >
-              Continue to payment
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => navigate({ to: '/apply/form', search: { step: 5 } })}>
+                ← Back
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!allRequiredMet) {
+                    notifyError('Upload all required documents before continuing.')
+                    return
+                  }
+                  void navigate({ to: '/apply/payment' })
+                }}
+                disabled={!allRequiredMet || requiredDocs.length === 0}
+                title={!allRequiredMet ? 'Upload all required documents' : undefined}
+                className="font-semibold transition-transform duration-150 hover:-translate-y-px active:translate-y-0"
+              >
+                Continue to payment
+              </Button>
+            </>
           )}
         </div>
         {!respondMode ? (
@@ -345,12 +393,14 @@ function DocCard({
   spec,
   document,
   busy,
+  readOnly = false,
   onUpload,
   onRemove,
 }: {
   spec:     DocSpec
   document: ApplicationDocument | null
   busy:     boolean
+  readOnly?: boolean
   onUpload: (f: File) => void
   onRemove: () => void
 }) {
@@ -411,15 +461,21 @@ function DocCard({
             </p>
           </div>
           <CheckCircle2 size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />
-          <button
-            onClick={onRemove}
-            disabled={busy}
-            className="text-xs font-medium transition-opacity hover:opacity-70 flex-shrink-0"
-            style={{ color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            Remove
-          </button>
+          {!readOnly ? (
+            <button
+              onClick={onRemove}
+              disabled={busy}
+              className="text-xs font-medium transition-opacity hover:opacity-70 flex-shrink-0"
+              style={{ color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              Remove
+            </button>
+          ) : null}
         </div>
+      ) : readOnly ? (
+        <p className="text-sm px-4 py-3 rounded-lg" style={{ color: 'var(--muted-foreground)', backgroundColor: 'var(--muted)' }}>
+          No file uploaded.
+        </p>
       ) : (
         <>
           <div

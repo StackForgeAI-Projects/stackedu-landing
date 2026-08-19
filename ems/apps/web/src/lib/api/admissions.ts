@@ -71,6 +71,11 @@ export async function submitApplication(): Promise<Application> {
   return application
 }
 
+export async function submitDocumentResponse(): Promise<Application> {
+  const { application } = await api.post<ApplicationResponse>('/apply/documents/submit-response')
+  return application
+}
+
 export async function listDocuments(): Promise<ApplicationDocument[]> {
   const { documents } = await api.get<DocumentsResponse>('/apply/documents')
   return documents

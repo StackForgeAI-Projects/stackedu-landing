@@ -4,7 +4,7 @@ import type { Application, ApplicationStatus } from '@stackedu/shared'
 import { formatRequestedDocumentsList } from '@stackedu/shared'
 import {
   ClipboardCheck, Clock, CreditCard, Eye, EyeOff, FileText, GraduationCap, Search, XCircle,
-  AlertCircle,
+  AlertCircle, CheckCircle2,
 } from 'lucide-react'
 import { ApplyLayout } from '@/components/ApplyLayout'
 import { APPLY_FEATURES, AuthHero, INSTITUTION_NAME } from '@/components/AuthHero'
@@ -253,6 +253,7 @@ function ApplicationStatusView() {
   const documentRequest = application.documentRequest
   const showDocumentRequest =
     application.status === 'DocumentsRequested' && Boolean(documentRequest)
+  const documentResponseSubmitted = Boolean(documentRequest?.responseSubmittedAt)
   const progress = resolveApplicationProgress(application)
   const resumeTo = applyResumeRoute(progress.currentStep)
 
@@ -285,7 +286,11 @@ function ApplicationStatusView() {
       </div>
 
       {showDocumentRequest && documentRequest ? (
-        <DocumentRequestAlert request={documentRequest} />
+        documentResponseSubmitted ? (
+          <DocumentResponseSubmittedAlert />
+        ) : (
+          <DocumentRequestAlert request={documentRequest} />
+        )
       ) : null}
 
       <StatusTimeline application={application} />
@@ -360,6 +365,37 @@ const STATUS_MESSAGES: Record<
   },
 }
 
+function DocumentResponseSubmittedAlert() {
+  return (
+    <div
+      className="mb-6 p-5 sm:p-6 rounded-xl"
+      style={{
+        backgroundColor: 'var(--info-bg, #eff6ff)',
+        border: '1px solid var(--info, #2563eb)',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="flex items-center justify-center rounded-full flex-shrink-0"
+          style={{ width: 36, height: 36, backgroundColor: 'rgba(37,99,235,0.12)' }}
+        >
+          <CheckCircle2 size={18} style={{ color: 'var(--info, #2563eb)' }} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold" style={{ color: 'var(--info, #2563eb)' }}>
+            Documents submitted — under review
+          </p>
+          <p className="text-sm mt-2 font-medium" style={{ color: 'var(--foreground)', lineHeight: 1.6 }}>
+            We have received your updated documents. Admissions will review them and get back to you.
+            There is nothing else for you to do right now.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DocumentRequestAlert({
   request,
 }: {
@@ -395,26 +431,35 @@ function DocumentRequestAlert({
 
       {request.comments ? (
         <div
-          className="mb-4 p-4 rounded-lg"
-          style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+          className="mb-4 pl-4 pr-3 py-3 rounded-lg"
+          style={{
+            borderLeft: '3px solid var(--warning)',
+            backgroundColor: 'rgba(245,158,11,0.14)',
+          }}
         >
-          <p className="t-label mb-2" style={{ color: 'var(--muted-foreground)' }}>
-            MESSAGE FROM ADMISSIONS
+          <p className="t-label mb-1.5" style={{ color: '#92400e' }}>
+            Message from admissions
           </p>
-          <p className="text-sm sm:text-base font-medium" style={{ color: 'var(--foreground)', lineHeight: 1.6 }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--foreground)', lineHeight: 1.6 }}>
             {request.comments}
           </p>
         </div>
       ) : null}
 
       {documents.length > 0 ? (
-        <div className="mb-4">
-          <p className="t-label mb-2" style={{ color: 'var(--muted-foreground)' }}>
-            DOCUMENTS TO UPLOAD
+        <div
+          className="mb-4 pl-4 pr-3 py-3 rounded-lg"
+          style={{
+            borderLeft: '3px solid rgba(245,158,11,0.45)',
+            backgroundColor: 'rgba(245,158,11,0.08)',
+          }}
+        >
+          <p className="t-label mb-2" style={{ color: '#92400e' }}>
+            Documents to upload
           </p>
           <ul className="flex flex-col gap-1.5">
             {documents.map((item) => (
-              <li key={item} className="text-sm" style={{ color: 'var(--foreground)' }}>
+              <li key={item} className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                 • {item}
               </li>
             ))}

@@ -40,6 +40,7 @@ import {
   registerApplicant,
   saveApplication,
   submitApplication,
+  submitDocumentResponse,
 } from '../services/admissions'
 import {
   confirmApplicationPayment,
@@ -209,6 +210,12 @@ admissionRoutes.delete('/apply/documents/:documentId', ...verifiedApplicantOnly,
   const user = c.get('user')!
   const documents = await deleteDocument(user.institution.id, user.id, c.req.param('documentId'))
   return c.json<DocumentsResponse>({ documents })
+})
+
+admissionRoutes.post('/apply/documents/submit-response', ...verifiedApplicantOnly, async (c) => {
+  const user = c.get('user')!
+  const application = await submitDocumentResponse(user.institution.id, user.id)
+  return c.json<ApplicationResponse>({ application })
 })
 
 admissionRoutes.get('/apply/documents/:documentId/url', ...verifiedApplicantOnly, async (c) => {

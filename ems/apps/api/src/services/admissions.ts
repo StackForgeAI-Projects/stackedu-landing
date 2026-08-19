@@ -28,6 +28,7 @@ import { notifyApplicationSubmitted } from '../lib/admissions-email'
 import {
   assertDocumentDeleteAllowed,
   assertDocumentUploadAllowed,
+  assertRequestedDocumentsComplete,
   mimeRulesForDocumentType,
 } from '../lib/application-documents'
 import {
@@ -415,6 +416,7 @@ export async function presignDocument(
     applicationStatus: application.status,
     documentType: input.documentType,
     documentRequest: application.documentRequest?.requestedDocuments ?? null,
+    documentResponseSubmittedAt: application.documentRequest?.responseSubmittedAt ?? null,
   })
 
   const { allowed, maxBytes } = mimeRulesForDocumentType(input.documentType)
@@ -514,6 +516,7 @@ export async function confirmDocument(
     applicationStatus: application.status,
     documentType: pending.documentType,
     documentRequest: application.documentRequest?.requestedDocuments ?? null,
+    documentResponseSubmittedAt: application.documentRequest?.responseSubmittedAt ?? null,
   })
 
   const [row] = await db
@@ -540,6 +543,7 @@ export async function deleteDocument(
   assertDocumentDeleteAllowed({
     applicationStatus: application.status,
     documentRequest: application.documentRequest?.requestedDocuments ?? null,
+    documentResponseSubmittedAt: application.documentRequest?.responseSubmittedAt ?? null,
   })
 
   await removeDocumentRow(institutionId, application.id, documentId)
@@ -709,6 +713,34 @@ export async function acknowledgeBankTransfer(
   }
 
   return application.payment
+}
+
+/** Applicant submits uploaded documents in response to an admissions request. */
+export async function submitDocumentResponse(
+  institutionId: string,
+  applicantUserId: string,
+): Promise<Application> {
+  const db = await getInstitutionDb(institutionId)
+  const application = await getApplicationFor(institutionId, applicantUserId)
+
+  if (application.status !== 'DocumentsRequested' || !application.documentRequest) {
+    throw badRequest('There are no documents waiting to be submitted.')
+  }
+  if (application.documentRequest.responseSubmittedAt) {
+    throw conflict('Your documents have already been submitted.')
+  }
+
+  assertRequestedDocumentsComplete({
+    request: application.documentRequest.requestedDocuments,
+    documents: application.documents,
+  })
+
+  await db
+    .update(applications)
+    .set({ documentResponseSubmittedAt: new Date().toISOString() })
+    .where(eq(applications.id, application.id))
+
+  return getApplicationFor(institutionId, applicantUserId)
 }
 
 /** Hands the application to the admissions office for review. */

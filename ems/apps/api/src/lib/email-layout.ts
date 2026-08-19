@@ -70,14 +70,45 @@ export async function getInstitutionEmailBranding(
 }
 
 function footerLines(branding: InstitutionEmailBranding): string[] {
+  const websiteLabel = branding.website.replace(/^https?:\/\//, '')
   return [
     branding.name,
+    'Admissions Office',
     branding.location,
     `Email: ${branding.contactEmail}`,
-    `Website: ${branding.website}`,
+    `Website: ${websiteLabel}`,
+    '',
+    'Need help? Contact us using the details above.',
     '',
     'Powered by StackEDU',
   ]
+}
+
+function buildEmailFooterHtml(branding: InstitutionEmailBranding): string {
+  const websiteLabel = branding.website.replace(/^https?:\/\//, '')
+  return `
+    <div style="text-align:center">
+      <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#374151">${escapeHtml(branding.name)}</p>
+      <p style="margin:0 0 6px;font-size:12px;line-height:1.5;color:#6b7280">Admissions Office</p>
+      <p style="margin:0 0 6px;font-size:12px;line-height:1.5;color:#6b7280">${escapeHtml(branding.location)}</p>
+      <p style="margin:0 0 6px;font-size:12px;color:#6b7280">
+        Email:
+        <a href="mailto:${escapeHtml(branding.contactEmail)}" style="color:#2563eb;text-decoration:none">${escapeHtml(branding.contactEmail)}</a>
+      </p>
+      <p style="margin:0 0 12px;font-size:12px;color:#6b7280">
+        Website:
+        <a href="${escapeHtml(branding.website)}" style="color:#2563eb;text-decoration:none">${escapeHtml(websiteLabel)}</a>
+      </p>
+      <p style="margin:0;font-size:11px;line-height:1.5;color:#9ca3af">Need help? Contact us using the details above.</p>
+      <p style="margin:8px 0 0;font-size:11px;color:#9ca3af">Powered by StackEDU</p>
+    </div>`
+}
+
+function buildLeadNoteHtml(leadNote: string): string {
+  return `<div style="margin:0 0 16px;padding:14px 16px;border-radius:10px;background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #f59e0b">
+        <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.08em;color:#92400e;font-weight:600">MESSAGE FROM ADMISSIONS</p>
+        <p style="margin:0;line-height:1.55;color:#1a1a1a;font-size:14px;font-weight:600">${escapeHtml(leadNote)}</p>
+      </div>`
 }
 
 export function buildBrandedEmail(input: BrandedEmailInput): { text: string; html: string } {
@@ -106,23 +137,9 @@ export function buildBrandedEmail(input: BrandedEmailInput): { text: string; htm
       </p>`
     : ''
 
-  const footerHtml = `
-    <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#374151">${escapeHtml(input.branding.name)}</p>
-    <p style="margin:0 0 4px;font-size:12px;line-height:1.5;color:#6b7280">${escapeHtml(input.branding.location)}</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#6b7280">
-      Email: <a href="mailto:${escapeHtml(input.branding.contactEmail)}" style="color:#2563eb;text-decoration:none">${escapeHtml(input.branding.contactEmail)}</a>
-    </p>
-    <p style="margin:0 0 12px;font-size:12px;color:#6b7280">
-      Website: <a href="${escapeHtml(input.branding.website)}" style="color:#2563eb;text-decoration:none">${escapeHtml(input.branding.website.replace(/^https?:\/\//, ''))}</a>
-    </p>
-    <p style="margin:0;font-size:11px;color:#9ca3af">Powered by StackEDU</p>`
+  const footerHtml = buildEmailFooterHtml(input.branding)
 
-  const leadNoteHtml = input.leadNote
-    ? `<div style="margin:0 0 16px;padding:16px;border-radius:12px;background:#fef3c7;border:1px solid #f59e0b">
-        <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.08em;color:#92400e">MESSAGE FROM ADMISSIONS</p>
-        <p style="margin:0;line-height:1.6;color:#1a1a1a;font-size:15px">${escapeHtml(input.leadNote)}</p>
-      </div>`
-    : ''
+  const leadNoteHtml = input.leadNote ? buildLeadNoteHtml(input.leadNote) : ''
 
   const html = `<!DOCTYPE html>
 <html>
@@ -157,7 +174,7 @@ export function buildBrandedEmail(input: BrandedEmailInput): { text: string; htm
             </td>
           </tr>
           <tr>
-            <td style="padding:20px 24px;background:#f9fafb;border-top:1px solid #e5e7eb">
+            <td align="center" style="padding:20px 24px;background:#f9fafb;border-top:1px solid #e5e7eb">
               ${footerHtml}
             </td>
           </tr>

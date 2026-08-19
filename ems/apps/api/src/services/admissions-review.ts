@@ -3,7 +3,6 @@ import {
   applicationStatusSchema,
   type AcademicApplicationDetail,
   type AcademicApplicationSummary,
-  type ApplicationDocument,
   type ApplicationPayment,
   type ReviewApplicationRequest,
 } from '@stackedu/shared'
@@ -16,22 +15,28 @@ import {
 } from '../db/institution/schema/admissions'
 import { programmes } from '../db/institution/schema/academic'
 import { badRequest, conflict, notFound } from '../lib/errors'
+import { isDocumentNewForAdmin } from '../lib/application-documents'
 import { notifyApplicationDecision } from '../lib/admissions-email'
 import { createDownloadUrl } from '../lib/storage'
 import { confirmPayment } from './admissions'
 import {
   loadApplicationReviews,
+  loadLatestDocumentRequest,
   mapRequestedDocumentsForStorage,
 } from './admissions-read'
 
-function mapDocument(row: {
-  id: string
-  documentType: string
-  fileName: string
-  fileSizeBytes: number | null
-  mimeType: string | null
-  createdAt: string
-}): ApplicationDocument {
+function mapDocument(
+  row: {
+    id: string
+    documentType: string
+    fileName: string
+    fileSizeBytes: number | null
+    mimeType: string | null
+    createdAt: string
+    adminViewedAt: string | null
+  },
+  documentRequestRequestedAt: string | null,
+) {
   return {
     id: row.id,
     documentType: row.documentType,
@@ -39,6 +44,11 @@ function mapDocument(row: {
     fileSizeBytes: row.fileSizeBytes,
     mimeType: row.mimeType,
     uploadedAt: row.createdAt,
+    isNew: isDocumentNewForAdmin({
+      uploadedAt: row.createdAt,
+      adminViewedAt: row.adminViewedAt,
+      documentRequestRequestedAt,
+    }),
   }
 }
 
@@ -169,18 +179,24 @@ export async function getApplicationForReview(
 
   if (!row) throw notFound('Application')
 
-  const docs = await db
-    .select({
-      id: applicationDocuments.id,
-      documentType: applicationDocuments.documentType,
-      fileName: applicationDocuments.fileName,
-      fileSizeBytes: applicationDocuments.fileSizeBytes,
-      mimeType: applicationDocuments.mimeType,
-      createdAt: applicationDocuments.createdAt,
-    })
-    .from(applicationDocuments)
-    .where(eq(applicationDocuments.applicationId, applicationId))
-    .orderBy(asc(applicationDocuments.createdAt))
+  const [latestDocumentRequest, docs] = await Promise.all([
+    loadLatestDocumentRequest(institutionId, applicationId),
+    db
+      .select({
+        id: applicationDocuments.id,
+        documentType: applicationDocuments.documentType,
+        fileName: applicationDocuments.fileName,
+        fileSizeBytes: applicationDocuments.fileSizeBytes,
+        mimeType: applicationDocuments.mimeType,
+        createdAt: applicationDocuments.createdAt,
+        adminViewedAt: applicationDocuments.adminViewedAt,
+      })
+      .from(applicationDocuments)
+      .where(eq(applicationDocuments.applicationId, applicationId))
+      .orderBy(desc(applicationDocuments.createdAt)),
+  ])
+
+  const documentRequestRequestedAt = latestDocumentRequest?.requestedAt ?? null
 
   const [payment] = await db
     .select({
@@ -217,7 +233,7 @@ export async function getApplicationForReview(
     previousInstitution: row.previousInstitution,
     previousQualification: row.previousQualification,
     details: row.details ?? null,
-    documents: docs.map(mapDocument),
+    documents: docs.map((doc) => mapDocument(doc, documentRequestRequestedAt)),
     payment: payment ? mapPayment(payment) : null,
     reviews: await loadApplicationReviews(institutionId, applicationId),
   }
@@ -266,6 +282,9 @@ export async function reviewApplication(
       status: input.decision,
       reviewedBy: reviewerId,
       reviewedAt: new Date().toISOString(),
+      ...(input.decision === 'DocumentsRequested'
+        ? { documentResponseSubmittedAt: null }
+        : {}),
     })
     .where(eq(applications.id, applicationId))
 
@@ -313,5 +332,16 @@ export async function getDocumentDownloadForReview(
     .limit(1)
 
   if (!row) throw notFound('That document')
+
+  await db
+    .update(applicationDocuments)
+    .set({ adminViewedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(applicationDocuments.id, documentId),
+        eq(applicationDocuments.applicationId, applicationId),
+      ),
+    )
+
   return createDownloadUrl(row.fileKey)
 }

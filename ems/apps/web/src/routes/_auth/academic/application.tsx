@@ -336,12 +336,22 @@ function ApplicationDetailPage() {
                       className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg"
                       style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <FileText size={16} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
-                            {formatDocumentTypeLabel(doc.documentType)}
-                          </p>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
+                              {formatDocumentTypeLabel(doc.documentType)}
+                            </p>
+                            {doc.isNew ? (
+                              <span
+                                className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: 'var(--warning-bg)', color: 'var(--warning)' }}
+                              >
+                                New
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
                             {doc.fileName} · {formatActivityDateTime(doc.uploadedAt)}
                           </p>
@@ -350,10 +360,25 @@ function ApplicationDetailPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="flex-shrink-0"
                         onClick={async () => {
                           try {
                             const { url } = await getAcademicDocumentUrl(app.id, doc.id)
                             window.open(url, '_blank', 'noopener,noreferrer')
+                            if (doc.isNew) {
+                              queryClient.setQueryData(
+                                [...academicApplicationsQueryKey, app.id],
+                                (current: typeof app | undefined) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        documents: current.documents.map((item) =>
+                                          item.id === doc.id ? { ...item, isNew: false } : item,
+                                        ),
+                                      }
+                                    : current,
+                              )
+                            }
                           } catch (error) {
                             notifyError(apiErrorMessage(error, 'Could not open that file.'))
                           }

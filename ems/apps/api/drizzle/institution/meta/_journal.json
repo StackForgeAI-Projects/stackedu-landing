@@ -22,6 +22,13 @@
       "when": 1786491000000,
       "tag": "0002_application_review_requested_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786492000000,
+      "tag": "0003_document_response_and_admin_viewed",
+      "breakpoints": true
     }
   ]
 }

@@ -57,6 +57,11 @@ export const applications = pgTable(
     submittedAt: timestamp('submitted_at', { withTimezone: true, mode: 'string' }),
     reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true, mode: 'string' }),
+    /** Set when the applicant submits a document-request response for admin review. */
+    documentResponseSubmittedAt: timestamp('document_response_submitted_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     /** Set once accepted and converted, linking the applicant to their student record. */
     convertedStudentId: uuid('converted_student_id').references(() => students.id, {
       onDelete: 'set null',
@@ -88,6 +93,8 @@ export const applicationDocuments = pgTable(
     verifiedBy: uuid('verified_by').references(() => users.id, { onDelete: 'set null' }),
     verifiedAt: timestamp('verified_at', { withTimezone: true, mode: 'string' }),
     rejectionReason: text('rejection_reason'),
+    /** Set when an academic reviewer opens the file from the application detail page. */
+    adminViewedAt: timestamp('admin_viewed_at', { withTimezone: true, mode: 'string' }),
     ...timestamps(),
   },
   (t) => [index('application_documents_application_idx').on(t.applicationId)],

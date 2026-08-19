@@ -120,6 +120,7 @@ export const applicationDocumentRequestSchema = z.object({
   comments: z.string().nullable(),
   requestedDocuments: requestedDocumentsSchema,
   requestedAt: isoDateTimeSchema,
+  responseSubmittedAt: isoDateTimeSchema.nullable(),
 })
 
 export const applicationReviewSchema = z.object({
@@ -252,6 +253,10 @@ export const academicApplicationsResponseSchema = z.object({
   applications: z.array(academicApplicationSummarySchema),
 })
 
+export const academicApplicationDocumentSchema = applicationDocumentSchema.extend({
+  isNew: z.boolean(),
+})
+
 export const academicApplicationDetailSchema = academicApplicationSummarySchema.extend({
   dateOfBirth: z.string().nullable(),
   gender: genderSchema.nullable(),
@@ -259,7 +264,7 @@ export const academicApplicationDetailSchema = academicApplicationSummarySchema.
   previousInstitution: z.string().nullable(),
   previousQualification: z.string().nullable(),
   details: z.record(z.string(), z.unknown()).nullable(),
-  documents: z.array(applicationDocumentSchema),
+  documents: z.array(academicApplicationDocumentSchema),
   payment: applicationPaymentSchema.nullable(),
   reviews: z.array(applicationReviewSchema),
 })

@@ -42,10 +42,14 @@ export function assertDocumentUploadAllowed(input: {
   applicationStatus: string
   documentType: string
   documentRequest: RequestedDocuments | null
+  documentResponseSubmittedAt?: string | null
 }): void {
   if (input.applicationStatus === 'Draft') return
   if (input.applicationStatus !== 'DocumentsRequested' || !input.documentRequest) {
     throw badRequest('Your application has been submitted and can no longer be changed.')
+  }
+  if (input.documentResponseSubmittedAt) {
+    throw badRequest('Your documents have already been submitted. Wait for admissions to review them.')
   }
   if (!isAllowedRequestedDocument(input.documentType, input.documentRequest)) {
     throw badRequest('That document was not requested by admissions.')
@@ -55,11 +59,42 @@ export function assertDocumentUploadAllowed(input: {
 export function assertDocumentDeleteAllowed(input: {
   applicationStatus: string
   documentRequest: RequestedDocuments | null
+  documentResponseSubmittedAt?: string | null
 }): void {
   if (input.applicationStatus === 'Draft') return
   if (input.applicationStatus !== 'DocumentsRequested') {
     throw badRequest('Uploaded documents can no longer be removed.')
   }
+  if (input.documentResponseSubmittedAt) {
+    throw badRequest('Your documents have already been submitted. Wait for admissions to review them.')
+  }
+}
+
+export function listRequiredRequestedDocumentTypes(request: RequestedDocuments): string[] {
+  return [
+    ...request.types,
+    ...request.custom.map((name) => buildCustomDocumentType(name)),
+  ]
+}
+
+export function assertRequestedDocumentsComplete(input: {
+  request: RequestedDocuments
+  documents: ReadonlyArray<{ documentType: string }>
+}): void {
+  const present = new Set(input.documents.map((doc) => doc.documentType))
+  const missing = listRequiredRequestedDocumentTypes(input.request).filter((type) => !present.has(type))
+  if (missing.length > 0) {
+    throw badRequest('Upload every requested document before you submit.')
+  }
+}
+
+export function isDocumentNewForAdmin(input: {
+  uploadedAt: string
+  adminViewedAt: string | null
+  documentRequestRequestedAt: string | null
+}): boolean {
+  if (!input.documentRequestRequestedAt || input.adminViewedAt) return false
+  return input.uploadedAt > input.documentRequestRequestedAt
 }
 
 export function mimeRulesForDocumentType(documentType: string): {

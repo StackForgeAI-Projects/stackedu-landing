@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,12 @@ import { login, sessionQueryKey } from '@/lib/api/auth'
 import { useInstitutionBranding } from '@/hooks/useInstitutionBranding'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
-import { notifyError } from '@/lib/notify'
+import { notifyError, notifyInfo } from '@/lib/notify'
 import { rememberWelcome } from '@/lib/welcome'
+import {
+  consumeInactivityLogoutNotice,
+  INACTIVITY_LOGOUT_NOTICE,
+} from '@/lib/inactivity-logout-notice'
 import { queryClient } from '@/lib/query-client'
 
 export function LoginScreen() {
@@ -24,6 +28,13 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!consumeInactivityLogoutNotice()) return
+    notifyInfo(INACTIVITY_LOGOUT_NOTICE.title, INACTIVITY_LOGOUT_NOTICE.description, {
+      duration: 10_000,
+    })
+  }, [])
 
   /**
    * The account type is never chosen here. The server identifies the user from

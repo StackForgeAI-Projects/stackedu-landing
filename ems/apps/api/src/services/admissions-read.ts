@@ -8,7 +8,7 @@ import {
 } from '@stackedu/shared'
 import { normalizeRequestedDocuments } from '../lib/application-documents'
 import { getInstitutionDb } from '../db/connection'
-import { applicationReviews } from '../db/institution/schema/admissions'
+import { applicationReviews, applications } from '../db/institution/schema/admissions'
 import { users } from '../db/institution/schema/people'
 
 function parseStoredRequestedDocuments(
@@ -60,21 +60,28 @@ export async function loadLatestDocumentRequest(
   applicationId: string,
 ): Promise<ApplicationDocumentRequest | null> {
   const db = await getInstitutionDb(institutionId)
-  const [row] = await db
-    .select({
-      comments: applicationReviews.comments,
-      requestedDocuments: applicationReviews.requestedDocuments,
-      createdAt: applicationReviews.createdAt,
-    })
-    .from(applicationReviews)
-    .where(
-      and(
-        eq(applicationReviews.applicationId, applicationId),
-        eq(applicationReviews.decision, 'DocumentsRequested'),
-      ),
-    )
-    .orderBy(desc(applicationReviews.createdAt))
-    .limit(1)
+  const [[row], [applicationRow]] = await Promise.all([
+    db
+      .select({
+        comments: applicationReviews.comments,
+        requestedDocuments: applicationReviews.requestedDocuments,
+        createdAt: applicationReviews.createdAt,
+      })
+      .from(applicationReviews)
+      .where(
+        and(
+          eq(applicationReviews.applicationId, applicationId),
+          eq(applicationReviews.decision, 'DocumentsRequested'),
+        ),
+      )
+      .orderBy(desc(applicationReviews.createdAt))
+      .limit(1),
+    db
+      .select({ documentResponseSubmittedAt: applications.documentResponseSubmittedAt })
+      .from(applications)
+      .where(eq(applications.id, applicationId))
+      .limit(1),
+  ])
 
   const requestedDocuments = parseStoredRequestedDocuments(row?.requestedDocuments)
   if (!row || !requestedDocuments) return null
@@ -83,6 +90,7 @@ export async function loadLatestDocumentRequest(
     comments: row.comments,
     requestedDocuments,
     requestedAt: row.createdAt,
+    responseSubmittedAt: applicationRow?.documentResponseSubmittedAt ?? null,
   }
 }
 
