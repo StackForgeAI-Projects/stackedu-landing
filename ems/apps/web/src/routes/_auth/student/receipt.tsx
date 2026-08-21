@@ -1,7 +1,7 @@
 ﻿import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { StudentShell } from '@/components/StudentShell'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { getStudentReceipt } from '@/lib/api/student'
 import { apiErrorMessage } from '@/lib/api/client'
 
@@ -38,7 +38,7 @@ function PaymentReceiptPage() {
             <p className="t-caption mb-4" style={{ color: 'var(--muted-foreground)' }}>{data.reference} · {data.method}</p>
             <p className="text-sm">{data.studentName} · {data.studentNumber}</p>
             <p className="t-caption" style={{ color: 'var(--muted-foreground)' }}>{data.institutionName}</p>
-            <p className="t-caption mt-2">{data.paidAt ? new Date(data.paidAt).toLocaleString() : 'Pending'}</p>
+            <p className="t-caption mt-2">{data.paidAt ? formatDateTime(data.paidAt) : 'Pending'}</p>
           </div>
         ) : null}
       </div>

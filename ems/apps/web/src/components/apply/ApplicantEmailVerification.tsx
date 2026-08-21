@@ -4,7 +4,11 @@ import { Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { OtpInput } from '@/components/ui/otp-input'
 import { useInstitutionBranding } from '@/hooks/useInstitutionBranding'
-import { resendApplicantVerification, verifyApplicantEmail } from '@/lib/api/admissions'
+import {
+  applicationQueryKey,
+  resendApplicantVerification,
+  verifyApplicantEmail,
+} from '@/lib/api/admissions'
 import { sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { queryClient } from '@/lib/query-client'
@@ -46,6 +50,7 @@ export function ApplicantEmailVerification({
     mutationFn: () => verifyApplicantEmail({ email, code: otp, password }),
     onSuccess: async (user) => {
       queryClient.setQueryData(sessionQueryKey, user)
+      queryClient.removeQueries({ queryKey: applicationQueryKey })
       await onVerified()
     },
     onError: (cause) => {

@@ -16,9 +16,10 @@ import {
 } from '@/components/ui/select'
 import { useApplication } from '@/hooks/useApplication'
 import {
-  applicationQueryKey, getProgrammes, programmesQueryKey, saveApplication,
+  applicationQueryKeyFor, getProgrammes, programmesQueryKey, saveApplication,
 } from '@/lib/api/admissions'
 import { apiErrorMessage } from '@/lib/api/client'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import {
   firstErrorMessage,
   validateApplicationStep,
@@ -79,6 +80,7 @@ const FORM_STEPS: ApplyStep[] = [
 function ApplyFormPage() {
   const navigate = useNavigate()
   const { step: stepFromSearch } = Route.useSearch()
+  const { user } = useCurrentUser()
   const { application, isLoading } = useApplication()
 
   const [currentStep, setCurrentStep] = useState(1)
@@ -88,7 +90,7 @@ function ApplyFormPage() {
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!application || loadedFor === application.id) return
+    if (isLoading || !application || loadedFor === application.id) return
 
     const progress = resolveApplicationProgress(application)
     const explicitStep = typeof stepFromSearch === 'number' && Number.isFinite(stepFromSearch)
@@ -104,7 +106,7 @@ function ApplyFormPage() {
     setCurrentStep(explicitStep ?? formStepFromProgress(progress.currentStep))
     setCompletedSteps(progress.completedSteps.filter((step) => step <= 5))
     setLoadedFor(application.id)
-  }, [application, loadedFor, navigate, stepFromSearch])
+  }, [application, isLoading, loadedFor, navigate, stepFromSearch])
 
   const { data: programmes = [] } = useQuery({
     queryKey: programmesQueryKey,
@@ -117,7 +119,7 @@ function ApplyFormPage() {
         request ?? toSaveApplicationRequest(values, { currentStep, completedSteps }),
       ),
     onSuccess: (updated) => {
-      queryClient.setQueryData(applicationQueryKey, updated)
+      queryClient.setQueryData(applicationQueryKeyFor(user?.id), updated)
     },
     onError: (error: unknown) => {
       notifyError(

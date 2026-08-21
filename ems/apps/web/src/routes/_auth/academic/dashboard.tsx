@@ -17,17 +17,11 @@ import {
 } from '@/lib/api/academic'
 import { ApplicationStatusBadge } from '@/lib/application-status'
 import { apiErrorMessage } from '@/lib/api/client'
+import { formatDateTime } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/academic/dashboard')({
   component: AcademicDashboardPage,
 })
-
-function formatDateTime(value: string | null): string {
-  if (!value) return '—'
-  const parsed = new Date(value.replace(' ', 'T'))
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
 
 function eventColors(type: string) {
   const known = ['Semester', 'Registration', 'Exam', 'Holiday', 'Deadline', 'Results'] as const

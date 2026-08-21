@@ -9,6 +9,7 @@ import { StatTile } from '@/components/StatTile'
 import { getIctDashboard, ictDashboardQueryKey } from '@/lib/api/ict'
 import { apiErrorMessage } from '@/lib/api/client'
 import { roleLabel } from '@/lib/auth/portals'
+import { formatDateTime } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/ict/dashboard')({
   component: IctDashboardPage,
@@ -83,7 +84,7 @@ function IctDashboardPage() {
                     header: 'When',
                     value: (row) => row.createdAt,
                     sortable: true,
-                    cell: (row) => new Date(row.createdAt).toLocaleString(),
+                    cell: (row) => formatDateTime(row.createdAt),
                   },
                   {
                     id: 'open',

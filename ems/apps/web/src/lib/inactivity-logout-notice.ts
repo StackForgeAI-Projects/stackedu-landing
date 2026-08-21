@@ -15,7 +15,7 @@ export function hasInactivityLogoutNotice(): boolean {
   return sessionStorage.getItem(INACTIVITY_LOGOUT_KEY) === '1'
 }
 
-/** Clears the flag once the user has seen and dismissed the login-screen alert. */
+/** Clears the flag once the root toast has been shown. */
 export function dismissInactivityLogoutNotice(): void {
   sessionStorage.removeItem(INACTIVITY_LOGOUT_KEY)
 }

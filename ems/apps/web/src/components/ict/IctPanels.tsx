@@ -35,6 +35,7 @@ import {
   integrationLastCheckLabel,
   integrationStatusLabel,
 } from '@/lib/humanize'
+import { formatDateTime } from '@/lib/utils'
 
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -200,7 +201,7 @@ export function UserActionsPanel({ id }: { id: string }) {
         <DetailRow label="Role" value={displayRole(data.role)} />
         <DetailRow label="Status" value={data.isActive ? 'Active' : 'Revoked'} />
         {data.studentNumber ? <DetailRow label="Student no." value={data.studentNumber} /> : null}
-        <DetailRow label="Last login" value={data.lastLoginAt ? new Date(data.lastLoginAt).toLocaleString() : 'Never'} />
+        <DetailRow label="Last login" value={data.lastLoginAt ? formatDateTime(data.lastLoginAt) : 'Never'} />
       </DetailSection>
 
       <DetailSection title="Actions">
@@ -278,9 +279,9 @@ export function RevocationBody({
       </DetailSection>
       <DetailSection title="Revocation">
         <DetailRow label="Reason" value={data.reason} />
-        <DetailRow label="Effective" value={new Date(data.effectiveAt).toLocaleString()} />
+        <DetailRow label="Effective" value={formatDateTime(data.effectiveAt)} />
         {data.revokedByName ? <DetailRow label="Revoked by" value={data.revokedByName} /> : null}
-        {data.restoredAt ? <DetailRow label="Restored" value={new Date(data.restoredAt).toLocaleString()} /> : null}
+        {data.restoredAt ? <DetailRow label="Restored" value={formatDateTime(data.restoredAt)} /> : null}
         {!data.restoredAt && onRestore ? (
           <div className="pt-3">
             <Button disabled={restoring} onClick={onRestore}>Restore access</Button>
@@ -343,7 +344,7 @@ export function AnnouncementBody({ item }: { item: IctAnnouncement }) {
     <div className="flex flex-col gap-4">
       <DetailSection title="Delivery">
         <DetailRow label="Audience" value={item.audienceLabel} />
-        <DetailRow label="Published" value={item.publishedAt ? new Date(item.publishedAt).toLocaleString() : 'Draft'} />
+        <DetailRow label="Published" value={item.publishedAt ? formatDateTime(item.publishedAt) : 'Draft'} />
         {item.isPinned ? <DetailRow label="Pinned" value="Shown at the top of student dashboards" /> : null}
       </DetailSection>
       <DetailSection title="Message">

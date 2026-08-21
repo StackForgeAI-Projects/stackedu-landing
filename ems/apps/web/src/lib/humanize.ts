@@ -1,3 +1,5 @@
+import { formatDateTime } from '@/lib/utils'
+
 export {
   auditActionLabel,
   auditSummary,
@@ -10,7 +12,7 @@ export function integrationStatusLabel(isEnabled: boolean): string {
 }
 
 export function integrationLastCheckLabel(status: string | null, checkedAt: string | null): string {
-  const when = checkedAt ? new Date(checkedAt).toLocaleString() : null
+  const when = checkedAt ? formatDateTime(checkedAt) : null
   const readable = status === 'Enabled'
     ? 'Last seen as on'
     : status === 'Disabled'

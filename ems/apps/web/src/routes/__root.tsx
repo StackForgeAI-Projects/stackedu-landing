@@ -1,6 +1,7 @@
 import { createRootRoute, ErrorComponent, Outlet } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { Toaster } from 'sonner'
+import { InactivityLogoutNotice } from '@/components/InactivityLogoutNotice'
 import { handleChunkLoadError, isChunkLoadError } from '@/lib/chunk-reload'
 
 export const Route = createRootRoute({
@@ -32,6 +33,7 @@ function RootError({ error }: { error: Error }) {
 function Root() {
   return (
     <>
+      <InactivityLogoutNotice />
       <Outlet />
       {/*
         One Toaster for the whole app. Every toast dismisses itself after five

@@ -49,11 +49,38 @@ export function setActiveCurrency(code: string): void {
 }
 
 /**
+ * Parse API / Postgres timestamps reliably.
+ * Handles "2026-08-21 16:07:38.164+00" without showing raw ms or offset in the UI.
+ */
+export function parseAppDateTime(value: Date | string): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  let iso = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T')
+  if (/[+-]\d{2}$/.test(iso)) iso = `${iso}:00`
+
+  let parsed = new Date(iso)
+  if (!Number.isNaN(parsed.getTime())) return parsed
+
+  iso = trimmed.replace(' ', 'T').replace(/\.\d+/, '')
+  if (/[+-]\d{2}$/.test(iso)) iso = `${iso}:00`
+  parsed = new Date(iso)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/**
  * Format a date for dense UI (tables, badges).
  * e.g. 2026-06-30 → "30 Jun 2026"
  */
-export function formatDateShort(date: Date | string): string {
-  return new Date(date).toLocaleDateString('en-GB', {
+export function formatDateShort(date: Date | string | null | undefined): string {
+  if (date == null || date === '') return '—'
+  const parsed = parseAppDateTime(date)
+  if (!parsed) return typeof date === 'string' ? date.split(/[ T]/)[0] ?? '—' : '—'
+  return parsed.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -64,8 +91,11 @@ export function formatDateShort(date: Date | string): string {
  * Format a date for confirmations and full views.
  * e.g. 2026-06-30 → "Tuesday, 30 June 2026"
  */
-export function formatDateLong(date: Date | string): string {
-  return new Date(date).toLocaleDateString('en-GB', {
+export function formatDateLong(date: Date | string | null | undefined): string {
+  if (date == null || date === '') return '—'
+  const parsed = parseAppDateTime(date)
+  if (!parsed) return typeof date === 'string' ? date.split(/[ T]/)[0] ?? '—' : '—'
+  return parsed.toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -77,10 +107,29 @@ export function formatDateLong(date: Date | string): string {
  * Format a time in 24-hour clock per StackEDU conventions.
  * e.g. 14:30, not 2:30 PM
  */
-export function formatTime(date: Date | string): string {
-  return new Date(date).toLocaleTimeString('en-GB', {
+export function formatTime(date: Date | string | null | undefined): string {
+  if (date == null || date === '') return '—'
+  const parsed = parseAppDateTime(date)
+  if (!parsed) return '—'
+  return parsed.toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   })
+}
+
+/**
+ * Format a date and time for tables, activity feeds and receipts.
+ * e.g. "21 Aug 2026, 16:07" — never milliseconds or timezone offsets.
+ */
+export function formatDateTime(value: Date | string | null | undefined): string {
+  if (value == null || value === '') return '—'
+  const parsed = parseAppDateTime(value)
+  if (!parsed) {
+    if (typeof value === 'string') {
+      return value.replace(/\.\d+/, '').replace(/([+-]\d{2}(?::\d{2})?)$/, '').trim()
+    }
+    return '—'
+  }
+  return `${formatDateShort(parsed)}, ${formatTime(parsed)}`
 }

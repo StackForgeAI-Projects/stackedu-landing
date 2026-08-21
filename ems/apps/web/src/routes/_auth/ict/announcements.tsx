@@ -24,6 +24,7 @@ import {
 import { apiErrorMessage } from '@/lib/api/client'
 import { roleLabel } from '@/lib/auth/portals'
 import { notifyError, notifySuccess } from '@/lib/notify'
+import { formatDateTime } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/ict/announcements')({
   component: AnnouncementsPage,
@@ -354,7 +355,7 @@ function AnnouncementsPage() {
                 value: (row) => row.publishedAt ?? '',
                 sortValue: (row) => row.publishedAt ?? '',
                 sortable: true,
-                cell: (row) => row.publishedAt ? new Date(row.publishedAt).toLocaleString() : 'Draft',
+                cell: (row) => row.publishedAt ? formatDateTime(row.publishedAt) : 'Draft',
               },
               { id: 'body', header: 'Message', value: (row) => row.body, cell: (row) => <span className="line-clamp-2">{row.body}</span> },
               {

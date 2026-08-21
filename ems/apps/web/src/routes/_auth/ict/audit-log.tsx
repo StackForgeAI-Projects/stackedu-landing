@@ -7,6 +7,7 @@ import { AuditEntryPanel, IctDialog, TableActionButton } from '@/components/ict/
 import { getIctAudit, ictAuditQueryKey } from '@/lib/api/ict'
 import { apiErrorMessage } from '@/lib/api/client'
 import { displayRole } from '@/lib/humanize'
+import { formatDateTime } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/ict/audit-log')({
   component: AuditLogPage,
@@ -44,7 +45,7 @@ function AuditLogPage() {
                 header: 'When',
                 value: (row) => row.createdAt,
                 sortable: true,
-                cell: (row) => <span className="whitespace-nowrap">{new Date(row.createdAt).toLocaleString()}</span>,
+                cell: (row) => <span className="whitespace-nowrap">{formatDateTime(row.createdAt)}</span>,
               },
               { id: 'who', header: 'Who', value: (row) => row.actorEmail ?? 'System', cell: (row) => row.actorEmail ?? 'System' },
               {

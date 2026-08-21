@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Eye, EyeOff, ArrowRight, Info, X } from 'lucide-react'
+import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,11 +13,6 @@ import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
 import { notifyError } from '@/lib/notify'
 import { rememberWelcome } from '@/lib/welcome'
-import {
-  dismissInactivityLogoutNotice,
-  hasInactivityLogoutNotice,
-  INACTIVITY_LOGOUT_NOTICE,
-} from '@/lib/inactivity-logout-notice'
 import { queryClient } from '@/lib/query-client'
 
 export function LoginScreen() {
@@ -29,12 +24,6 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [inactivityNoticeOpen, setInactivityNoticeOpen] = useState(hasInactivityLogoutNotice)
-
-  const dismissInactivityNotice = () => {
-    dismissInactivityLogoutNotice()
-    setInactivityNoticeOpen(false)
-  }
 
   /**
    * The account type is never chosen here. The server identifies the user from
@@ -107,51 +96,6 @@ export function LoginScreen() {
                 Use your email, student number or application ID.
               </p>
             </div>
-
-            {inactivityNoticeOpen ? (
-              <div
-                className="mb-6 p-4 rounded-xl"
-                role="alert"
-                style={{
-                  backgroundColor: 'var(--info-bg, #eff6ff)',
-                  border: '1px solid var(--info, #2563eb)',
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
-                    style={{ backgroundColor: 'var(--card)' }}
-                  >
-                    <Info size={18} style={{ color: 'var(--info, #2563eb)' }} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold" style={{ color: 'var(--info, #2563eb)' }}>
-                      {INACTIVITY_LOGOUT_NOTICE.title}
-                    </p>
-                    <p className="text-sm mt-1 leading-relaxed" style={{ color: 'var(--foreground)' }}>
-                      {INACTIVITY_LOGOUT_NOTICE.description}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={dismissInactivityNotice}
-                      className="mt-3 text-sm font-semibold transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--info, #2563eb)' }}
-                    >
-                      Got it
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={dismissInactivityNotice}
-                    className="flex-shrink-0 rounded p-1 transition-opacity hover:opacity-70"
-                    style={{ color: 'var(--muted-foreground)' }}
-                    aria-label="Dismiss sign-out notice"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
-            ) : null}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 

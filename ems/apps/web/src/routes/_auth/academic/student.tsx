@@ -11,7 +11,7 @@ import {
   getAcademicStudent,
 } from '@/lib/api/academic'
 import { apiErrorMessage } from '@/lib/api/client'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDateShort } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/academic/student')({
   validateSearch: (s: Record<string, unknown>) => ({ id: (s.id as string) || '' }),
@@ -19,13 +19,6 @@ export const Route = createFileRoute('/_auth/academic/student')({
 })
 
 type Tab = 'personal' | 'academic' | 'history'
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
 
 function StudentProfilePage() {
   const { id } = Route.useSearch()
@@ -138,7 +131,7 @@ function StudentProfilePage() {
                     {[
                       { label: 'Full Name', value: s.fullName },
                       { label: 'Student ID', value: s.studentNumber },
-                      { label: 'Date of Birth', value: formatDate(s.dateOfBirth) },
+                      { label: 'Date of Birth', value: formatDateShort(s.dateOfBirth) },
                       { label: 'Gender', value: s.gender ?? '—' },
                       { label: 'Nationality', value: s.nationality ?? '—' },
                     ].map((row) => (
@@ -272,10 +265,10 @@ function StudentProfilePage() {
                 )}
               </div>
               {[
-                { label: 'Enrollment Date', value: formatDate(s.enrollmentDate) },
+                { label: 'Enrollment Date', value: formatDateShort(s.enrollmentDate) },
                 { label: 'Programme', value: s.programmeName },
                 { label: 'Year of Study', value: `Year ${s.yearOfStudy}` },
-                { label: 'Expected Grad.', value: formatDate(s.expectedGraduation) },
+                { label: 'Expected Grad.', value: formatDateShort(s.expectedGraduation) },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid var(--border)' }}>
                   <span className="t-label" style={{ color: 'var(--muted-foreground)' }}>{row.label}</span>

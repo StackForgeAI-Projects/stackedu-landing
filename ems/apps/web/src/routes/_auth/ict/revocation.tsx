@@ -7,6 +7,7 @@ import { IctDialog, RevocationActionsPanel, TableActionButton } from '@/componen
 import { getIctRevocations, ictRevocationsQueryKey } from '@/lib/api/ict'
 import { apiErrorMessage } from '@/lib/api/client'
 import { roleLabel } from '@/lib/auth/portals'
+import { formatDateTime } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/ict/revocation')({
   component: RevocationPage,
@@ -51,7 +52,7 @@ function RevocationPage() {
                 header: 'Effective',
                 value: (row) => row.effectiveAt,
                 sortable: true,
-                cell: (row) => new Date(row.effectiveAt).toLocaleString(),
+                cell: (row) => formatDateTime(row.effectiveAt),
               },
               { id: 'reason', header: 'Reason', value: (row) => row.reason, cell: (row) => <span className="line-clamp-2">{row.reason}</span> },
               {

@@ -10,11 +10,12 @@ import {
 } from '@stackedu/shared'
 import { ApplyLayout, type ApplyStep } from '@/components/ApplyLayout'
 import { useApplication } from '@/hooks/useApplication'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { requireVerifiedApplicant } from '@/lib/auth/guards'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { Button } from '@/components/ui/button'
 import {
-  applicationQueryKey,
+  applicationQueryKeyFor,
   deleteDocument,
   listDocuments,
   submitDocumentResponse,
@@ -108,7 +109,8 @@ const DOCS: DocSpec[] = [
   },
 ]
 
-const documentsQueryKey = [...applicationQueryKey, 'documents'] as const
+const documentsQueryKeyFor = (userId: string | undefined) =>
+  [...applicationQueryKeyFor(userId), 'documents'] as const
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -120,8 +122,10 @@ function formatSize(bytes: number) {
 
 function ApplyDocumentsPage() {
   const navigate = useNavigate()
+  const { user } = useCurrentUser()
   const { application } = useApplication()
   const [uploadingType, setUploadingType] = useState<string | null>(null)
+  const documentsQueryKey = documentsQueryKeyFor(user?.id)
 
   const respondMode =
     application?.status === 'DocumentsRequested' && Boolean(application.documentRequest)
@@ -146,7 +150,7 @@ function ApplyDocumentsPage() {
     mutationFn: uploadApplicationDocument,
     onSuccess: async (docs) => {
       queryClient.setQueryData(documentsQueryKey, docs)
-      await queryClient.invalidateQueries({ queryKey: applicationQueryKey })
+      await queryClient.invalidateQueries({ queryKey: applicationQueryKeyFor(user?.id) })
       notifySuccess('Document uploaded.')
     },
     onError: (error: unknown) => {
@@ -159,7 +163,7 @@ function ApplyDocumentsPage() {
     mutationFn: deleteDocument,
     onSuccess: async (docs) => {
       queryClient.setQueryData(documentsQueryKey, docs)
-      await queryClient.invalidateQueries({ queryKey: applicationQueryKey })
+      await queryClient.invalidateQueries({ queryKey: applicationQueryKeyFor(user?.id) })
     },
     onError: (error: unknown) => {
       notifyError(apiErrorMessage(error, 'We could not remove that file.'))
@@ -169,8 +173,8 @@ function ApplyDocumentsPage() {
   const submitMutation = useMutation({
     mutationFn: submitDocumentResponse,
     onSuccess: async (updated) => {
-      queryClient.setQueryData(applicationQueryKey, updated)
-      await queryClient.invalidateQueries({ queryKey: applicationQueryKey })
+      queryClient.setQueryData(applicationQueryKeyFor(user?.id), updated)
+      await queryClient.invalidateQueries({ queryKey: applicationQueryKeyFor(user?.id) })
       notifySuccess('Your documents have been submitted for review.')
       void navigate({ to: '/apply/track' })
     },

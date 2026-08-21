@@ -33,6 +33,7 @@ import {
 } from '@/lib/api/admissions'
 import { ApplicationStatusBadge, formatApplicationStatus } from '@/lib/application-status'
 import { apiErrorMessage } from '@/lib/api/client'
+import { formatDateShort, formatDateTime, parseAppDateTime } from '@/lib/utils'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { queryClient } from '@/lib/query-client'
 import { formatCurrency } from '@/lib/utils'
@@ -135,38 +136,6 @@ function detailString(details: Record<string, unknown> | null, key: string): str
 }
 
 const ACTIVITY_PAGE_SIZES = [5, 10, 25, 50, 100] as const
-
-function parseActivityTimestamp(value: string): Date | null {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  let iso = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T')
-  if (/[+-]\d{2}$/.test(iso)) iso = `${iso}:00`
-
-  let parsed = new Date(iso)
-  if (!Number.isNaN(parsed.getTime())) return parsed
-
-  iso = trimmed.replace(' ', 'T').replace(/\.\d+/, '')
-  if (/[+-]\d{2}$/.test(iso)) iso = `${iso}:00`
-  parsed = new Date(iso)
-  if (!Number.isNaN(parsed.getTime())) return parsed
-
-  return null
-}
-
-function formatActivityDateTime(value: string): string {
-  const parsed = parseActivityTimestamp(value)
-  if (!parsed) {
-    return value.replace(/\.\d+/, '').replace(/([+-]\d{2}(?::\d{2})?)$/, '').trim()
-  }
-  return parsed.toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 function ApplicationDetailPage() {
   const { id } = Route.useSearch()
@@ -306,7 +275,7 @@ function ApplicationDetailPage() {
                   { label: 'Full name', value: app.fullName },
                   { label: 'Email', value: app.email },
                   { label: 'Phone', value: app.phone },
-                  { label: 'Date of birth', value: app.dateOfBirth ?? '—' },
+                  { label: 'Date of birth', value: formatDateShort(app.dateOfBirth) },
                   { label: 'Gender', value: app.gender ?? '—' },
                   { label: 'National ID', value: app.nationalId ?? '—' },
                 ]}
@@ -353,7 +322,7 @@ function ApplicationDetailPage() {
                             ) : null}
                           </div>
                           <p className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
-                            {doc.fileName} · {formatActivityDateTime(doc.uploadedAt)}
+                            {doc.fileName} · {formatDateTime(doc.uploadedAt)}
                           </p>
                         </div>
                       </div>
@@ -678,7 +647,7 @@ function ActivityEntry({ entry, isLast }: { entry: ActivityRow; isLast: boolean 
             </span>
           </div>
           <p className="text-xs flex-shrink-0 sm:text-right" style={{ color: 'var(--muted-foreground)' }}>
-            {formatActivityDateTime(entry.at)}
+            {formatDateTime(entry.at)}
           </p>
         </div>
         <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--foreground)' }}>
@@ -784,7 +753,7 @@ function buildApplicationActivity(
   }))
 
   return [...reviewItems, ...offerItems, ...uploadItems].sort(
-    (a, b) => (parseActivityTimestamp(b.at)?.getTime() ?? 0) - (parseActivityTimestamp(a.at)?.getTime() ?? 0),
+    (a, b) => (parseAppDateTime(b.at)?.getTime() ?? 0) - (parseAppDateTime(a.at)?.getTime() ?? 0),
   )
 }
 

@@ -5,6 +5,7 @@ import {
   formValuesFromApplication,
 } from '@/lib/apply/form-values'
 import { validateApplicationStep } from '@/lib/apply/validate-step'
+import { formatDateShort } from '@/lib/utils'
 
 /** Header progress for each of the seven application steps. */
 export const APPLY_PROGRESS_BY_STEP: Record<number, number> = {
@@ -62,6 +63,27 @@ function readStoredProgress(details: Record<string, unknown>): Pick<ApplyProgres
   }
 }
 
+/** Stored navigation cannot skip past the first form step that still fails validation. */
+function capStoredFormStep(storedStep: number, values: ApplicationFormValues): number {
+  for (let step = 1; step <= 5; step += 1) {
+    if (!stepIsComplete(step, values)) {
+      return Math.min(Math.max(storedStep, 1), step)
+    }
+  }
+  return Math.min(storedStep, 5)
+}
+
+function mergeStoredCompletedSteps(
+  inferred: number[],
+  stored: number[],
+  values: ApplicationFormValues,
+): number[] {
+  return [...new Set([
+    ...inferred,
+    ...stored.filter((step) => step >= 1 && step <= 5 && stepIsComplete(step, values)),
+  ])].sort((a, b) => a - b)
+}
+
 function hasRequiredDocuments(application: Application): boolean {
   return REQUIRED_APPLICATION_DOCUMENT_TYPES.every((type) =>
     application.documents.some((doc) => doc.documentType === type),
@@ -78,27 +100,37 @@ export function resolveApplicationProgress(application: Application | null): App
   const values = formValuesFromApplication(application)
   const inferred = inferFormProgress(values)
   const stored = readStoredProgress(details)
+  const formComplete = [1, 2, 3, 4, 5].every((step) => stepIsComplete(step, values))
 
-  let currentStep = stored?.currentStep ?? inferred.currentStep
-  let completedSteps = stored?.completedSteps ?? inferred.completedSteps
+  let currentStep = inferred.currentStep
+  let completedSteps = inferred.completedSteps
 
   if (stored) {
-    currentStep = Math.max(currentStep, inferred.currentStep)
-    completedSteps = [...new Set([...completedSteps, ...inferred.completedSteps])]
+    const storedFormStep = capStoredFormStep(stored.currentStep, values)
+    currentStep = Math.max(inferred.currentStep, storedFormStep)
+    completedSteps = mergeStoredCompletedSteps(
+      inferred.completedSteps,
+      stored.completedSteps,
+      values,
+    )
   }
 
-  const formComplete = [1, 2, 3, 4, 5].every((step) => stepIsComplete(step, values))
   if (formComplete) {
     completedSteps = [...new Set([...completedSteps, 1, 2, 3, 4, 5])]
     if (!hasRequiredDocuments(application)) {
-      currentStep = Math.max(currentStep, 6)
+      currentStep = 6
     } else if (application.payment?.status !== 'Completed') {
-      currentStep = Math.max(currentStep, 7)
+      currentStep = 7
       completedSteps = [...new Set([...completedSteps, 6])]
     } else {
       currentStep = 7
       completedSteps = [...new Set([...completedSteps, 6, 7])]
     }
+  } else {
+    currentStep = Math.min(currentStep, 5)
+    completedSteps = completedSteps.filter(
+      (step) => step <= 5 && stepIsComplete(step, values),
+    )
   }
 
   return {
@@ -141,15 +173,8 @@ export interface TrackTimelineStage {
 
 function formatTrackDate(value: string | null | undefined): string | null {
   if (!value) return null
-
-  const parsed = new Date(value.replace(' ', 'T'))
-  if (Number.isNaN(parsed.getTime())) return null
-
-  return parsed.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  const formatted = formatDateShort(value)
+  return formatted === '—' ? null : formatted
 }
 
 function paymentTrackSubtitle(application: Application): string {

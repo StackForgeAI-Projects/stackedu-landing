@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useApplication } from '@/hooks/useApplication'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import {
   acknowledgeBankTransfer,
-  applicationQueryKey,
+  applicationQueryKeyFor,
   initiatePayment,
   submitApplication,
 } from '@/lib/api/admissions'
@@ -69,6 +70,7 @@ function toInternational(local: string): string {
 
 function ApplyPaymentPage() {
   const navigate = useNavigate()
+  const { user } = useCurrentUser()
   const [selected, setSelected] = useState<PayMethod | null>(null)
   const [payerPhone, setPayerPhone] = useState('')
   const { application, refetch } = useApplication()
@@ -106,7 +108,7 @@ function ApplyPaymentPage() {
     },
     onSuccess: async (result) => {
       if (result.application) {
-        queryClient.setQueryData(applicationQueryKey, result.application)
+        queryClient.setQueryData(applicationQueryKeyFor(user?.id), result.application)
         await navigate({ to: '/apply/confirmation' })
         return
       }
@@ -125,7 +127,7 @@ function ApplyPaymentPage() {
   const submitOnly = useMutation({
     mutationFn: submitApplication,
     onSuccess: async (app) => {
-      queryClient.setQueryData(applicationQueryKey, app)
+      queryClient.setQueryData(applicationQueryKeyFor(user?.id), app)
       await navigate({ to: '/apply/confirmation' })
     },
     onError: (error: unknown) => {

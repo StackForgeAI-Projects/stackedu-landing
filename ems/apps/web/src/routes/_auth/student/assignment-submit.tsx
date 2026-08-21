@@ -12,6 +12,7 @@ import {
   submitStudentAssessment,
 } from '@/lib/api/student'
 import { apiErrorMessage } from '@/lib/api/client'
+import { formatDateTime } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/student/assignment-submit')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -82,7 +83,7 @@ function AssignmentSubmitPage() {
             <h2 className="t-h3 mb-2" style={{ fontFamily: 'var(--font-display)' }}>{selected.title}</h2>
             <p className="t-caption mb-4" style={{ color: 'var(--muted-foreground)' }}>
               {selected.courseName}
-              {selected.dueAt ? ` · due ${new Date(selected.dueAt).toLocaleString()}` : ''}
+              {selected.dueAt ? ` · due ${formatDateTime(selected.dueAt)}` : ''}
             </p>
             {selected.description ? (
               <p className="text-sm mb-5 whitespace-pre-line" style={{ color: 'var(--foreground)' }}>{selected.description}</p>

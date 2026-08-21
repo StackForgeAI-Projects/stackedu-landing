@@ -29,6 +29,11 @@ import { api, API_URL, ApiClientError } from './client'
 
 export const programmesQueryKey = ['admissions', 'programmes'] as const
 export const applicationQueryKey = ['admissions', 'application'] as const
+
+/** Per-applicant key so a fresh registration never reuses a previous account's cache. */
+export function applicationQueryKeyFor(userId: string | undefined | null) {
+  return userId ? ([...applicationQueryKey, userId] as const) : applicationQueryKey
+}
 export const academicApplicationsQueryKey = ['academic', 'applications'] as const
 
 export async function getProgrammes(): Promise<ProgrammeOption[]> {

@@ -9,17 +9,11 @@ import {
   listAcademicStudents,
 } from '@/lib/api/academic'
 import { apiErrorMessage } from '@/lib/api/client'
+import { formatDateShort } from '@/lib/utils'
 
 export const Route = createFileRoute('/_auth/academic/students')({
   component: StudentRegistryPage,
 })
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
 
 function StudentRegistryPage() {
   const { data, isPending, error } = useQuery({
@@ -106,8 +100,8 @@ function StudentRegistryPage() {
             {
               id: 'enrolled',
               header: 'Enrollment Date',
-              value: (s) => formatDate(s.enrollmentDate),
-              cell: (s) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDate(s.enrollmentDate)}</span>,
+              value: (s) => formatDateShort(s.enrollmentDate),
+              cell: (s) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDateShort(s.enrollmentDate)}</span>,
             },
             {
               id: 'status',

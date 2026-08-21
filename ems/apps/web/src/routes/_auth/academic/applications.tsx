@@ -10,6 +10,7 @@ import {
   listAcademicApplications,
 } from '@/lib/api/admissions'
 import { apiErrorMessage } from '@/lib/api/client'
+import { formatDateTime } from '@/lib/utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -27,13 +28,6 @@ const STATUS_TABS: { label: string; value: ApplicationStatus | 'All' }[] = [
   { label: 'Accepted',            value: 'Accepted' },
   { label: 'Rejected',            value: 'Rejected' },
 ]
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  const parsed = new Date(value.replace(' ', 'T'))
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -142,8 +136,8 @@ function ApplicationsPage() {
             {
               id: 'submitted',
               header: 'Date Submitted',
-              value: (app) => formatDate(app.submittedAt),
-              cell: (app) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDate(app.submittedAt)}</span>,
+              value: (app) => formatDateTime(app.submittedAt),
+              cell: (app) => <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDateTime(app.submittedAt)}</span>,
             },
             {
               id: 'documents',

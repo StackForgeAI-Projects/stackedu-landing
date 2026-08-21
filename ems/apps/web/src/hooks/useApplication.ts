@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { Application } from '@stackedu/shared'
-import { applicationQueryKey, getApplication } from '@/lib/api/admissions'
+import { applicationQueryKeyFor, getApplication } from '@/lib/api/admissions'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface CurrentApplication {
   application: Application | null
@@ -10,9 +11,11 @@ interface CurrentApplication {
 
 /** The signed-in applicant's own application. */
 export function useApplication(): CurrentApplication {
+  const { user } = useCurrentUser()
   const { data, isPending, refetch } = useQuery({
-    queryKey: applicationQueryKey,
+    queryKey: applicationQueryKeyFor(user?.id),
     queryFn: getApplication,
+    enabled: user?.role === 'Applicant',
     retry: false,
   })
 
