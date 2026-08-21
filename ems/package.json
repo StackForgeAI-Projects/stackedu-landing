@@ -16,7 +16,9 @@
     "db:migrate": "bun run --filter '@stackedu/api' db:migrate",
     "db:seed": "bun run --filter '@stackedu/api' db:seed",
     "institution:create": "bun run --filter '@stackedu/api' institution:create",
-    "purge-applicants": "bun run --filter '@stackedu/api' purge-applicants"
+    "purge-applicants": "bun run --filter '@stackedu/api' purge-applicants",
+    "db:seed-applicant-demo": "bun run --filter '@stackedu/api' db:seed-applicant-demo",
+    "reverse-admission": "bun run --filter '@stackedu/api' reverse-admission"
   },
   "devDependencies": {
     "turbo": "^2",

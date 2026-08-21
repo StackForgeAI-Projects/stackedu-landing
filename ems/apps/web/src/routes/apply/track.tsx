@@ -1,19 +1,22 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import type { Application, ApplicationStatus } from '@stackedu/shared'
 import { formatRequestedDocumentsList } from '@stackedu/shared'
 import {
   ClipboardCheck, Clock, CreditCard, Eye, EyeOff, FileText, GraduationCap, Search, XCircle,
-  AlertCircle, CheckCircle2,
+  AlertCircle, CheckCircle2, Loader2,
 } from 'lucide-react'
 import { ApplyLayout } from '@/components/ApplyLayout'
 import { APPLY_FEATURES, AuthHero, INSTITUTION_NAME } from '@/components/AuthHero'
 import { BrandMark } from '@/components/BrandMark'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useApplication } from '@/hooks/useApplication'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { acceptAdmissionOffer, declineAdmissionOffer } from '@/lib/api/admissions'
 import { login, sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
@@ -24,7 +27,18 @@ import {
   trackTimelineSubtitle,
 } from '@/lib/apply/progress'
 import { notifyError } from '@/lib/notify'
+import { rememberNewStudentWelcome } from '@/lib/new-student-welcome'
 import { queryClient } from '@/lib/query-client'
+import { performSignOutRedirect } from '@/lib/session-logout'
+
+const PREPARING_MESSAGES = [
+  'Creating your student profile…',
+  'Preparing your dashboard…',
+  'Setting up fee and registration access…',
+  'Almost ready…',
+] as const
+
+const PREPARING_MIN_MS = 8000
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -232,7 +246,53 @@ function ApplicantSignIn() {
 function ApplicationStatusView() {
   const { application, isLoading } = useApplication()
 
+  const [confirmAcceptOpen, setConfirmAcceptOpen] = useState(false)
+  const [confirmRejectOpen, setConfirmRejectOpen] = useState(false)
+  const [preparingDashboard, setPreparingDashboard] = useState(false)
+  const [preparingMessageIndex, setPreparingMessageIndex] = useState(0)
+
+  useEffect(() => {
+    if (!preparingDashboard) return
+    const timer = window.setInterval(() => {
+      setPreparingMessageIndex((current) => (current + 1) % PREPARING_MESSAGES.length)
+    }, 2000)
+    return () => window.clearInterval(timer)
+  }, [preparingDashboard])
+
+  const runAcceptAdmission = useCallback(async () => {
+    setConfirmAcceptOpen(false)
+    setPreparingDashboard(true)
+    setPreparingMessageIndex(0)
+
+    try {
+      const [result] = await Promise.all([
+        acceptAdmissionOffer(),
+        new Promise<void>((resolve) => window.setTimeout(resolve, PREPARING_MIN_MS)),
+      ])
+      rememberNewStudentWelcome(result.studentNumber)
+      window.location.replace('/student/dashboard')
+    } catch (error: unknown) {
+      setPreparingDashboard(false)
+      notifyError(apiErrorMessage(error, 'We could not accept your admission. Please try again.'))
+    }
+  }, [])
+
+  const declineAdmission = useMutation({
+    mutationFn: declineAdmissionOffer,
+    onSuccess: async () => {
+      setConfirmRejectOpen(false)
+      await performSignOutRedirect('/login')
+    },
+    onError: (error: unknown) => {
+      notifyError(apiErrorMessage(error, 'We could not decline your admission. Please try again.'))
+    },
+  })
+
   if (isLoading) return <FullPageWait />
+
+  if (preparingDashboard) {
+    return <PreparingDashboardOverlay message={PREPARING_MESSAGES[preparingMessageIndex]!} />
+  }
 
   if (!application) {
     return (
@@ -254,6 +314,13 @@ function ApplicationStatusView() {
   const showDocumentRequest =
     application.status === 'DocumentsRequested' && Boolean(documentRequest)
   const documentResponseSubmitted = Boolean(documentRequest?.responseSubmittedAt)
+  const pendingAdmissionOffer =
+    application.status === 'Accepted' &&
+    Boolean(application.admissionOffer) &&
+    !application.admissionOffer?.acceptedAt &&
+    !application.admissionOffer?.declinedAt
+  const declinedAdmissionOffer =
+    application.status === 'Accepted' && Boolean(application.admissionOffer?.declinedAt)
   const progress = resolveApplicationProgress(application)
   const resumeTo = applyResumeRoute(progress.currentStep)
 
@@ -293,6 +360,62 @@ function ApplicationStatusView() {
         )
       ) : null}
 
+      {pendingAdmissionOffer ? (
+        <AdmissionOfferAlert
+          busy={declineAdmission.isPending}
+          onAccept={() => setConfirmAcceptOpen(true)}
+          onReject={() => setConfirmRejectOpen(true)}
+        />
+      ) : null}
+
+      {declinedAdmissionOffer ? <DeclinedOfferAlert /> : null}
+
+      <ConfirmAlertDialog
+        open={confirmAcceptOpen}
+        onOpenChange={setConfirmAcceptOpen}
+        title="Accept your admission?"
+        tone="success"
+        headlineLabel="Confirm acceptance"
+        headline="Become a registered student"
+        summary="You are accepting your place at the institution. This creates your student record and gives you access to the student portal."
+        notices={[
+          { icon: 'shield', label: 'You will receive a student number and can sign in to pay fees.' },
+          { icon: 'file', label: 'You can register for courses from your student dashboard after accepting.' },
+          { icon: 'clock', label: 'This step cannot be undone from Application Track — contact admissions if you change your mind.' },
+        ]}
+        cancelLabel="Go back"
+        confirmLabel="Yes, accept admission"
+        confirmVariant="brand"
+        onConfirm={(event) => {
+          event.preventDefault()
+          void runAcceptAdmission()
+        }}
+      />
+
+      <ConfirmAlertDialog
+        open={confirmRejectOpen}
+        onOpenChange={setConfirmRejectOpen}
+        title="Decline your admission?"
+        tone="destructive"
+        headlineLabel="Confirm decline"
+        headline="Release your place"
+        summary="You are declining the admission offer. Your application will stay on file, but the place may be offered to another applicant."
+        notices={[
+          { icon: 'email', label: 'We will email you a confirmation of this decision.' },
+          { icon: 'lock', label: 'You will be signed out and can sign in again as an applicant.' },
+          { icon: 'info', label: 'Contact admissions before the offer expires if you change your mind.' },
+        ]}
+        caution="This does not delete your application — it records that you declined the offer."
+        cancelLabel="Go back"
+        confirmLabel={declineAdmission.isPending ? 'Declining…' : 'Yes, decline offer'}
+        confirmVariant="destructive"
+        loading={declineAdmission.isPending}
+        onConfirm={(event) => {
+          event.preventDefault()
+          declineAdmission.mutate()
+        }}
+      />
+
       <StatusTimeline application={application} />
 
       <div className="mt-6">
@@ -309,7 +432,7 @@ function ApplicationStatusView() {
               <Button className="font-semibold">Continue application</Button>
             </Link>
           </Card>
-        ) : showDocumentRequest ? null : (
+        ) : showDocumentRequest || pendingAdmissionOffer || declinedAdmissionOffer ? null : (
           <StatusMessage application={application} />
         )}
       </div>
@@ -356,13 +479,119 @@ const STATUS_MESSAGES: Record<
   Accepted: {
     tone: 'var(--success)',
     title: 'You have been offered a place',
-    body: 'Congratulations. The admissions office will be in touch with your offer and what to do next.',
+    body: 'Congratulations. Accept your admission offer to receive your student number and continue with registration.',
   },
   Rejected: {
     tone: 'var(--muted-foreground)',
     title: 'Not successful this time',
     body: 'Your application was not successful. You are welcome to contact the admissions office to talk it through.',
   },
+}
+
+function PreparingDashboardOverlay({ message }: { message: string }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
+      style={{ backgroundColor: 'var(--background)' }}
+    >
+      <div
+        className="flex h-16 w-16 items-center justify-center rounded-full mb-6"
+        style={{ backgroundColor: 'var(--success-bg)', border: '1px solid var(--success)' }}
+      >
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--success)' }} />
+      </div>
+      <h2
+        className="t-h2 mb-2"
+        style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}
+      >
+        Preparing your dashboard
+      </h2>
+      <p className="text-sm max-w-sm leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
+        {message}
+      </p>
+      <p className="text-xs mt-4" style={{ color: 'var(--muted-foreground)' }}>
+        This usually takes a few seconds…
+      </p>
+    </div>
+  )
+}
+
+function AdmissionOfferAlert({
+  busy,
+  onAccept,
+  onReject,
+}: {
+  busy: boolean
+  onAccept: () => void
+  onReject: () => void
+}) {
+  return (
+    <div
+      className="mb-6 p-5 sm:p-6 rounded-xl"
+      style={{
+        backgroundColor: 'var(--success-bg)',
+        border: '1px solid var(--success)',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <div
+          className="flex items-center justify-center rounded-full flex-shrink-0"
+          style={{ width: 36, height: 36, backgroundColor: 'rgba(13,122,40,0.15)' }}
+        >
+          <GraduationCap size={18} style={{ color: 'var(--success)' }} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold" style={{ color: 'var(--success)' }}>
+            Respond to your admission offer
+          </p>
+          <p className="text-sm mt-2 font-medium" style={{ color: 'var(--foreground)', lineHeight: 1.6 }}>
+            Admissions has offered you a place. Accept to become a registered student and access fees and
+            course registration. Decline if you no longer wish to take up the place.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+        <Button className="w-full sm:w-auto font-semibold" disabled={busy} onClick={onAccept}>
+          Accept admission
+        </Button>
+        <Button
+          variant="outline"
+          className="w-full sm:w-auto font-semibold"
+          disabled={busy}
+          onClick={onReject}
+          style={{
+            backgroundColor: 'var(--error-bg)',
+            borderColor: 'var(--error)',
+            color: 'var(--error)',
+          }}
+        >
+          Decline offer
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function DeclinedOfferAlert() {
+  return (
+    <div
+      className="mb-6 p-5 sm:p-6 rounded-xl"
+      style={{
+        backgroundColor: 'var(--muted)',
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+        You declined this admission offer
+      </p>
+      <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
+        We emailed you a confirmation. Contact the admissions office before the offer expiry if you change
+        your mind.
+      </p>
+    </div>
+  )
 }
 
 function DocumentResponseSubmittedAlert() {

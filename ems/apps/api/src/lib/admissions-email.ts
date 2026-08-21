@@ -21,7 +21,7 @@ const DECISION_COPY: Record<
   },
   Accepted: {
     headline: 'Congratulations — your application was accepted',
-    body: 'Your application has been accepted. Sign in to Track for next steps from the institution.',
+    body: 'Your application has been accepted. Sign in to accept your admission offer and complete registration.',
   },
   Rejected: {
     headline: 'Update on your application',
@@ -37,6 +37,8 @@ function layout(input: {
   paragraphs: string[]
   bodyHtmlExtra?: string
   trackUrl?: string
+  ctaLabel?: string
+  showTrackButton?: boolean
 }): { text: string; html: string } {
   return buildBrandedEmail({
     branding: input.branding,
@@ -46,6 +48,8 @@ function layout(input: {
     paragraphs: input.paragraphs,
     bodyHtmlExtra: input.bodyHtmlExtra,
     trackUrl: input.trackUrl,
+    ctaLabel: input.ctaLabel,
+    showTrackButton: input.showTrackButton,
   })
 }
 
@@ -183,6 +187,33 @@ export async function notifyApplicationDecision(input: {
       return
     }
 
+    if (input.decision === 'Accepted') {
+      const paragraphs = [
+        copy.body,
+        `Application ID: ${input.reference}`,
+        `Status: ${formatApplicationStatus(input.decision)}`,
+        'After you accept, you will receive your student number and can sign in to pay fees and register for courses.',
+      ]
+      if (trimmed) paragraphs.push(`Note from admissions: ${trimmed}`)
+
+      const content = layout({
+        branding,
+        title: copy.headline,
+        greeting: `Hello ${input.fullName},`,
+        paragraphs,
+        trackUrl: `${trackBase}/apply/track`,
+        ctaLabel: 'Accept admission',
+      })
+
+      await sendEmail({
+        to: input.to,
+        subject: `${copy.headline} — ${input.reference}`,
+        institutionId: input.institutionId,
+        ...content,
+      })
+      return
+    }
+
     const paragraphs = [
       copy.body,
       `Application ID: ${input.reference}`,
@@ -208,6 +239,86 @@ export async function notifyApplicationDecision(input: {
     log.error('Failed to notify applicant of decision', {
       reference: input.reference,
       decision: input.decision,
+      error,
+    })
+  }
+}
+
+/** Applicant notification after declining an admission offer. Never throws. */
+export async function notifyAdmissionOfferDeclined(input: {
+  institutionId: string
+  to: string
+  fullName: string
+  reference: string
+}): Promise<void> {
+  try {
+    const branding = await getInstitutionEmailBranding(input.institutionId)
+
+    const content = layout({
+      branding,
+      title: 'Admission offer declined',
+      greeting: `Hello ${input.fullName},`,
+      paragraphs: [
+        'We have recorded that you declined your admission offer.',
+        `Application ID: ${input.reference}`,
+        'If you change your mind, contact the admissions office before the offer expiry date.',
+        'Thank you for your interest in our institution.',
+      ],
+      showTrackButton: false,
+    })
+
+    await sendEmail({
+      to: input.to,
+      subject: `Admission offer declined — ${input.reference}`,
+      institutionId: input.institutionId,
+      ...content,
+    })
+  } catch (error) {
+    log.error('Failed to notify applicant of offer decline', {
+      reference: input.reference,
+      error,
+    })
+  }
+}
+
+/** Student welcome after accepting an admission offer. Never throws. */
+export async function notifyStudentWelcome(input: {
+  institutionId: string
+  to: string
+  fullName: string
+  reference: string
+  studentNumber: string
+}): Promise<void> {
+  try {
+    const branding = await getInstitutionEmailBranding(input.institutionId)
+    const trackBase = env().WEB_APP_URL.replace(/\/$/, '')
+
+    const content = layout({
+      branding,
+      title: `Welcome to ${branding.name}`,
+      greeting: `Hello ${input.fullName},`,
+      paragraphs: [
+        'Congratulations — you are now a registered student. Your dashboard has been set up and is ready to use.',
+        `Student number: ${input.studentNumber}`,
+        `Application ID: ${input.reference}`,
+        'Your student dashboard is ready — explore fees, registration, and your timetable.',
+        'Next: pay your fees, then register for courses for this semester.',
+        'Your profile and academic record are now linked to this student number.',
+      ],
+      trackUrl: `${trackBase}/student/dashboard`,
+      ctaLabel: 'Open student dashboard',
+    })
+
+    await sendEmail({
+      to: input.to,
+      subject: `Welcome to ${branding.name} — ${input.studentNumber}`,
+      institutionId: input.institutionId,
+      ...content,
+    })
+  } catch (error) {
+    log.error('Failed to send student welcome email', {
+      reference: input.reference,
+      studentNumber: input.studentNumber,
       error,
     })
   }

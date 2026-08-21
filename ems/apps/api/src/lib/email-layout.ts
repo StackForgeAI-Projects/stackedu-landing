@@ -26,6 +26,8 @@ export interface BrandedEmailInput {
   paragraphs: string[]
   /** Extra HTML inserted after paragraphs and before the CTA button. */
   bodyHtmlExtra?: string
+  /** When set, replaces the default “Open Track” button label. */
+  ctaLabel?: string
   /** When false, the Track button is omitted (e.g. account provisioning mail). */
   showTrackButton?: boolean
   trackUrl?: string
@@ -114,6 +116,7 @@ function buildLeadNoteHtml(leadNote: string): string {
 export function buildBrandedEmail(input: BrandedEmailInput): { text: string; html: string } {
   const track = input.trackUrl ?? `${env().WEB_APP_URL.replace(/\/$/, '')}/apply/track`
   const showTrack = input.showTrackButton !== false
+  const ctaLabel = input.ctaLabel ?? 'Open Track'
 
   const text = [
     input.greeting,
@@ -121,7 +124,7 @@ export function buildBrandedEmail(input: BrandedEmailInput): { text: string; htm
     ...(input.leadNote ? [input.leadNote, ''] : []),
     ...input.paragraphs,
     '',
-    ...(showTrack ? [`Track your application: ${track}`, ''] : []),
+    ...(showTrack ? [`${ctaLabel}: ${track}`, ''] : []),
     ...footerLines(input.branding),
   ].join('\n')
 
@@ -132,7 +135,7 @@ export function buildBrandedEmail(input: BrandedEmailInput): { text: string; htm
   const trackButton = showTrack
     ? `<p style="margin:20px 0 0">
         <a href="${escapeHtml(track)}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600">
-          Open Track
+          ${escapeHtml(ctaLabel)}
         </a>
       </p>`
     : ''

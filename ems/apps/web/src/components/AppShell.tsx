@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { notifySuccess } from '@/lib/notify'
 import { consumeWelcomeName, isDashboardPath } from '@/lib/welcome'
-import { rememberInactivityLogout } from '@/lib/inactivity-logout-notice'
+import { performInactivityLogout } from '@/lib/session-logout'
 import { logout } from '@/lib/api/auth'
 import { queryClient } from '@/lib/query-client'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -62,13 +62,14 @@ export function AppShell({
   const forcedLogout = useCallback(async () => {
     await logout().catch(() => undefined)
     queryClient.clear()
-    await navigate({ to: '/login' })
+    await navigate({ to: '/login', replace: true })
   }, [navigate])
 
-  const inactivity = useInactivityLogout(() => {
-    rememberInactivityLogout()
-    void forcedLogout()
-  })
+  const inactivityLogout = useCallback(() => {
+    void performInactivityLogout('/login')
+  }, [])
+
+  const inactivity = useInactivityLogout(inactivityLogout)
 
   useEffect(() => {
     if (!isDashboardPath(pathname)) return
@@ -149,7 +150,7 @@ export function AppShell({
         open={inactivity.open}
         secondsLeft={inactivity.secondsLeft}
         onStay={inactivity.staySignedIn}
-        onLogout={() => void forcedLogout()}
+        onLogout={inactivityLogout}
       />
 
     </div>

@@ -41,6 +41,8 @@ import {
   saveApplication,
   submitApplication,
   submitDocumentResponse,
+  acceptAdmissionOffer,
+  declineAdmissionOffer,
 } from '../services/admissions'
 import {
   confirmApplicationPayment,
@@ -216,6 +218,18 @@ admissionRoutes.post('/apply/documents/submit-response', ...verifiedApplicantOnl
   const user = c.get('user')!
   const application = await submitDocumentResponse(user.institution.id, user.id)
   return c.json<ApplicationResponse>({ application })
+})
+
+admissionRoutes.post('/apply/accept-admission', ...verifiedApplicantOnly, async (c) => {
+  const user = c.get('user')!
+  const result = await acceptAdmissionOffer(user.institution.id, user.id)
+  return c.json(result)
+})
+
+admissionRoutes.post('/apply/decline-admission', ...verifiedApplicantOnly, async (c) => {
+  const user = c.get('user')!
+  const result = await declineAdmissionOffer(user.institution.id, user.id)
+  return c.json(result)
 })
 
 admissionRoutes.get('/apply/documents/:documentId/url', ...verifiedApplicantOnly, async (c) => {

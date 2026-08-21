@@ -24,6 +24,7 @@ import {
   loadLatestDocumentRequest,
   mapRequestedDocumentsForStorage,
 } from './admissions-read'
+import { createAdmissionOffer, loadAdmissionOffer } from './admissions-enrolment'
 
 function mapDocument(
   row: {
@@ -236,6 +237,7 @@ export async function getApplicationForReview(
     documents: docs.map((doc) => mapDocument(doc, documentRequestRequestedAt)),
     payment: payment ? mapPayment(payment) : null,
     reviews: await loadApplicationReviews(institutionId, applicationId),
+    admissionOffer: await loadAdmissionOffer(institutionId, applicationId),
   }
 }
 
@@ -287,6 +289,23 @@ export async function reviewApplication(
         : {}),
     })
     .where(eq(applications.id, applicationId))
+
+  if (input.decision === 'Accepted') {
+    const [applicationRow] = await db
+      .select({ programmeId: applications.programmeId })
+      .from(applications)
+      .where(eq(applications.id, applicationId))
+      .limit(1)
+
+    if (applicationRow) {
+      await createAdmissionOffer({
+        institutionId,
+        applicationId,
+        programmeId: applicationRow.programmeId,
+        issuedBy: reviewerId,
+      })
+    }
+  }
 
   const updated = await getApplicationForReview(institutionId, applicationId)
 

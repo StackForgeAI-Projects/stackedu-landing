@@ -40,6 +40,7 @@ import {
 import { createUser } from './users'
 import { issueApplicantEmailVerification } from './verification'
 import { loadLatestDocumentRequest } from './admissions-read'
+import { loadAdmissionOffer } from './admissions-enrolment'
 
 /**
  * Admissions.
@@ -307,10 +308,11 @@ export async function getApplicationFor(
 
   if (!row) throw notFound('Your application')
 
-  const [documents, payment, documentRequest] = await Promise.all([
+  const [documents, payment, documentRequest, admissionOffer] = await Promise.all([
     loadDocuments(institutionId, row.id),
     loadLatestPayment(institutionId, row.id),
     loadLatestDocumentRequest(institutionId, row.id),
+    row.status === 'Accepted' ? loadAdmissionOffer(institutionId, row.id) : Promise.resolve(null),
   ])
 
   return {
@@ -338,6 +340,7 @@ export async function getApplicationFor(
     documents,
     payment,
     documentRequest,
+    admissionOffer,
     submittedAt: row.submittedAt,
     reviewedAt: row.reviewedAt,
     createdAt: row.createdAt,
@@ -742,6 +745,8 @@ export async function submitDocumentResponse(
 
   return getApplicationFor(institutionId, applicantUserId)
 }
+
+export { acceptAdmissionOffer, declineAdmissionOffer } from './admissions-enrolment'
 
 /** Hands the application to the admissions office for review. */
 export async function submitApplication(

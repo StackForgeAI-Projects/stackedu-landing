@@ -546,7 +546,7 @@ function ApplicationDetailPage() {
 type ActivityRow = {
   id: string
   at: string
-  typeLabel: 'Upload' | 'Review'
+  typeLabel: 'Upload' | 'Review' | 'Response'
   action: string
   details: string
 }
@@ -662,8 +662,16 @@ function ActivityEntry({ entry, isLast }: { entry: ActivityRow; isLast: boolean 
             <span
               className="t-caption inline-flex w-fit mt-1 px-2 py-0.5 rounded-full"
               style={{
-                backgroundColor: entry.typeLabel === 'Upload' ? 'var(--muted)' : 'rgba(59,130,246,0.12)',
-                color: entry.typeLabel === 'Upload' ? 'var(--muted-foreground)' : 'var(--info)',
+                backgroundColor: entry.typeLabel === 'Upload'
+                  ? 'var(--muted)'
+                  : entry.typeLabel === 'Response'
+                    ? 'rgba(13,122,40,0.12)'
+                    : 'rgba(59,130,246,0.12)',
+                color: entry.typeLabel === 'Upload'
+                  ? 'var(--muted-foreground)'
+                  : entry.typeLabel === 'Response'
+                    ? 'var(--success)'
+                    : 'var(--info)',
               }}
             >
               {entry.typeLabel}
@@ -747,6 +755,26 @@ function buildApplicationActivity(
     details: buildReviewActivityDetails(review),
   }))
 
+  const offerItems: ActivityRow[] = []
+  if (app.admissionOffer?.acceptedAt) {
+    offerItems.push({
+      id: `offer-accepted-${app.id}`,
+      at: app.admissionOffer.acceptedAt,
+      typeLabel: 'Response',
+      action: 'Offer accepted',
+      details: `${app.fullName} accepted the admission offer. A student record was created — they can now pay fees and register for courses.`,
+    })
+  }
+  if (app.admissionOffer?.declinedAt) {
+    offerItems.push({
+      id: `offer-declined-${app.id}`,
+      at: app.admissionOffer.declinedAt,
+      typeLabel: 'Response',
+      action: 'Offer declined',
+      details: `${app.fullName} declined the admission offer. The place may be offered to another applicant. They were emailed a confirmation.`,
+    })
+  }
+
   const uploadItems: ActivityRow[] = app.documents.map((doc) => ({
     id: `upload-${doc.id}`,
     at: doc.uploadedAt,
@@ -755,7 +783,7 @@ function buildApplicationActivity(
     details: `The student uploaded their ${formatDocumentTypeLabel(doc.documentType)}. File name: ${doc.fileName}.`,
   }))
 
-  return [...reviewItems, ...uploadItems].sort(
+  return [...reviewItems, ...offerItems, ...uploadItems].sort(
     (a, b) => (parseActivityTimestamp(b.at)?.getTime() ?? 0) - (parseActivityTimestamp(a.at)?.getTime() ?? 0),
   )
 }

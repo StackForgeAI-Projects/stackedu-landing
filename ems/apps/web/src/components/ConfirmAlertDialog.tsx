@@ -82,7 +82,7 @@ export type ConfirmAlertPanelProps = {
   tone: ConfirmAlertTone
   headlineLabel?: string
   headline: string
-  summary: string
+  summary: React.ReactNode
   notices?: ReadonlyArray<ConfirmAlertNotice>
   caution?: string
 }

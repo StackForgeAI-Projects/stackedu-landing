@@ -123,6 +123,12 @@ export const applicationDocumentRequestSchema = z.object({
   responseSubmittedAt: isoDateTimeSchema.nullable(),
 })
 
+export const applicationAdmissionOfferSchema = z.object({
+  expiresAt: isoDateTimeSchema,
+  acceptedAt: isoDateTimeSchema.nullable(),
+  declinedAt: isoDateTimeSchema.nullable(),
+})
+
 export const applicationReviewSchema = z.object({
   id: uuidSchema,
   decision: reviewApplicationDecisionSchema,
@@ -171,6 +177,7 @@ export const applicationSchema = z.object({
   reviewedAt: z.string().nullable(),
   createdAt: z.string(),
   documentRequest: applicationDocumentRequestSchema.nullable(),
+  admissionOffer: applicationAdmissionOfferSchema.nullable(),
 })
 
 export const applicationResponseSchema = z.object({ application: applicationSchema })
@@ -267,6 +274,7 @@ export const academicApplicationDetailSchema = academicApplicationSummarySchema.
   documents: z.array(academicApplicationDocumentSchema),
   payment: applicationPaymentSchema.nullable(),
   reviews: z.array(applicationReviewSchema),
+  admissionOffer: applicationAdmissionOfferSchema.nullable(),
 })
 
 export const academicApplicationDetailResponseSchema = z.object({
@@ -299,6 +307,7 @@ export type PaymentResponse = z.infer<typeof paymentResponseSchema>
 export type ReviewApplicationRequest = z.infer<typeof reviewApplicationSchema>
 export type RequestedDocuments = z.infer<typeof requestedDocumentsSchema>
 export type ApplicationDocumentRequest = z.infer<typeof applicationDocumentRequestSchema>
+export type ApplicationAdmissionOffer = z.infer<typeof applicationAdmissionOfferSchema>
 export type ApplicationReview = z.infer<typeof applicationReviewSchema>
 export type AcademicApplicationSummary = z.infer<typeof academicApplicationSummarySchema>
 export type AcademicApplicationsResponse = z.infer<typeof academicApplicationsResponseSchema>

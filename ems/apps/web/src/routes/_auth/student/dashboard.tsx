@@ -1,15 +1,17 @@
 ﻿import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { StudentDashboard } from '@stackedu/shared'
 import {
   CreditCard, TrendingUp, Users, Sparkles, ChevronLeft, ChevronRight, FileText, BookMarked,
 } from 'lucide-react'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { StudentShell } from '@/components/StudentShell'
 import { StatTile } from '@/components/StatTile'
 import { formatCurrency } from '@/lib/utils'
 import { getStudentDashboard, studentDashboardQueryKey } from '@/lib/api/student'
 import { apiErrorMessage } from '@/lib/api/client'
+import { showNewStudentWelcomeIfPresent } from '@/lib/new-student-welcome'
 
 export const Route = createFileRoute('/_auth/student/dashboard')({
   component: StudentDashboardPage,
@@ -52,6 +54,16 @@ function GradeBadge({ grade }: { grade: string }) {
 }
 
 function StudentDashboardPage() {
+  const [welcomeOpen, setWelcomeOpen] = useState(false)
+  const [welcomeStudentNumber, setWelcomeStudentNumber] = useState<string | null>(null)
+
+  useEffect(() => {
+    showNewStudentWelcomeIfPresent((studentNumber) => {
+      setWelcomeStudentNumber(studentNumber)
+      setWelcomeOpen(true)
+    })
+  }, [])
+
   const { data, isPending, error } = useQuery({
     queryKey: studentDashboardQueryKey,
     queryFn: getStudentDashboard,
@@ -64,6 +76,30 @@ function StudentDashboardPage() {
 
   return (
     <StudentShell pageTitle="Dashboard" guide="Your live record: GPA, outstanding fees, attendance, registered courses and this week's classes. StackEDU AI is paused.">
+      <ConfirmAlertDialog
+        open={welcomeOpen}
+        onOpenChange={setWelcomeOpen}
+        title="Welcome to the institution!"
+        tone="success"
+        headlineLabel="Congratulations"
+        headline="You are now a student"
+        summary={
+          welcomeStudentNumber
+            ? `Your student number is ${welcomeStudentNumber}. Keep it safe — you will use it to sign in, pay fees, and register for courses.`
+            : 'Your student record is ready. You can now pay fees and register for courses from your dashboard.'
+        }
+        notices={[
+          { icon: 'shield', label: 'Your student dashboard is ready — explore fees, registration, and your timetable.' },
+          { icon: 'file', label: 'Next: pay your fees, then register for courses for this semester.' },
+          { icon: 'clock', label: 'Your profile and academic record are now linked to this student number.' },
+        ]}
+        confirmLabel="Get started"
+        confirmVariant="brand"
+        onConfirm={(event) => {
+          event.preventDefault()
+          setWelcomeOpen(false)
+        }}
+      />
       {isPending ? (
         <p className="t-body p-8" style={{ color: 'var(--muted-foreground)' }}>Loading your dashboard…</p>
       ) : error ? (

@@ -76,6 +76,14 @@ export async function submitDocumentResponse(): Promise<Application> {
   return application
 }
 
+export async function acceptAdmissionOffer(): Promise<{ studentNumber: string }> {
+  return api.post<{ studentNumber: string }>('/apply/accept-admission')
+}
+
+export async function declineAdmissionOffer(): Promise<{ reference: string }> {
+  return api.post<{ reference: string }>('/apply/decline-admission')
+}
+
 export async function listDocuments(): Promise<ApplicationDocument[]> {
   const { documents } = await api.get<DocumentsResponse>('/apply/documents')
   return documents
