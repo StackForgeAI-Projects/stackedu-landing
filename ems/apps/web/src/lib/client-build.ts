@@ -1,3 +1,5 @@
+import { shouldShowInactivityLogoutNotice } from '@/lib/inactivity-logout-notice'
+
 const BUILD_STORAGE_KEY = 'stackedu:client-build'
 
 /** Reload once after a deploy so users never keep stale JS chunks in cache. */
@@ -9,6 +11,10 @@ export function ensureFreshClientBuild(): void {
 
   if (previous && previous !== buildId) {
     localStorage.setItem(BUILD_STORAGE_KEY, buildId)
+
+    // Do not reload away from the post-logout screen before the user sees the alert.
+    if (shouldShowInactivityLogoutNotice()) return
+
     void (async () => {
       if ('caches' in window) {
         const keys = await caches.keys()

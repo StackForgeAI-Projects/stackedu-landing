@@ -16,6 +16,14 @@ const TOAST_CLASS_NAMES = {
   description: 'text-sm leading-relaxed',
 }
 
+export interface NotifyInfoOptions {
+  duration?: number
+  id?: string
+  onDismiss?: () => void
+  classNames?: typeof TOAST_CLASS_NAMES
+  style?: React.CSSProperties
+}
+
 export function notifySuccess(message: string, description?: string): void {
   toast.success(message, {
     description,
@@ -35,13 +43,15 @@ export function notifyError(message: string, description?: string): void {
 export function notifyInfo(
   message: string,
   description?: string,
-  options?: { duration?: number; id?: string },
+  options?: NotifyInfoOptions,
 ): void {
   toast.message(message, {
     description,
     duration: options?.duration ?? 5000,
     id: options?.id,
+    onDismiss: options?.onDismiss,
+    style: options?.style,
     icon: createElement(Info, { className: 'h-4 w-4', style: { color: 'var(--info)' } }),
-    classNames: TOAST_CLASS_NAMES,
+    classNames: options?.classNames ?? TOAST_CLASS_NAMES,
   })
 }

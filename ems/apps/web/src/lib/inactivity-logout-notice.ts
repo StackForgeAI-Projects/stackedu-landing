@@ -1,7 +1,13 @@
 import { notifyInfo } from '@/lib/notify'
 
 const INACTIVITY_LOGOUT_KEY = 'stackedu:inactivity-logout'
-const INACTIVITY_LOGOUT_TOAST_ID = 'inactivity-logout-notice'
+export const INACTIVITY_LOGOUT_TOAST_ID = 'inactivity-logout-notice'
+
+const INACTIVITY_TOAST_CLASS_NAMES = {
+  toast: 'rounded-xl border shadow-sm',
+  title: 'text-sm font-semibold',
+  description: 'text-sm leading-relaxed',
+}
 
 /** Set when an auto sign-out happens after idle time, so login can explain why. */
 export function rememberInactivityLogout(): void {
@@ -45,16 +51,25 @@ export function shouldShowInactivityLogoutNotice(): boolean {
   return params.get('signedOut') === 'inactivity' || hasInactivityLogoutNotice()
 }
 
-/** Clear the flag and URL marker after the toast is shown. */
+/** Clear the flag and URL marker after the user dismisses the alert. */
 export function consumeInactivityLogoutNotice(): void {
   stripInactivityQueryParam()
   dismissInactivityLogoutNotice()
 }
 
-/** Top-right alert — call only after Sonner has mounted. */
-export function showInactivityLogoutNotice(): void {
+/** Persistent top-right alert — stays until the user interacts or closes it. */
+export function showInactivityLogoutNotice(onDismiss?: () => void): void {
   notifyInfo(INACTIVITY_LOGOUT_NOTICE.title, INACTIVITY_LOGOUT_NOTICE.description, {
-    duration: 8000,
+    duration: Infinity,
     id: INACTIVITY_LOGOUT_TOAST_ID,
+    onDismiss,
+    classNames: {
+      ...INACTIVITY_TOAST_CLASS_NAMES,
+      title: `${INACTIVITY_TOAST_CLASS_NAMES.title} !text-[var(--info,#2563eb)]`,
+    },
+    style: {
+      backgroundColor: 'var(--info-bg, #eff6ff)',
+      border: '1px solid var(--info, #2563eb)',
+    },
   })
 }
