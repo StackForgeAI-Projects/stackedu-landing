@@ -1,6 +1,6 @@
 import '../../config/load-dotenv'
 import { parseArgs } from 'node:util'
-import { count, eq, inArray, or } from 'drizzle-orm'
+import { and, count, eq, inArray, or } from 'drizzle-orm'
 import { deleteStoredObjectsByPrefix } from '../../lib/storage'
 import { closeAllConnections, getInstitutionDb, getPlatformDb } from '../connection'
 import {
@@ -10,11 +10,17 @@ import {
   applicationReviews,
   applications,
 } from '../institution/schema/admissions'
-import { users, verificationTokens } from '../institution/schema/people'
-import { institutions } from '../platform/schema'
+import { sessions, users, verificationTokens } from '../institution/schema/people'
+import { students } from '../institution/schema/students'
+import { institutions, userDirectory } from '../platform/schema'
+
+function unique<T>(values: T[]): T[] {
+  return [...new Set(values)]
+}
 
 /**
- * Removes all applicant-related data for one institution.
+ * Removes all applicant-related data for one institution, including platform
+ * login directory rows so the same email can register again.
  *
  *   bun run purge-applicants --slug sfu
  *   bun run purge-applicants --slug sfu --confirm
@@ -50,40 +56,90 @@ async function main() {
 
   const db = await getInstitutionDb(institution.id)
 
+  const applicationRows = await db
+    .select({
+      applicantUserId: applications.applicantUserId,
+      convertedStudentId: applications.convertedStudentId,
+      email: applications.email,
+    })
+    .from(applications)
+
+  const roleApplicantUsers = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(eq(users.role, 'Applicant'))
+
+  const applicantUserIds = unique(
+    [
+      ...applicationRows.map((row) => row.applicantUserId),
+      ...roleApplicantUsers.map((row) => row.id),
+    ].filter((id): id is string => Boolean(id)),
+  )
+
+  const convertedStudentIds = unique(
+    applicationRows.map((row) => row.convertedStudentId).filter((id): id is string => Boolean(id)),
+  )
+
+  const convertedStudentUsers =
+    convertedStudentIds.length > 0
+      ? await db
+          .select({ userId: students.userId })
+          .from(students)
+          .where(inArray(students.id, convertedStudentIds))
+      : []
+
+  const allUserIds = unique([
+    ...applicantUserIds,
+    ...convertedStudentUsers.map((row) => row.userId),
+  ])
+
+  const allEmails = unique([
+    ...applicationRows.map((row) => row.email.trim().toLowerCase()),
+    ...roleApplicantUsers.map((row) => row.email.trim().toLowerCase()),
+  ])
+
+  const tokenConditions = [
+    ...(allUserIds.length ? [inArray(verificationTokens.identifier, allUserIds)] : []),
+    ...(allEmails.length ? [inArray(verificationTokens.identifier, allEmails)] : []),
+  ]
+
+  const directoryConditions = [
+    eq(userDirectory.institutionId, institution.id),
+    or(
+      eq(userDirectory.role, 'Applicant'),
+      ...(allUserIds.length ? [inArray(userDirectory.institutionUserId, allUserIds)] : []),
+      ...(allEmails.length ? [inArray(userDirectory.email, allEmails)] : []),
+    ),
+  ]
+
   const [
     [applicationCount],
     [documentCount],
     [reviewCount],
     [paymentCount],
     [offerCount],
+    [sessionCount],
     [applicantUserCount],
+    [verificationTokenCount],
+    [directoryCount],
   ] = await Promise.all([
     db.select({ value: count() }).from(applications),
     db.select({ value: count() }).from(applicationDocuments),
     db.select({ value: count() }).from(applicationReviews),
     db.select({ value: count() }).from(applicationPayments),
     db.select({ value: count() }).from(admissionOffers),
+    allUserIds.length
+      ? db.select({ value: count() }).from(sessions).where(inArray(sessions.userId, allUserIds))
+      : Promise.resolve([{ value: 0 }]),
     db.select({ value: count() }).from(users).where(eq(users.role, 'Applicant')),
+    tokenConditions.length
+      ? db.select({ value: count() }).from(verificationTokens).where(or(...tokenConditions))
+      : Promise.resolve([{ value: 0 }]),
+    platform
+      .select({ value: count() })
+      .from(userDirectory)
+      .where(and(...directoryConditions)),
   ])
-
-  const applicantAccounts = await db
-    .select({ id: users.id, email: users.email })
-    .from(users)
-    .where(eq(users.role, 'Applicant'))
-
-  const applicantIds = applicantAccounts.map((row) => row.id)
-  const applicantEmails = applicantAccounts.map((row) => row.email)
-  const tokenConditions = [
-    ...(applicantIds.length ? [inArray(verificationTokens.identifier, applicantIds)] : []),
-    ...(applicantEmails.length ? [inArray(verificationTokens.identifier, applicantEmails)] : []),
-  ]
-
-  const [verificationTokenCount] = tokenConditions.length
-    ? await db
-        .select({ value: count() })
-        .from(verificationTokens)
-        .where(or(...tokenConditions))
-    : [{ value: 0 }]
 
   const storagePrefix = `institutions/${institution.id}/applications`
 
@@ -96,7 +152,9 @@ async function main() {
       `  application_payments:  ${paymentCount?.value ?? 0}\n` +
       `  admission_offers:      ${offerCount?.value ?? 0}\n` +
       `  applicant_users:       ${applicantUserCount?.value ?? 0}\n` +
+      `  applicant_sessions:    ${sessionCount?.value ?? 0}\n` +
       `  verification_tokens:   ${verificationTokenCount?.value ?? 0}\n` +
+      `  user_directory_rows:   ${directoryCount?.value ?? 0}\n` +
       `  storage_prefix:        ${storagePrefix}/\n\n`,
   )
 
@@ -109,18 +167,33 @@ async function main() {
   await db.transaction(async (tx) => {
     await tx.delete(applications)
 
+    if (convertedStudentIds.length) {
+      await tx.delete(students).where(inArray(students.id, convertedStudentIds))
+    }
+
+    if (allUserIds.length) {
+      await tx.delete(sessions).where(inArray(sessions.userId, allUserIds))
+    }
+
     if (tokenConditions.length) {
       await tx.delete(verificationTokens).where(or(...tokenConditions))
     }
 
-    await tx.delete(users).where(eq(users.role, 'Applicant'))
+    if (allUserIds.length) {
+      await tx.delete(users).where(inArray(users.id, allUserIds))
+    } else {
+      await tx.delete(users).where(eq(users.role, 'Applicant'))
+    }
   })
+
+  await platform.delete(userDirectory).where(and(...directoryConditions))
 
   const deletedObjects = await deleteStoredObjectsByPrefix(storagePrefix)
 
   process.stdout.write(
     `Done.\n` +
-      `  Removed ${applicationCount?.value ?? 0} application(s) and ${applicantUserCount?.value ?? 0} applicant account(s).\n` +
+      `  Removed ${applicationCount?.value ?? 0} application(s) and related records.\n` +
+      `  Removed ${directoryCount?.value ?? 0} login directory row(s) — emails can register again.\n` +
       `  Cleared ${deletedObjects} stored file object(s) under ${storagePrefix}/.\n\n`,
   )
 
