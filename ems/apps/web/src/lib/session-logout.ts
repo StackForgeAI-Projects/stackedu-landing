@@ -1,5 +1,5 @@
 import { logout, sessionQueryKey } from '@/lib/api/auth'
-import { rememberInactivityLogout } from '@/lib/inactivity-logout-notice'
+import { rememberInactivityLogout, inactivityLogoutDestination } from '@/lib/inactivity-logout-notice'
 import { queryClient } from '@/lib/query-client'
 
 export async function performSignOutRedirect(destination: string): Promise<void> {
@@ -16,5 +16,5 @@ export async function performSignOutRedirect(destination: string): Promise<void>
  */
 export async function performInactivityLogout(destination = '/login'): Promise<void> {
   rememberInactivityLogout()
-  await performSignOutRedirect(destination)
+  await performSignOutRedirect(inactivityLogoutDestination(destination))
 }

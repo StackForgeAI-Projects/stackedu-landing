@@ -5,10 +5,12 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
 import { queryClient } from './lib/query-client'
 import { installStaleChunkRecovery } from './lib/chunk-reload'
+import { ensureFreshClientBuild } from './lib/client-build'
 import { initTheme } from './lib/theme'
 import './styles.css'
 
 initTheme()
+ensureFreshClientBuild()
 installStaleChunkRecovery()
 
 createRoot(document.getElementById('root')!).render(

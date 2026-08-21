@@ -32,10 +32,15 @@ export function notifyError(message: string, description?: string): void {
   })
 }
 
-export function notifyInfo(message: string, description?: string, options?: { duration?: number }): void {
+export function notifyInfo(
+  message: string,
+  description?: string,
+  options?: { duration?: number; id?: string },
+): void {
   toast.message(message, {
     description,
     duration: options?.duration ?? 5000,
+    id: options?.id,
     icon: createElement(Info, { className: 'h-4 w-4', style: { color: 'var(--info)' } }),
     classNames: TOAST_CLASS_NAMES,
   })
