@@ -11,13 +11,16 @@ import { Switch } from '@/components/ui/switch'
 import { AcademicShell } from '@/components/AcademicShell'
 import { DataTable } from '@/components/DataTable'
 import {
+  academicDepartmentsQueryKey,
   academicProgrammesQueryKey,
   createAcademicProgramme,
+  listAcademicDepartments,
   listAcademicProgrammes,
   updateAcademicProgramme,
 } from '@/lib/api/academic'
 import { apiErrorMessage } from '@/lib/api/client'
 import { toast } from 'sonner'
+import { DepartmentPicker } from '@/components/DepartmentPicker'
 
 export const Route = createFileRoute('/_auth/academic/programmes')({
   component: ProgrammesPage,
@@ -32,7 +35,7 @@ function parseDurationYears(duration: string): number {
 function deptBadgeColors(dept: string) {
   if (dept.includes('Computer') || dept.includes('Computing')) return { bg: 'var(--info-bg)', color: 'var(--info)' }
   if (dept.includes('Math') || dept.includes('Science')) return { bg: 'rgba(15, 189, 59,0.10)', color: '#16A34A' }
-  if (dept.includes('Business')) return { bg: 'var(--warning-bg)', color: 'var(--warning)' }
+  if (dept.includes('Engineer') || dept.includes('Mechanical')) return { bg: 'rgba(124,58,237,0.10)', color: '#7C3AED' }
   return { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
 }
 
@@ -42,13 +45,18 @@ function ProgrammesPage() {
     queryKey: academicProgrammesQueryKey,
     queryFn: listAcademicProgrammes,
   })
+  const departmentsQuery = useQuery({
+    queryKey: academicDepartmentsQueryKey,
+    queryFn: listAcademicDepartments,
+  })
 
   const programmes = data ?? []
-  const defaultDepartment = programmes[0]?.department ?? 'Department of Computing'
+  const departmentNames = (departmentsQuery.data ?? []).map((d) => d.name)
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editProg, setEditProg] = useState<AcademicProgrammeRow | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AcademicProgrammeRow | null>(null)
+  const [confirmSave, setConfirmSave] = useState(false)
   const [form, setForm] = useState({
     name: '', department: '', duration: '', totalCredits: '', description: '', status: true,
   })
@@ -64,6 +72,7 @@ function ProgrammesPage() {
       if (editProg) {
         return updateAcademicProgramme(editProg.id, {
           name: form.name.trim(),
+          departmentName: form.department.trim(),
           durationYears,
           totalCredits,
           isActive: form.status,
@@ -72,7 +81,7 @@ function ProgrammesPage() {
 
       return createAcademicProgramme({
         name: form.name.trim(),
-        departmentName: form.department.trim() || defaultDepartment,
+        departmentName: form.department.trim(),
         durationYears,
         totalCredits,
       })
@@ -80,8 +89,10 @@ function ProgrammesPage() {
     onSuccess: async () => {
       toast.success(editProg ? 'Programme updated.' : 'Programme created.')
       setSheetOpen(false)
+      setConfirmSave(false)
       setEditProg(null)
       await queryClient.invalidateQueries({ queryKey: academicProgrammesQueryKey })
+      await queryClient.invalidateQueries({ queryKey: academicDepartmentsQueryKey })
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Could not save programme.')),
   })
@@ -100,7 +111,7 @@ function ProgrammesPage() {
     setEditProg(null)
     setForm({
       name: '',
-      department: defaultDepartment,
+      department: '',
       duration: '3 years',
       totalCredits: '120',
       description: '',
@@ -120,6 +131,23 @@ function ProgrammesPage() {
       status: p.status === 'Active',
     })
     setSheetOpen(true)
+  }
+
+  const requestSave = () => {
+    if (!form.name.trim()) {
+      toast.error('Programme name is required.')
+      return
+    }
+    if (!form.department.trim()) {
+      toast.error('Department is required.')
+      return
+    }
+    const totalCredits = Number.parseInt(form.totalCredits, 10)
+    if (!Number.isFinite(totalCredits) || totalCredits < 1) {
+      toast.error('Total credits must be a positive number.')
+      return
+    }
+    setConfirmSave(true)
   }
 
   const inputStyle = { border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }
@@ -214,6 +242,29 @@ function ProgrammesPage() {
         onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget) }}
       />
 
+      <ConfirmAlertDialog
+        open={confirmSave}
+        onOpenChange={(open) => { if (!open) setConfirmSave(false) }}
+        title={editProg ? 'Save these programme changes?' : 'Create this programme?'}
+        tone="success"
+        headlineLabel="Action"
+        headline={editProg ? 'Update programme' : 'Create programme'}
+        summary={
+          editProg
+            ? `${form.name.trim()} will be updated in ${form.department.trim()}.`
+            : `${form.name.trim()} will be created in ${form.department.trim()}.`
+        }
+        notices={[
+          { icon: 'info', label: 'This programme will appear in admissions choices when it is active.' },
+          { icon: 'file', label: 'If this department does not exist yet, it will be created.' },
+        ]}
+        confirmLabel={saveMutation.isPending ? 'Saving…' : 'Confirm'}
+        confirmVariant="brand"
+        loading={saveMutation.isPending}
+        onCancel={() => setConfirmSave(false)}
+        onConfirm={() => saveMutation.mutate()}
+      />
+
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="p-0 overflow-y-auto sheet-lg">
           <SheetHeader className="px-8 py-6" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -234,14 +285,14 @@ function ProgrammesPage() {
             </div>
             <div>
               <label className="t-label mb-1.5 block" style={{ color: 'var(--muted-foreground)' }}>Department</label>
-              <input
+              <DepartmentPicker
                 value={form.department}
-                onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                readOnly={!!editProg}
-                className="w-full text-sm rounded-lg px-3 h-9 outline-none"
-                style={{ ...inputStyle, backgroundColor: editProg ? 'var(--muted)' : 'var(--background)' }}
-                placeholder="Department of Computing"
+                onChange={(department) => setForm((f) => ({ ...f, department }))}
+                departments={departmentNames}
               />
+              <p className="t-caption mt-1.5" style={{ color: 'var(--muted-foreground)' }}>
+                Choose a department from the list, or add a new one in the dropdown. A new name is created when you save.
+              </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -291,7 +342,7 @@ function ProgrammesPage() {
               <button type="button" onClick={() => setSheetOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>Cancel</button>
               <button
                 type="button"
-                onClick={() => saveMutation.mutate()}
+                onClick={requestSave}
                 disabled={saveMutation.isPending}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
                 style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: saveMutation.isPending ? 'not-allowed' : 'pointer', opacity: saveMutation.isPending ? 0.7 : 1 }}

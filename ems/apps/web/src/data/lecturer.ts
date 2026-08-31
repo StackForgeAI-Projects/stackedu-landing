@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  LayoutDashboard, BookOpen, ClipboardList, BarChart2, FileText, TrendingUp, Bell,
+  LayoutDashboard, BookOpen, CalendarDays, ClipboardList, BarChart2, FileText, TrendingUp, Bell,
 } from 'lucide-react'
 
 export const LECTURER = {
@@ -20,6 +20,7 @@ export const LECTURER = {
 export const LECTURER_NAV = [
   { label: 'Dashboard',     to: '/lecturer/dashboard',     icon: LayoutDashboard },
   { label: 'My Courses',    to: '/lecturer/courses',       icon: BookOpen        },
+  { label: 'Timetable',     to: '/lecturer/timetable',     icon: CalendarDays    },
   { label: 'Attendance',    to: '/lecturer/attendance',    icon: ClipboardList   },
   { label: 'Results',       to: '/lecturer/results',       icon: BarChart2       },
   { label: 'Assignments',   to: '/lecturer/assignments',   icon: FileText        },
@@ -418,13 +419,11 @@ export const LECTURER_NOTIFS: LecturerNotif[] = [
 export function calcGrade(marks: number, maxMarks: number): string {
   if (!maxMarks || isNaN(marks)) return '—'
   const pct = (marks / maxMarks) * 100
-  if (pct >= 90) return 'A'
-  if (pct >= 80) return 'B+'
+  if (pct >= 80) return 'A'
   if (pct >= 70) return 'B'
-  if (pct >= 60) return 'C+'
-  if (pct >= 50) return 'C'
-  if (pct >= 45) return 'D+'
-  if (pct >= 40) return 'D'
+  if (pct >= 60) return 'C'
+  if (pct >= 50) return 'D'
+  if (pct >= 40) return 'E'
   return 'F'
 }
 
@@ -432,7 +431,7 @@ export function gradeColor(grade: string): { bg: string; color: string } {
   if (grade === 'A')                  return { bg: 'var(--success-bg)', color: 'var(--success)' }
   if (grade === 'B+' || grade === 'B') return { bg: 'var(--info-bg)',    color: 'var(--info)'    }
   if (grade === 'C+' || grade === 'C') return { bg: 'var(--warning-bg)', color: 'var(--warning)' }
-  if (grade === 'D+' || grade === 'D') return { bg: 'var(--error-bg)',   color: 'var(--error)'   }
+  if (grade === 'D+' || grade === 'D' || grade === 'E') return { bg: 'var(--error-bg)', color: 'var(--error)' }
   if (grade === 'F')                  return { bg: 'var(--error-bg)',   color: 'var(--error)'   }
   return { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
 }

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Plus, Trash2, ArrowLeft, GripVertical } from 'lucide-react'
-import { AppShell } from '@/components/AppShell'
+import { LecturerShell } from '@/components/LecturerShell'
 import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { LECTURER, LECTURER_NAV, LECTURER_COURSES } from '@/data/lecturer'
+import { LECTURER_COURSES } from '@/data/lecturer'
 
 export const Route = createFileRoute('/_auth/lecturer/assessment-builder')({
   component: AssessmentBuilderPage,
@@ -55,24 +55,14 @@ function AssessmentBuilderPage() {
   const [view, setView] = useState<'list' | 'create'>('list')
 
   return (
-    <AppShell
-      navItems={LECTURER_NAV}
-      pageTitle="Assessment Builder"
-      userName={LECTURER.fullName}
-      userRole="Lecturer"
-      userInitials={LECTURER.initials}
-      unreadCount={3}
-      infoCardLabel="LECTURER ID"
-      infoCardValue={LECTURER.id}
-      infoCardSubtext={LECTURER.department}
-    >
+    <LecturerShell pageTitle="Assessment Builder">
       <div className="animate-fade-up" style={{ padding: '32px 32px 56px', maxWidth: 960, margin: '0 auto' }}>
         {view === 'list'
           ? <AssessmentList onCreateNew={() => setView('create')} />
           : <CreateAssessmentForm onBack={() => setView('list')} />
         }
       </div>
-    </AppShell>
+    </LecturerShell>
   )
 }
 

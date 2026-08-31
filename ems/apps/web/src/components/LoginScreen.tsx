@@ -12,6 +12,7 @@ import { useInstitutionBranding } from '@/hooks/useInstitutionBranding'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
 import { notifyError } from '@/lib/notify'
+import { clearDismissedPageGuides } from '@/lib/page-guide'
 import { rememberWelcome } from '@/lib/welcome'
 import { queryClient } from '@/lib/query-client'
 
@@ -40,6 +41,7 @@ export function LoginScreen() {
         return
       }
       queryClient.setQueryData(sessionQueryKey, result)
+      clearDismissedPageGuides()
       rememberWelcome(result.fullName)
       await navigate({ to: dashboardFor(result.role) })
     } catch (cause) {

@@ -31,7 +31,7 @@ function TimetableManagerPage() {
     slots.some((b, j) => i !== j && a.day === b.day && a.hour === b.hour && ((a.lecturer && a.lecturer === b.lecturer) || (a.room && a.room === b.room))),
   ), [slots])
 
-  const readOnlyMsg = () => toast.info('Timetable changes are not saved yet — schedule is read-only from the API.')
+  const readOnlyMsg = () => toast.info('The timetable is the live schedule from course offerings. Editing and publish will follow with the Lecturer portal.')
 
   return (
     <AcademicShell pageTitle="Timetable">
@@ -40,10 +40,10 @@ function TimetableManagerPage() {
           <div>
             <h1 className="t-h1 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.015em' }}>Timetable Manager</h1>
             <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>
-              {isPending ? 'Loading…' : 'Weekly class schedule from the API'}
+              {isPending ? 'Loading…' : 'Current semester class schedule. Slot editing will follow with the Lecturer portal.'}
             </p>
           </div>
-          <button type="button" onClick={readOnlyMsg} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold" style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'not-allowed', opacity: 0.6 }}>
+          <button type="button" onClick={readOnlyMsg} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold" style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'not-allowed', opacity: 0.6 }} title="Publishing is not available yet">
             Publish timetable
           </button>
         </div>

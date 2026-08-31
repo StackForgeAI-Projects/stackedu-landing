@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import type { AcademicCalendarEvent } from '@stackedu/shared'
+import { formatAppDateDdMmYyyy } from '@stackedu/shared'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -65,6 +66,18 @@ function toIsoDate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+function parseIsoDateLocal(value: string): Date {
+  const match = value.trim().slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return new Date(value)
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+function formatEventRange(startDate: string, endDate: string | null): string {
+  const start = formatAppDateDdMmYyyy(startDate)
+  if (!endDate || endDate === startDate) return start
+  return `${start} – ${formatAppDateDdMmYyyy(endDate)}`
+}
+
 function eventColors(type: string) {
   if ((EVENT_TYPES as readonly string[]).includes(type)) {
     return calEventColors(type as typeof EVENT_TYPES[number])
@@ -79,6 +92,7 @@ function CalendarPage() {
   const [selDate, setSelDate] = useState(today)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<AcademicCalendarEvent | null>(null)
+  const [confirmSave, setConfirmSave] = useState(false)
   const [form, setForm] = useState<EventForm>(BLANK_EVENT)
 
   const { data, isPending, error } = useQuery({
@@ -103,6 +117,7 @@ function CalendarPage() {
     onSuccess: async () => {
       toast.success('Event added to the calendar.')
       setSheetOpen(false)
+      setConfirmSave(false)
       setForm(BLANK_EVENT)
       await queryClient.invalidateQueries({ queryKey: academicCalendarQueryKey })
     },
@@ -120,12 +135,26 @@ function CalendarPage() {
   })
 
   const eventsOnDay = useMemo(() => (d: Date) => events.filter((e) => {
-    const start = new Date(e.startDate)
-    const end = new Date(e.endDate ?? e.startDate)
+    const start = parseIsoDateLocal(e.startDate)
+    const end = parseIsoDateLocal(e.endDate ?? e.startDate)
     const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-    return day >= new Date(start.getFullYear(), start.getMonth(), start.getDate())
-      && day <= new Date(end.getFullYear(), end.getMonth(), end.getDate())
+    const from = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    const to = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+    return day >= from && day <= to
   }), [events])
+
+  const todayKey = toIsoDate(today)
+  const allEvents = useMemo(() => {
+    const todayStart = parseIsoDateLocal(todayKey)
+    return [...events].sort((a, b) => {
+      const aStart = parseIsoDateLocal(a.startDate)
+      const bStart = parseIsoDateLocal(b.startDate)
+      const aUpcoming = parseIsoDateLocal(a.endDate ?? a.startDate) >= todayStart ? 0 : 1
+      const bUpcoming = parseIsoDateLocal(b.endDate ?? b.startDate) >= todayStart ? 0 : 1
+      if (aUpcoming !== bUpcoming) return aUpcoming - bUpcoming
+      return aStart.getTime() - bStart.getTime()
+    })
+  }, [events, todayKey])
 
   const selEvents = eventsOnDay(selDate)
   const monthDays = getMonthDays(navDate)
@@ -215,7 +244,7 @@ function CalendarPage() {
               onSelect={(ev) => setDeleteTarget(ev)}
             />
             <div className="mt-4">
-              <EventList title="All Events" events={events} scroll onSelect={(ev) => setDeleteTarget(ev)} />
+              <EventList title="All Events" events={allEvents} scroll onSelect={(ev) => setDeleteTarget(ev)} />
             </div>
           </div>
         </div>
@@ -285,7 +314,17 @@ function CalendarPage() {
               <button type="button" onClick={() => setSheetOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>Cancel</button>
               <button
                 type="button"
-                onClick={() => createMutation.mutate()}
+                onClick={() => {
+                  if (!form.title.trim()) {
+                    toast.error('Event title is required.')
+                    return
+                  }
+                  if (!form.startDate) {
+                    toast.error('Start date is required.')
+                    return
+                  }
+                  setConfirmSave(true)
+                }}
                 disabled={createMutation.isPending}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
                 style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: createMutation.isPending ? 'not-allowed' : 'pointer', opacity: createMutation.isPending ? 0.7 : 1 }}
@@ -312,6 +351,24 @@ function CalendarPage() {
         loading={deleteMutation.isPending}
         onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget) }}
       />
+
+      <ConfirmAlertDialog
+        open={confirmSave}
+        onOpenChange={(open) => { if (!open) setConfirmSave(false) }}
+        title="Add this calendar event?"
+        tone="success"
+        headlineLabel="Action"
+        headline="Create event"
+        summary={`${form.title.trim()} will be added to the academic calendar.`}
+        notices={[
+          { icon: 'info', label: 'Staff and students will see this event on the calendar.' },
+        ]}
+        confirmLabel={createMutation.isPending ? 'Saving…' : 'Confirm'}
+        confirmVariant="brand"
+        loading={createMutation.isPending}
+        onCancel={() => setConfirmSave(false)}
+        onConfirm={() => createMutation.mutate()}
+      />
     </AcademicShell>
   )
 }
@@ -328,36 +385,41 @@ function EventList({
   onSelect?: (event: AcademicCalendarEvent) => void
 }) {
   return (
-    <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', padding: 20, maxHeight: scroll ? 320 : 420, overflowY: scroll ? 'auto' : undefined }}>
-      <h3 className="t-h3 mb-4" style={{ fontSize: '0.9375rem' }}>{title}</h3>
-      {events.length === 0 ? (
-        <p className="text-sm text-center py-6" style={{ color: 'var(--muted-foreground)' }}>No events</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {events.map((ev) => {
-            const { bg, color } = eventColors(ev.type)
-            return (
-              <button
-                key={ev.id}
-                type="button"
-                onClick={() => onSelect?.(ev)}
-                className="p-3 rounded-xl text-left w-full transition-opacity hover:opacity-90"
-                style={{ backgroundColor: bg, border: `1px solid ${color}20`, cursor: onSelect ? 'pointer' : 'default' }}
-                title={onSelect ? 'Click to delete' : undefined}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">{ev.title}</p>
-                    <p className="t-caption mt-0.5">{ev.startDate}{ev.endDate && ev.endDate !== ev.startDate ? ` – ${ev.endDate}` : ''}</p>
-                    {ev.description && <p className="t-caption mt-1">{ev.description}</p>}
+    <div
+      className="flex flex-col"
+      style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', maxHeight: scroll ? 320 : 420 }}
+    >
+      <h3 className="t-h3 shrink-0 px-5 pt-5 pb-3" style={{ fontSize: '0.9375rem' }}>{title}</h3>
+      <div className="px-5 pb-5 min-h-0" style={{ overflowY: scroll ? 'auto' : undefined }}>
+        {events.length === 0 ? (
+          <p className="text-sm text-center py-6" style={{ color: 'var(--muted-foreground)' }}>No events</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {events.map((ev) => {
+              const { bg, color } = eventColors(ev.type)
+              return (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => onSelect?.(ev)}
+                  className="p-3 rounded-xl text-left w-full transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: bg, border: `1px solid ${color}20`, cursor: onSelect ? 'pointer' : 'default' }}
+                  title={onSelect ? 'Click to delete' : undefined}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold">{ev.title}</p>
+                      <p className="t-caption mt-0.5">{formatEventRange(ev.startDate, ev.endDate)}</p>
+                      {ev.description && <p className="t-caption mt-1">{ev.description}</p>}
+                    </div>
+                    <span className="t-label px-1.5 py-0.5 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.5)', color, fontSize: 10 }}>{ev.type}</span>
                   </div>
-                  <span className="t-label px-1.5 py-0.5 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.5)', color, fontSize: 10 }}>{ev.type}</span>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

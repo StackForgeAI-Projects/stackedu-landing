@@ -1,5 +1,9 @@
 import { Info, X } from 'lucide-react'
 import { useState } from 'react'
+import {
+  dismissPageGuide,
+  isPageGuideDismissed,
+} from '@/lib/page-guide'
 
 interface PageGuideProps {
   pageKey: string
@@ -8,14 +12,8 @@ interface PageGuideProps {
 }
 
 export function PageGuide({ pageKey, title = 'On this page', children }: PageGuideProps) {
-  const storageKey = `stackedu:guide:${pageKey}`
-  const [hidden, setHidden] = useState(() => {
-    try {
-      return localStorage.getItem(storageKey) === '1'
-    } catch {
-      return false
-    }
-  })
+  const storageKey = pageKey
+  const [hidden, setHidden] = useState(() => isPageGuideDismissed(storageKey))
 
   if (hidden) return null
 
@@ -39,11 +37,7 @@ export function PageGuide({ pageKey, title = 'On this page', children }: PageGui
         className="flex-shrink-0"
         style={{ color: 'var(--muted-foreground)' }}
         onClick={() => {
-          try {
-            localStorage.setItem(storageKey, '1')
-          } catch {
-            /* ignore */
-          }
+          dismissPageGuide(storageKey)
           setHidden(true)
         }}
       >

@@ -20,6 +20,7 @@ import { acceptAdmissionOffer, declineAdmissionOffer } from '@/lib/api/admission
 import { login, sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
+import { clearDismissedPageGuides } from '@/lib/page-guide'
 import {
   applyResumeRoute,
   buildTrackTimelineStages,
@@ -95,6 +96,7 @@ function ApplicantSignIn() {
         return
       }
       queryClient.setQueryData(sessionQueryKey, signedIn)
+      clearDismissedPageGuides()
 
       // Staff and students who land here belong somewhere else.
       if (signedIn.role !== 'Applicant') {

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { BarChart2, Download } from 'lucide-react'
-import { AppShell } from '@/components/AppShell'
+import { LecturerShell } from '@/components/LecturerShell'
 import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -11,7 +11,7 @@ import {
 } from 'recharts'
 import { toast } from 'sonner'
 import {
-  LECTURER, LECTURER_NAV, LECTURER_COURSES, COURSE_STUDENTS, ASSESSMENTS,
+  LECTURER_COURSES, COURSE_STUDENTS, ASSESSMENTS,
   PUBLISHED_MARKS, calcGrade, gradeColor, type CourseStudent,
 } from '@/data/lecturer'
 
@@ -35,17 +35,7 @@ function ResultReviewPage() {
   const published   = ASSESSMENTS.filter(a => a.courseId === courseId && a.status === 'published')
 
   return (
-    <AppShell
-      navItems={LECTURER_NAV}
-      pageTitle="Published Results"
-      userName={LECTURER.fullName}
-      userRole="Lecturer"
-      userInitials={LECTURER.initials}
-      unreadCount={3}
-      infoCardLabel="LECTURER ID"
-      infoCardValue={LECTURER.id}
-      infoCardSubtext={LECTURER.department}
-    >
+    <LecturerShell pageTitle="Published Results">
       <div className="animate-fade-up" style={{ padding: '32px 32px 56px', maxWidth: 1000, margin: '0 auto' }}>
 
         {/* Header */}
@@ -86,7 +76,7 @@ function ResultReviewPage() {
           </div>
         )}
       </div>
-    </AppShell>
+    </LecturerShell>
   )
 }
 

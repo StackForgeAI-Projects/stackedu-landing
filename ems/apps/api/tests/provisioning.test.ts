@@ -67,9 +67,16 @@ describe('institution provisioning', () => {
 
     const bursar = await permissionsForRole(db, 'Bursar')
     const student = await permissionsForRole(db, 'Student')
+    const lecturer = await permissionsForRole(db, 'Lecturer')
 
     expect(bursar).toContain('payments.record')
     expect(bursar).toContain('refunds.approve')
+
+    expect(lecturer).toContain('attendance.record')
+    expect(lecturer).toContain('grades.write')
+    expect(lecturer).toContain('results.submit')
+    expect(lecturer).toContain('timetable.write')
+    expect(lecturer).not.toContain('results.publish')
 
     // A student must never be able to touch money or publish results.
     expect(student).not.toContain('payments.record')

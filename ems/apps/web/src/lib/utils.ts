@@ -1,3 +1,4 @@
+import { formatAppDateDdMmYyyy } from '@stackedu/shared'
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -74,33 +75,25 @@ export function parseAppDateTime(value: Date | string): Date | null {
 
 /**
  * Format a date for dense UI (tables, badges).
- * e.g. 2026-06-30 → "30 Jun 2026"
+ * e.g. 2026-06-30 → "30-06-2026"
  */
 export function formatDateShort(date: Date | string | null | undefined): string {
   if (date == null || date === '') return '—'
   const parsed = parseAppDateTime(date)
-  if (!parsed) return typeof date === 'string' ? date.split(/[ T]/)[0] ?? '—' : '—'
-  return parsed.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  if (!parsed) return formatAppDateDdMmYyyy(date)
+  return formatAppDateDdMmYyyy(parsed)
 }
 
 /**
  * Format a date for confirmations and full views.
- * e.g. 2026-06-30 → "Tuesday, 30 June 2026"
+ * e.g. 2026-06-30 → "Tuesday, 30-06-2026"
  */
 export function formatDateLong(date: Date | string | null | undefined): string {
   if (date == null || date === '') return '—'
   const parsed = parseAppDateTime(date)
-  if (!parsed) return typeof date === 'string' ? date.split(/[ T]/)[0] ?? '—' : '—'
-  return parsed.toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  if (!parsed) return formatAppDateDdMmYyyy(date)
+  const weekday = parsed.toLocaleDateString('en-GB', { weekday: 'long' })
+  return `${weekday}, ${formatAppDateDdMmYyyy(parsed)}`
 }
 
 /**

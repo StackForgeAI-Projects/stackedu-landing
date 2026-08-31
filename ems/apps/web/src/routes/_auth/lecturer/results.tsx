@@ -1,273 +1,272 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 import { BarChart2 } from 'lucide-react'
-import { AppShell } from '@/components/AppShell'
+import type { LecturerCourseRow, LecturerResultBatch } from '@stackedu/shared'
+import { LecturerShell } from '@/components/LecturerShell'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
-import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
+import { apiErrorMessage } from '@/lib/api/client'
 import {
-  LECTURER, LECTURER_NAV, LECTURER_COURSES, COURSE_STUDENTS, ASSESSMENTS,
-  PUBLISHED_MARKS, calcGrade, gradeColor,
-} from '@/data/lecturer'
+  getLecturerResults,
+  lecturerCoursesQueryKey,
+  lecturerDashboardQueryKey,
+  lecturerResultsQueryKey,
+  listLecturerCourses,
+  saveLecturerResults,
+  submitLecturerResults,
+} from '@/lib/api/lecturer'
+import { calcGrade, gradeColor } from '@/data/lecturer'
 
 export const Route = createFileRoute('/_auth/lecturer/results')({
   component: ResultEntryPage,
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 function ResultEntryPage() {
-  const [courseId, setCourseId] = useState(LECTURER_COURSES[0].id)
+  const { data: courses = [], isPending, error } = useQuery({
+    queryKey: lecturerCoursesQueryKey,
+    queryFn: listLecturerCourses,
+  })
+  const [offeringId, setOfferingId] = useState('')
 
-  const course      = LECTURER_COURSES.find(c => c.id === courseId)!
-  const assessments = ASSESSMENTS.filter(a => a.courseId === courseId)
-  const draftItems  = assessments.filter(a => a.status === 'draft' || a.status === 'submitted')
-  const published   = assessments.filter(a => a.status === 'published')
+  useEffect(() => {
+    if (!offeringId && courses[0]) setOfferingId(courses[0].offeringId)
+  }, [courses, offeringId])
 
   return (
-    <AppShell
-      navItems={LECTURER_NAV}
-      pageTitle="Results"
-      userName={LECTURER.fullName}
-      userRole="Lecturer"
-      userInitials={LECTURER.initials}
-      unreadCount={3}
-      infoCardLabel="LECTURER ID"
-      infoCardValue={LECTURER.id}
-      infoCardSubtext={LECTURER.department}
-    >
-      <div className="animate-fade-up" style={{ padding: '32px 32px 56px', maxWidth: 1000, margin: '0 auto' }}>
-
-        {/* Header */}
-        <div className="flex items-start justify-between mb-7">
+    <LecturerShell pageTitle="Results" guide="Enter final course marks and submit them for Academic Admin review. Students only see published results.">
+      <div className="animate-fade-up px-4 sm:px-8 py-8 pb-14" style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-7">
           <div>
             <h1 className="t-h1 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.015em' }}>Results</h1>
             <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>Enter and submit marks for your assigned courses.</p>
           </div>
-          <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-60">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LECTURER_COURSES.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.code} — {c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {courses.length > 0 && (
+            <Select value={offeringId} onValueChange={setOfferingId}>
+              <SelectTrigger className="w-full sm:w-60">
+                <SelectValue placeholder="Select a course" />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((c) => (
+                  <SelectItem key={c.offeringId} value={c.offeringId}>{c.code} — {c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        {/* Draft / Entry tabs */}
-        {draftItems.length > 0 && (
-          <div className="mb-8">
-            <h2 className="t-h3 mb-4" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>Mark Entry</h2>
-            <Tabs defaultValue={draftItems[0]?.id}>
-              <TabsList className="mb-5">
-                {draftItems.map(a => (
-                  <TabsTrigger key={a.id} value={a.id}>{a.name}</TabsTrigger>
-                ))}
-              </TabsList>
-              {draftItems.map(a => (
-                <TabsContent key={a.id} value={a.id}>
-                  <MarksEntryTable course={course} assessment={a} />
-                </TabsContent>
-              ))}
-            </Tabs>
-          </div>
-        )}
-
-        {/* Published results */}
-        {published.length > 0 && (
-          <div>
-            <h2 className="t-h3 mb-4" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>Published Results</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {published.map(a => (
-                <PublishedResultCard key={a.id} assessment={a} courseId={courseId} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {assessments.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div style={{ width: 56, height: 56, backgroundColor: 'var(--muted)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-              <BarChart2 style={{ width: 24, height: 24, color: 'var(--muted-foreground)' }} />
-            </div>
-            <p className="t-h3 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>No assessments</p>
-            <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>No assessments have been set up for this course yet.</p>
-          </div>
-        )}
+        {isPending ? (
+          <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>Loading courses…</p>
+        ) : error ? (
+          <p className="t-body" style={{ color: 'var(--error)' }}>{apiErrorMessage(error, 'Could not load courses.')}</p>
+        ) : courses.length === 0 ? (
+          <EmptyResults />
+        ) : offeringId ? (
+          <CourseResults offeringId={offeringId} courses={courses} />
+        ) : null}
       </div>
-    </AppShell>
+    </LecturerShell>
   )
 }
 
-// ── Marks entry table ─────────────────────────────────────────────────────────
-
-function MarksEntryTable({ course, assessment }: { course: typeof LECTURER_COURSES[0]; assessment: typeof ASSESSMENTS[0] }) {
-  const students  = COURSE_STUDENTS[course.id] ?? []
-  const [marks, setMarks] = useState<Record<string, string>>({})
-
-  const setMark = (id: string, val: string) => {
-    const num = parseInt(val)
-    if (val !== '' && (isNaN(num) || num < 0 || num > assessment.maxMarks)) return
-    setMarks(prev => ({ ...prev, [id]: val }))
-  }
-
-  const numericMarks = useMemo(() =>
-    students.map(s => parseFloat(marks[s.id] ?? '')).filter(v => !isNaN(v)),
-  [marks, students])
-
-  const avg     = numericMarks.length ? (numericMarks.reduce((a, b) => a + b, 0) / numericMarks.length).toFixed(1) : '—'
-  const highest = numericMarks.length ? Math.max(...numericMarks).toFixed(0) : '—'
-  const lowest  = numericMarks.length ? Math.min(...numericMarks).toFixed(0) : '—'
-
-  const handleSubmit = () => {
-    toast.success(`${assessment.name} results submitted for publishing`)
-  }
-
+function EmptyResults() {
   return (
-    <div>
-      <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 16 }}>
-        {/* Header */}
-        <div className="grid px-5 py-3" style={{ gridTemplateColumns: '140px 1fr 160px 80px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}>
-          {['STUDENT ID', 'NAME', `MARKS / ${assessment.maxMarks}`, 'GRADE'].map(h => (
-            <span key={h} className="t-label" style={{ color: 'var(--muted-foreground)' }}>{h}</span>
-          ))}
-        </div>
-
-        {students.map((s, i) => {
-          const rawMark = marks[s.id] ?? ''
-          const numMark = parseFloat(rawMark)
-          const grade   = rawMark !== '' && !isNaN(numMark) ? calcGrade(numMark, assessment.maxMarks) : '—'
-          const gc      = gradeColor(grade)
-
-          return (
-            <div
-              key={s.id}
-              className="grid items-center px-5"
-              style={{ gridTemplateColumns: '140px 1fr 160px 80px', paddingTop: 12, paddingBottom: 12, borderBottom: i < students.length - 1 ? '1px solid var(--border)' : 'none' }}
-            >
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>{s.id}</span>
-              <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{s.name}</span>
-              <div className="flex items-center gap-2" style={{ paddingRight: 16 }}>
-                <Input
-                  type="number"
-                  min={0}
-                  max={assessment.maxMarks}
-                  placeholder={`/ ${assessment.maxMarks}`}
-                  value={rawMark}
-                  onChange={e => setMark(s.id, e.target.value)}
-                  style={{ height: 32, width: 100, fontSize: '0.875rem' }}
-                />
-              </div>
-              <span
-                className="t-label px-2 py-0.5 w-fit"
-                style={{ backgroundColor: gc.bg, color: gc.color, borderRadius: 'var(--radius-sm)', transition: 'all 150ms' }}
-              >
-                {grade}
-              </span>
-            </div>
-          )
-        })}
-
-        {/* Summary footer */}
-        <div
-          className="grid px-5 py-3 items-center"
-          style={{ gridTemplateColumns: '140px 1fr 160px 80px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}
-        >
-          <span className="t-label" style={{ color: 'var(--muted-foreground)' }}>SUMMARY</span>
-          <span />
-          <div className="flex items-center gap-3">
-            <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Avg: <strong style={{ color: 'var(--foreground)' }}>{avg}</strong></span>
-            <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>High: <strong style={{ color: 'var(--success)' }}>{highest}</strong></span>
-            <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Low: <strong style={{ color: 'var(--error)' }}>{lowest}</strong></span>
-          </div>
-          <span />
-        </div>
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div style={{ width: 56, height: 56, backgroundColor: 'var(--muted)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+        <BarChart2 style={{ width: 24, height: 24, color: 'var(--muted-foreground)' }} />
       </div>
-
-      <div className="flex items-center gap-3">
-        <ConfirmAlertDialog
-          trigger={
-            <Button style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}>Submit for publishing</Button>
-          }
-          title="Submit results for publishing?"
-          tone="info"
-          headlineLabel="Action"
-          headline="Submit for review"
-          summary="Once submitted, results will be reviewed by the Academic Admin before publishing to students."
-          notices={[
-            { icon: 'file', label: 'Your draft will move to the admin review queue.' },
-            { icon: 'user', label: 'Students cannot see these results until they are approved and published.' },
-          ]}
-          caution="This action cannot be undone."
-          confirmLabel="Submit"
-          confirmVariant="brand"
-          onConfirm={handleSubmit}
-        />
-        <Button variant="outline" onClick={() => toast.success('Draft saved')}>Save draft</Button>
-      </div>
+      <p className="t-h3 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>No assigned courses</p>
+      <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>Results appear here once a course is assigned to you.</p>
     </div>
   )
 }
 
-// ── Published result card ─────────────────────────────────────────────────────
+function CourseResults({ offeringId, courses }: { offeringId: string; courses: LecturerCourseRow[] }) {
+  const queryClient = useQueryClient()
+  const { data, isPending, error } = useQuery({
+    queryKey: lecturerResultsQueryKey(offeringId),
+    queryFn: () => getLecturerResults(offeringId),
+  })
+  const course = courses.find((item) => item.offeringId === offeringId)
 
-function PublishedResultCard({ assessment, courseId }: { assessment: typeof ASSESSMENTS[0]; courseId: string }) {
-  const students = COURSE_STUDENTS[courseId] ?? []
-  const marks    = PUBLISHED_MARKS[assessment.id] ?? {}
-  const [open, setOpen] = useState(false)
+  if (isPending) return <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>Loading results…</p>
+  if (error) return <p className="t-body" style={{ color: 'var(--error)' }}>{apiErrorMessage(error, 'Could not load results.')}</p>
+  if (!data) return null
 
-  const numericMarks = students.map(s => marks[s.id]).filter((v): v is number => v !== undefined)
-  const avg = numericMarks.length ? (numericMarks.reduce((a, b) => a + b, 0) / numericMarks.length).toFixed(1) : '—'
+  const locked = data.status === 'PendingReview' || data.status === 'Approved' || data.status === 'Published'
 
   return (
-    <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
-      {/* Card header */}
-      <div
-        className="flex items-center justify-between px-5 py-4 cursor-pointer"
-        style={{ borderBottom: open ? '1px solid var(--border)' : 'none' }}
-        onClick={() => setOpen(o => !o)}
-      >
-        <div className="flex items-center gap-3">
-          <span className="t-label px-2.5 py-1" style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success)', borderRadius: 'var(--radius-sm)' }}>Published</span>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{assessment.name}</p>
-            <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>Max: {assessment.maxMarks} · Weight: {assessment.weight}% · Class avg: {avg}</p>
-          </div>
+    <MarksEntryTable
+      batch={data}
+      courseLabel={course ? `${course.code} — ${course.name}` : data.courseCode}
+      locked={locked}
+      onSaved={async () => {
+        await queryClient.invalidateQueries({ queryKey: lecturerResultsQueryKey(offeringId) })
+        await queryClient.invalidateQueries({ queryKey: lecturerDashboardQueryKey })
+      }}
+    />
+  )
+}
+
+function MarksEntryTable({
+  batch,
+  courseLabel,
+  locked,
+  onSaved,
+}: {
+  batch: LecturerResultBatch
+  courseLabel: string
+  locked: boolean
+  onSaved: () => Promise<void>
+}) {
+  const [marks, setMarks] = useState<Record<string, string>>(() =>
+    Object.fromEntries(batch.students.map((s) => [s.studentId, s.totalScore != null ? String(s.totalScore) : ''])),
+  )
+
+  useEffect(() => {
+    setMarks(Object.fromEntries(batch.students.map((s) => [s.studentId, s.totalScore != null ? String(s.totalScore) : ''])))
+  }, [batch.offeringId, batch.status, batch.students])
+
+  const setMark = (id: string, val: string) => {
+    const num = Number(val)
+    if (val !== '' && (Number.isNaN(num) || num < 0 || num > 100)) return
+    setMarks((prev) => ({ ...prev, [id]: val }))
+  }
+
+  const numericMarks = useMemo(
+    () => batch.students.map((s) => parseFloat(marks[s.studentId] ?? '')).filter((v) => !Number.isNaN(v)),
+    [marks, batch.students],
+  )
+  const avg = numericMarks.length ? (numericMarks.reduce((a, b) => a + b, 0) / numericMarks.length).toFixed(1) : '—'
+  const highest = numericMarks.length ? Math.max(...numericMarks).toFixed(0) : '—'
+  const lowest = numericMarks.length ? Math.min(...numericMarks).toFixed(0) : '—'
+
+  const save = useMutation({
+    mutationFn: () =>
+      saveLecturerResults(batch.offeringId, {
+        entries: batch.students
+          .filter((s) => marks[s.studentId] !== '')
+          .map((s) => ({ studentId: s.studentId, totalScore: Number(marks[s.studentId]) })),
+      }),
+    onSuccess: async () => {
+      toast.success('Draft saved')
+      await onSaved()
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not save the draft.')),
+  })
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      const entries = batch.students.map((s) => ({
+        studentId: s.studentId,
+        totalScore: Number(marks[s.studentId]),
+      }))
+      if (entries.some((entry) => Number.isNaN(entry.totalScore))) {
+        throw new Error('Enter a mark for every student before submitting.')
+      }
+      await saveLecturerResults(batch.offeringId, { entries })
+      return submitLecturerResults(batch.offeringId)
+    },
+    onSuccess: async () => {
+      toast.success(`${courseLabel} results submitted for review`)
+      await onSaved()
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not submit results.')),
+  })
+
+  const statusLabel = batch.status === 'PendingReview' ? 'Pending review' : batch.status ?? 'Draft'
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="t-label px-2.5 py-1" style={{ backgroundColor: locked ? 'var(--info-bg)' : 'var(--muted)', color: locked ? 'var(--info)' : 'var(--muted-foreground)', borderRadius: 'var(--radius-sm)' }}>
+          {statusLabel}
+        </span>
+        {batch.rejectionReason ? (
+          <p className="t-body-sm" style={{ color: 'var(--error)' }}>Returned: {batch.rejectionReason}</p>
+        ) : null}
+      </div>
+
+      <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 16 }}>
+        <div className="hidden sm:grid px-5 py-3" style={{ gridTemplateColumns: '140px 1fr 160px 80px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}>
+          {['STUDENT ID', 'NAME', 'MARKS / 100', 'GRADE'].map((h) => (
+            <span key={h} className="t-label" style={{ color: 'var(--muted-foreground)' }}>{h}</span>
+          ))}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" style={{ fontSize: '0.8125rem' }} onClick={e => { e.stopPropagation(); toast.success(`Exported ${assessment.name}`) }}>
-            Export
-          </Button>
+
+        {batch.students.map((s, i) => {
+          const rawMark = marks[s.studentId] ?? ''
+          const numMark = parseFloat(rawMark)
+          const grade = rawMark !== '' && !Number.isNaN(numMark) ? calcGrade(numMark, 100) : '—'
+          const gc = gradeColor(grade)
+          return (
+            <div
+              key={s.studentId}
+              className="grid items-center px-5 gap-2"
+              style={{ gridTemplateColumns: '1fr', paddingTop: 12, paddingBottom: 12, borderBottom: i < batch.students.length - 1 ? '1px solid var(--border)' : 'none' }}
+            >
+              <div className="sm:hidden">
+                <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{s.name}</p>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{s.studentNumber}</p>
+              </div>
+              <div className="hidden sm:contents">
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>{s.studentNumber}</span>
+                <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{s.name}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="/ 100"
+                  value={rawMark}
+                  disabled={locked}
+                  onChange={(e) => setMark(s.studentId, e.target.value)}
+                  style={{ height: 32, width: 100, fontSize: '0.875rem' }}
+                />
+                <span className="t-label px-2 py-0.5 w-fit" style={{ backgroundColor: gc.bg, color: gc.color, borderRadius: 'var(--radius-sm)' }}>
+                  {grade}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+
+        <div className="flex flex-wrap gap-3 px-5 py-3" style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}>
+          <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Avg: <strong style={{ color: 'var(--foreground)' }}>{avg}</strong></span>
+          <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>High: <strong style={{ color: 'var(--success)' }}>{highest}</strong></span>
+          <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>Low: <strong style={{ color: 'var(--error)' }}>{lowest}</strong></span>
         </div>
       </div>
 
-      {open && (
-        <div style={{ overflow: 'hidden' }}>
-          <div className="grid px-5 py-2.5" style={{ gridTemplateColumns: '140px 1fr 120px 70px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}>
-            {['STUDENT ID', 'NAME', `MARKS / ${assessment.maxMarks}`, 'GRADE'].map(h => (
-              <span key={h} className="t-label" style={{ color: 'var(--muted-foreground)' }}>{h}</span>
-            ))}
-          </div>
-          {students.map((s, i) => {
-            const m = marks[s.id]
-            const grade = m !== undefined ? calcGrade(m, assessment.maxMarks) : '—'
-            const gc    = gradeColor(grade)
-            return (
-              <div key={s.id} className="grid items-center px-5" style={{ gridTemplateColumns: '140px 1fr 120px 70px', paddingTop: 12, paddingBottom: 12, borderBottom: i < students.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>{s.id}</span>
-                <span className="text-sm" style={{ color: 'var(--foreground)' }}>{s.name}</span>
-                <span className="text-sm font-medium" style={{ color: 'var(--foreground)', fontFamily: 'var(--font-mono)' }}>{m !== undefined ? `${m} / ${assessment.maxMarks}` : '—'}</span>
-                <span className="t-label px-2 py-0.5 w-fit" style={{ backgroundColor: gc.bg, color: gc.color, borderRadius: 'var(--radius-sm)' }}>{grade}</span>
-              </div>
-            )
-          })}
+      {!locked && (
+        <div className="flex flex-wrap items-center gap-3">
+          <ConfirmAlertDialog
+            trigger={
+              <Button style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }} disabled={submit.isPending}>
+                Submit for publishing
+              </Button>
+            }
+            title="Submit results for publishing?"
+            tone="info"
+            headlineLabel="Action"
+            headline="Submit for review"
+            summary="Once submitted, results will be reviewed by the Academic Admin before publishing to students."
+            notices={[
+              { icon: 'file', label: 'Your draft will move to the admin review queue.' },
+              { icon: 'user', label: 'Students cannot see these results until they are approved and published.' },
+            ]}
+            caution="This action cannot be undone until the batch is returned."
+            confirmLabel="Submit"
+            confirmVariant="brand"
+            onConfirm={() => submit.mutate()}
+          />
+          <Button variant="outline" disabled={save.isPending} onClick={() => save.mutate()}>Save draft</Button>
         </div>
       )}
     </div>

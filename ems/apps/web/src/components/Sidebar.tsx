@@ -74,7 +74,7 @@ export function Sidebar({
       </div>
 
       {/* ── Nav links ──────────────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto py-4" style={{ padding: isCollapsed ? '16px 8px' : '16px 12px' }}>
+      <nav className="sidebar-nav-scroll flex-1 overflow-y-auto py-4" style={{ padding: isCollapsed ? '16px 8px' : '16px 12px' }}>
         <ul className="flex flex-col" style={{ gap: 4 }}>
           {navItems.map((item) => (
             <li key={item.to}>

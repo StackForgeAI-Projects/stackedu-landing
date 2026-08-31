@@ -12,6 +12,7 @@ import { ictProfileQueryKey } from '@/lib/api/ict'
 import { studentProfileQueryKey } from '@/lib/api/student'
 import { initialsFrom } from '@/lib/utils'
 import { notifyError, notifySuccess } from '@/lib/notify'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 
 export interface ProfileField {
   icon: React.ElementType
@@ -30,6 +31,7 @@ export function AccountProfileView({ breadcrumb, subtitle, extraFields = [] }: A
   const queryClient = useQueryClient()
   const { data, isPending, error } = useQuery({ queryKey: accountProfileQueryKey, queryFn: getAccountProfile })
   const [open, setOpen] = useState(false)
+  const [confirmSave, setConfirmSave] = useState(false)
 
   const mutation = useMutation({
     mutationFn: updateAccountProfile,
@@ -39,6 +41,7 @@ export function AccountProfileView({ breadcrumb, subtitle, extraFields = [] }: A
       await queryClient.invalidateQueries({ queryKey: studentProfileQueryKey })
       await queryClient.invalidateQueries({ queryKey: ictProfileQueryKey })
       notifySuccess('Profile updated.')
+      setConfirmSave(false)
       setOpen(false)
     },
     onError: (cause) => notifyError(apiErrorMessage(cause, 'Could not update your profile.')),
@@ -105,8 +108,10 @@ export function AccountProfileView({ breadcrumb, subtitle, extraFields = [] }: A
           <EditProfileForm
             profile={{ fullName: data.fullName, email: data.email, phone: data.phone ?? '' }}
             saving={mutation.isPending}
+            confirmOpen={confirmSave}
+            onConfirmOpenChange={setConfirmSave}
             onSave={(payload) => mutation.mutate(payload)}
-            onClose={() => setOpen(false)}
+            onClose={() => { setConfirmSave(false); setOpen(false) }}
           />
         </SheetContent>
       </Sheet>
@@ -117,17 +122,27 @@ export function AccountProfileView({ breadcrumb, subtitle, extraFields = [] }: A
 function EditProfileForm({
   profile,
   saving,
+  confirmOpen,
+  onConfirmOpenChange,
   onSave,
   onClose,
 }: {
   profile: { fullName: string; email: string; phone: string }
   saving: boolean
+  confirmOpen: boolean
+  onConfirmOpenChange: (open: boolean) => void
   onSave: (data: { fullName: string; email: string; phone: string | null }) => void
   onClose: () => void
 }) {
   const [fullName, setFullName] = useState(profile.fullName)
   const [email, setEmail] = useState(profile.email)
   const [phone, setPhone] = useState(profile.phone)
+
+  const payload = {
+    fullName: fullName.trim(),
+    email: email.trim(),
+    phone: phone.trim() ? phone.trim().replace(/[\s-]/g, '') : null,
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -155,15 +170,26 @@ function EditProfileForm({
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button
           disabled={saving || !fullName.trim() || !email.trim()}
-          onClick={() => onSave({
-            fullName: fullName.trim(),
-            email: email.trim(),
-            phone: phone.trim() ? phone.trim().replace(/[\s-]/g, '') : null,
-          })}
+          onClick={() => onConfirmOpenChange(true)}
         >
           Save changes
         </Button>
       </div>
+      <ConfirmAlertDialog
+        open={confirmOpen}
+        onOpenChange={(open) => { if (!open) onConfirmOpenChange(false) }}
+        title="Save these profile changes?"
+        tone="success"
+        headlineLabel="Action"
+        headline="Update profile"
+        summary="Your name, email, and phone on this account will be updated."
+        notices={[{ icon: 'info', label: 'You will use the new email the next time you sign in.' }]}
+        confirmLabel={saving ? 'Saving…' : 'Confirm'}
+        confirmVariant="brand"
+        loading={saving}
+        onCancel={() => onConfirmOpenChange(false)}
+        onConfirm={() => onSave(payload)}
+      />
     </div>
   )
 }

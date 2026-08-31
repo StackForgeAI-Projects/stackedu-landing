@@ -14,6 +14,7 @@ import { admissionRoutes } from './routes/admissions'
 import { authRoutes } from './routes/auth'
 import { healthRoutes } from './routes/health'
 import { ictRoutes } from './routes/ict'
+import { lecturerRoutes } from './routes/lecturer'
 import { studentRoutes } from './routes/student'
 import { publicRoutes } from './routes/public'
 
@@ -53,6 +54,7 @@ export function createApp() {
   app.route('/', authRoutes)
   app.route('/', admissionRoutes)
   app.route('/', studentRoutes)
+  app.route('/', lecturerRoutes)
   app.route('/', ictRoutes)
   app.route('/', academicRoutes)
   app.route('/', accountRoutes)

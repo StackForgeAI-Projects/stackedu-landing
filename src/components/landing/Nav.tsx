@@ -62,12 +62,6 @@ export function Nav() {
             <LanguageSwitcher />
             <button
               type="button"
-              className="hidden sm:block text-sm font-semibold px-4 py-2 rounded-full hover:bg-secondary transition-colors"
-            >
-              {t.nav.login}
-            </button>
-            <button
-              type="button"
               onClick={scrollToContact}
               className="hidden lg:inline-flex bg-ink text-white text-sm font-bold px-5 py-2.5 rounded-full hover:bg-primary transition-colors shadow-soft"
             >

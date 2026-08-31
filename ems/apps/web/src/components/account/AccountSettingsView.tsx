@@ -26,6 +26,7 @@ import {
   updateAccountNotificationPreferences,
 } from '@/lib/api/account'
 import { apiErrorMessage } from '@/lib/api/client'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { applyTheme, getStoredTheme, type ThemeMode } from '@/lib/theme'
 
@@ -88,6 +89,7 @@ function PasswordCard() {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const mutation = useMutation({
     mutationFn: changeAccountPassword,
     onSuccess: () => {
@@ -95,6 +97,7 @@ function PasswordCard() {
       setCurrent('')
       setNext('')
       setConfirm('')
+      setConfirmOpen(false)
     },
     onError: (cause) => notifyError(apiErrorMessage(cause, 'Could not update your password.')),
   })
@@ -124,19 +127,35 @@ function PasswordCard() {
               if (!current || !next || !confirm) { notifyError('Please fill in all password fields.'); return }
               if (next.length < 8) { notifyError('New password must be at least 8 characters.'); return }
               if (next !== confirm) { notifyError('New password and confirmation do not match.'); return }
-              mutation.mutate({ currentPassword: current, newPassword: next })
+              setConfirmOpen(true)
             }}
           >
             Update password
           </Button>
         </div>
       </div>
+      <ConfirmAlertDialog
+        open={confirmOpen}
+        onOpenChange={(open) => { if (!open) setConfirmOpen(false) }}
+        title="Change your password?"
+        tone="warning"
+        headlineLabel="Action"
+        headline="Update password"
+        summary="You will use the new password the next time you sign in."
+        notices={[{ icon: 'lock', label: 'Anyone using the old password will no longer be able to sign in.' }]}
+        confirmLabel={mutation.isPending ? 'Updating…' : 'Confirm'}
+        confirmVariant="brand"
+        loading={mutation.isPending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => mutation.mutate({ currentPassword: current, newPassword: next })}
+      />
     </Card>
   )
 }
 
 function NotificationsCard({ defaults }: { defaults: NotificationPref[] }) {
   const [prefs, setPrefs] = useState(defaults)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const storedQuery = useQuery({
     queryKey: accountNotificationPrefsQueryKey,
@@ -163,6 +182,7 @@ function NotificationsCard({ defaults }: { defaults: NotificationPref[] }) {
         label: defaults.find((d) => d.key === item.key)?.label ?? item.key,
       }))))
       notifySuccess('Notification preferences saved.')
+      setConfirmOpen(false)
     },
     onError: (cause) => notifyError(apiErrorMessage(cause, 'Could not save notification preferences.')),
   })
@@ -202,11 +222,26 @@ function NotificationsCard({ defaults }: { defaults: NotificationPref[] }) {
         <Button
           variant="outline"
           disabled={saveMutation.isPending || storedQuery.isPending}
-          onClick={() => saveMutation.mutate()}
+          onClick={() => setConfirmOpen(true)}
         >
           Save preferences
         </Button>
       </div>
+      <ConfirmAlertDialog
+        open={confirmOpen}
+        onOpenChange={(open) => { if (!open) setConfirmOpen(false) }}
+        title="Save these notification preferences?"
+        tone="success"
+        headlineLabel="Action"
+        headline="Update alerts"
+        summary="How StackEDU reaches you for each alert type will be updated."
+        notices={[{ icon: 'bell', label: 'You can change these again at any time.' }]}
+        confirmLabel={saveMutation.isPending ? 'Saving…' : 'Confirm'}
+        confirmVariant="brand"
+        loading={saveMutation.isPending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => saveMutation.mutate()}
+      />
     </Card>
   )
 }

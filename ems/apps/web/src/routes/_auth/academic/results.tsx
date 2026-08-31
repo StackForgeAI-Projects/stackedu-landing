@@ -248,7 +248,7 @@ function ResultManagementPage() {
               <SheetTitle style={{ fontFamily: 'var(--font-display)' }}>{viewResult.courseCode} — {viewResult.assessment}</SheetTitle>
             </SheetHeader>
             <div className="px-8 py-6">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
                 {[
                   { label: 'Average', value: viewResult.avg != null ? `${viewResult.avg}%` : '—', color: 'var(--info)' },
                   { label: 'Highest', value: viewResult.highest != null ? `${viewResult.highest}%` : '—', color: 'var(--success)' },
@@ -261,6 +261,12 @@ function ResultManagementPage() {
                   </div>
                 ))}
               </div>
+              <p className="t-caption mb-6" style={{ color: 'var(--muted-foreground)' }}>
+                Based on {viewResult.studentCount} student{viewResult.studentCount === 1 ? '' : 's'} in this batch.
+                {viewResult.studentCount === 1
+                  ? ' Average, highest and lowest match because there is only one mark.'
+                  : null}
+              </p>
               <h3 className="t-h3 mb-3">Student Results</h3>
               <div className="mb-6">
                 <DataTable

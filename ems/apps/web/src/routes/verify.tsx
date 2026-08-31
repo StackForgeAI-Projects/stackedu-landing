@@ -7,6 +7,7 @@ import { verifyTwoFactor, sessionQueryKey } from '@/lib/api/auth'
 import { apiErrorMessage } from '@/lib/api/client'
 import { dashboardFor } from '@/lib/auth/portals'
 import { notifyError } from '@/lib/notify'
+import { clearDismissedPageGuides } from '@/lib/page-guide'
 import { rememberWelcome } from '@/lib/welcome'
 import { queryClient } from '@/lib/query-client'
 
@@ -26,6 +27,7 @@ function VerifyPage() {
     try {
       const user = await verifyTwoFactor(otp)
       queryClient.setQueryData(sessionQueryKey, user)
+      clearDismissedPageGuides()
       rememberWelcome(user.fullName)
       await navigate({ to: dashboardFor(user.role) })
     } catch (cause) {

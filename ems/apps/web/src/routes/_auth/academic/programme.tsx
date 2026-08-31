@@ -11,14 +11,11 @@ import {
   listAcademicCourses,
 } from '@/lib/api/academic'
 import { apiErrorMessage } from '@/lib/api/client'
-import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_auth/academic/programme')({
   validateSearch: (s: Record<string, unknown>) => ({ id: (s.id as string) || '' }),
   component: ProgrammeDetailPage,
 })
-
-const READ_ONLY_MSG = 'Programme structure changes are not saved yet — read-only from the API.'
 
 function courseCodeColor(code: string) {
   const prefix = code.split(' ')[0]
@@ -96,15 +93,15 @@ function ProgrammeDetailPage() {
             <h1 className="t-h1 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', letterSpacing: '-0.015em' }}>{prog.name}</h1>
             <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>{prog.department}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => toast.info(READ_ONLY_MSG)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-            style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'not-allowed', opacity: 0.6 }}
-            title={READ_ONLY_MSG}
-          >
-            Edit programme
-          </button>
+          <Link to="/academic/programmes">
+            <button
+              type="button"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', cursor: 'pointer' }}
+            >
+              Edit programme
+            </button>
+          </Link>
         </div>
 
         <div className="mb-6" style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 24 }}>

@@ -3,6 +3,8 @@ import {
   createAcademicCalendarEventRequestSchema,
   createAcademicCourseRequestSchema,
   createAcademicProgrammeRequestSchema,
+  changeAcademicStudentStatusRequestSchema,
+  bulkCreateAcademicCoursesRequestSchema,
   rejectResultBatchRequestSchema,
   updateAcademicCalendarEventRequestSchema,
   updateAcademicCourseRequestSchema,
@@ -13,6 +15,8 @@ import { requireAuth, requireRole, type AuthVariables } from '../middleware/auth
 import type { RequestVariables } from '../middleware/request-context'
 import {
   approveAcademicResultBatch,
+  bulkCreateAcademicCourses,
+  changeAcademicStudentStatus,
   createAcademicCalendarEvent,
   createAcademicCourse,
   createAcademicProgramme,
@@ -25,6 +29,7 @@ import {
   listAcademicAtRiskStudents,
   listAcademicCalendarEvents,
   listAcademicCourses,
+  listAcademicDepartments,
   listAcademicLecturers,
   listAcademicNotifications,
   listAcademicProgrammes,
@@ -74,6 +79,20 @@ academicRoutes.get('/academic/students/:id', ...academicOnly, async (c) => {
   return c.json({ student: await getAcademicStudent(user.institution.id, c.req.param('id')) })
 })
 
+academicRoutes.post('/academic/students/:id/status', ...academicOnly, async (c) => {
+  const parsed = changeAcademicStudentStatusRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  return c.json({
+    student: await changeAcademicStudentStatus(
+      user.institution.id,
+      actor(c),
+      c.req.param('id'),
+      parsed.data,
+    ),
+  })
+})
+
 academicRoutes.get('/academic/courses', ...academicOnly, async (c) => {
   const user = c.get('user')!
   return c.json({ courses: await listAcademicCourses(user.institution.id) })
@@ -86,6 +105,13 @@ academicRoutes.post('/academic/courses', ...academicOnly, async (c) => {
   return c.json({ course: await createAcademicCourse(user.institution.id, actor(c), parsed.data) }, 201)
 })
 
+academicRoutes.post('/academic/courses/bulk', ...academicOnly, async (c) => {
+  const parsed = bulkCreateAcademicCoursesRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  return c.json({ result: await bulkCreateAcademicCourses(user.institution.id, actor(c), parsed.data) })
+})
+
 academicRoutes.patch('/academic/courses/:id', ...academicOnly, async (c) => {
   const parsed = updateAcademicCourseRequestSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
@@ -93,6 +119,11 @@ academicRoutes.patch('/academic/courses/:id', ...academicOnly, async (c) => {
   return c.json({
     course: await updateAcademicCourse(user.institution.id, actor(c), c.req.param('id'), parsed.data),
   })
+})
+
+academicRoutes.get('/academic/departments', ...academicOnly, async (c) => {
+  const user = c.get('user')!
+  return c.json({ departments: await listAcademicDepartments(user.institution.id) })
 })
 
 academicRoutes.get('/academic/programmes', ...academicOnly, async (c) => {

@@ -26,12 +26,15 @@
     "@tanstack/react-router": "^1",
     "class-variance-authority": "^0.7",
     "clsx": "^2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.475",
     "react": "^19",
     "react-dom": "^19",
     "recharts": "^2.15",
     "sonner": "^2",
-    "tailwind-merge": "^2"
+    "tailwind-merge": "^2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4",

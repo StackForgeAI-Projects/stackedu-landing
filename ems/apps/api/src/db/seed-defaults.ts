@@ -42,7 +42,7 @@ export const DEFAULT_PERMISSIONS: PermissionDefinition[] = [
   // Academic structure
   { key: 'courses.read', module: 'Academic', description: 'View the course catalogue', roles: ['AcademicAdmin', 'Lecturer', 'Student', 'Librarian'] },
   { key: 'courses.write', module: 'Academic', description: 'Create and edit courses and programmes', roles: ['AcademicAdmin'] },
-  { key: 'timetable.write', module: 'Academic', description: 'Edit the timetable', roles: ['AcademicAdmin'] },
+  { key: 'timetable.write', module: 'Academic', description: 'Edit the timetable', roles: ['AcademicAdmin', 'Lecturer'] },
   { key: 'calendar.write', module: 'Academic', description: 'Edit the academic calendar', roles: ['AcademicAdmin'] },
 
   // Teaching

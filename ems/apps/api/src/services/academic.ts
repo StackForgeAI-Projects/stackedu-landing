@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto'
-import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/pg-core'
+import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type {
   AcademicAtRiskStudent,
   AcademicCalendarEvent,
   AcademicCourseRow,
   AcademicDashboard,
+  AcademicDepartmentOption,
   AcademicLecturerRow,
   AcademicNotification,
   AcademicProfile,
@@ -20,12 +20,15 @@ import type {
   CreateAcademicCalendarEventRequest,
   CreateAcademicCourseRequest,
   CreateAcademicProgrammeRequest,
+  ChangeAcademicStudentStatusRequest,
+  BulkCreateAcademicCoursesRequest,
   RejectResultBatchRequest,
   UpdateAcademicCalendarEventRequest,
   UpdateAcademicCourseRequest,
   UpdateAcademicProgrammeRequest,
   UserRole,
 } from '@stackedu/shared'
+import { formatAppDateDdMmYyyy } from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions } from '../db/platform/schema'
 import { applications } from '../db/institution/schema/admissions'
@@ -61,13 +64,15 @@ import {
 } from '../db/institution/schema/students'
 import { writeAudit } from '../lib/audit'
 import { courseColor } from '../lib/course-color'
-import { badRequest, forbidden, notFound } from '../lib/errors'
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
 
-function firstName(fullName: string): string {
-  return fullName.split(' ')[0] ?? fullName
+export function firstName(fullName: string): string {
+  const titles = new Set(['dr', 'dr.', 'prof', 'prof.', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.'])
+  const parts = fullName.split(/\s+/).filter(Boolean)
+  return parts.find((part) => !titles.has(part.toLowerCase())) ?? parts[0] ?? fullName
 }
 
-function initials(fullName: string): string {
+export function initials(fullName: string): string {
   return fullName
     .split(/\s+/)
     .filter(Boolean)
@@ -85,8 +90,7 @@ export function formatCourseCode(code: string): string {
 
 export function formatDisplayDate(value: string | null | undefined): string {
   if (!value) return ''
-  const date = new Date(`${value.slice(0, 10)}T12:00:00`)
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatAppDateDdMmYyyy(value)
 }
 
 export function standingLabel(standing: string): string {
@@ -102,7 +106,7 @@ export function standingLabel(standing: string): string {
   }
 }
 
-function relativeTime(iso: string): string {
+export function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const minutes = Math.floor(diffMs / 60_000)
   if (minutes < 1) return 'Just now'
@@ -134,7 +138,7 @@ function deptPrefix(code: string): string {
   return code.replace(/\d.*/, '').toUpperCase()
 }
 
-async function unreadCount(institutionId: string, userId: string): Promise<number> {
+export async function unreadCount(institutionId: string, userId: string): Promise<number> {
   const db = await getInstitutionDb(institutionId)
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -143,7 +147,7 @@ async function unreadCount(institutionId: string, userId: string): Promise<numbe
   return row?.count ?? 0
 }
 
-async function currentSemester(institutionId: string) {
+export async function currentSemester(institutionId: string) {
   const db = await getInstitutionDb(institutionId)
   const [row] = await db
     .select({
@@ -507,6 +511,7 @@ export async function listAcademicCourses(institutionId: string): Promise<Academ
       yearOfStudy: courses.yearOfStudy,
       isActive: courses.isActive,
       description: courses.description,
+      lecturerId: lecturerAssignments.lecturerId,
       lecturerName: users.fullName,
       enrolled: courseOfferings.enrolledCount,
       semesterName: semesters.name,
@@ -552,6 +557,7 @@ export async function listAcademicCourses(institutionId: string): Promise<Academ
     department: row.department,
     credits: row.credits,
     type: row.yearOfStudy === 1 ? 'Compulsory' : 'Elective',
+    lecturerId: row.lecturerId,
     lecturerName: row.lecturerName,
     enrolled: row.enrolled ?? 0,
     status: row.isActive ? 'Active' : 'Archived',
@@ -559,6 +565,21 @@ export async function listAcademicCourses(institutionId: string): Promise<Academ
     prerequisites: prereqsByCourse.get(row.id) ?? [],
     semester: row.semesterName,
   }))
+}
+
+export async function listAcademicDepartments(
+  institutionId: string,
+): Promise<AcademicDepartmentOption[]> {
+  const db = await getInstitutionDb(institutionId)
+  return db
+    .select({
+      id: departments.id,
+      name: departments.name,
+      code: departments.code,
+    })
+    .from(departments)
+    .where(eq(departments.isActive, true))
+    .orderBy(departments.name)
 }
 
 export async function listAcademicProgrammes(institutionId: string): Promise<AcademicProgrammeRow[]> {
@@ -743,15 +764,24 @@ export async function listAcademicTimetableSlots(
 export async function listAcademicLecturers(institutionId: string): Promise<AcademicLecturerRow[]> {
   const db = await getInstitutionDb(institutionId)
   const semester = await currentSemester(institutionId)
-  const lecturerUsers = alias(users, 'lecturer_users')
 
-  const rows = await db
+  const lecturerRows = await db
     .select({
-      id: lecturerUsers.id,
-      name: lecturerUsers.fullName,
-      email: lecturerUsers.email,
-      phone: lecturerUsers.phone,
-      isActive: lecturerUsers.isActive,
+      id: users.id,
+      name: users.fullName,
+      email: users.email,
+      phone: users.phone,
+      isActive: users.isActive,
+    })
+    .from(users)
+    .where(eq(users.role, 'Lecturer'))
+    .orderBy(users.fullName)
+
+  if (lecturerRows.length === 0) return []
+
+  const assignmentRows = await db
+    .select({
+      lecturerId: lecturerAssignments.lecturerId,
       department: departments.name,
       courseCode: courses.code,
       courseName: courses.name,
@@ -759,29 +789,19 @@ export async function listAcademicLecturers(institutionId: string): Promise<Acad
       semesterName: semesters.name,
     })
     .from(lecturerAssignments)
-    .innerJoin(lecturerUsers, eq(lecturerUsers.id, lecturerAssignments.lecturerId))
     .innerJoin(courseOfferings, eq(courseOfferings.id, lecturerAssignments.courseOfferingId))
     .innerJoin(courses, eq(courses.id, courseOfferings.courseId))
     .innerJoin(departments, eq(departments.id, courses.departmentId))
     .leftJoin(semesters, eq(semesters.id, courseOfferings.semesterId))
-    .where(
-      and(
-        eq(lecturerUsers.role, 'Lecturer'),
-        semester ? eq(courseOfferings.semesterId, semester.id) : sql`true`,
-      ),
-    )
-    .orderBy(lecturerUsers.fullName)
+    .where(semester ? eq(courseOfferings.semesterId, semester.id) : sql`true`)
 
-  const byLecturer = new Map<string, AcademicLecturerRow>()
-  for (const row of rows) {
-    const existing = byLecturer.get(row.id) ?? {
-      id: row.id,
-      name: row.name,
-      initials: initials(row.name),
+  const extraByLecturer = new Map<
+    string,
+    { department: string; assignedCourses: AcademicLecturerRow['assignedCourses'] }
+  >()
+  for (const row of assignmentRows) {
+    const existing = extraByLecturer.get(row.lecturerId) ?? {
       department: row.department,
-      email: row.email,
-      phone: row.phone,
-      status: row.isActive ? ('Active' as const) : ('Inactive' as const),
       assignedCourses: [],
     }
     existing.assignedCourses.push({
@@ -790,10 +810,22 @@ export async function listAcademicLecturers(institutionId: string): Promise<Acad
       enrolled: row.enrolled,
       semester: row.semesterName ?? 'Current',
     })
-    byLecturer.set(row.id, existing)
+    extraByLecturer.set(row.lecturerId, existing)
   }
 
-  return [...byLecturer.values()]
+  return lecturerRows.map((row) => {
+    const extra = extraByLecturer.get(row.id)
+    return {
+      id: row.id,
+      name: row.name,
+      initials: initials(row.name),
+      department: extra?.department ?? '—',
+      email: row.email,
+      phone: row.phone,
+      status: row.isActive ? ('Active' as const) : ('Inactive' as const),
+      assignedCourses: extra?.assignedCourses ?? [],
+    }
+  })
 }
 
 async function buildResultBatch(
@@ -914,7 +946,11 @@ export async function approveAcademicResultBatch(
 ): Promise<AcademicResultBatch> {
   const db = await getInstitutionDb(institutionId)
   const [existing] = await db
-    .select({ id: resultBatches.id, status: resultBatches.status })
+    .select({
+      id: resultBatches.id,
+      status: resultBatches.status,
+      submittedBy: resultBatches.submittedBy,
+    })
     .from(resultBatches)
     .where(eq(resultBatches.id, batchId))
     .limit(1)
@@ -944,7 +980,17 @@ export async function approveAcademicResultBatch(
     targetId: batchId,
   })
 
-  return buildResultBatch(institutionId, batchId)
+  const batch = await buildResultBatch(institutionId, batchId)
+  if (existing.submittedBy) {
+    await db.insert(notifications).values({
+      userId: existing.submittedBy,
+      title: `Results approved: ${batch.courseCode}`,
+      body: `${batch.courseName} results have been approved and can be published to students.`,
+      category: 'Results',
+      actionUrl: '/lecturer/results',
+    })
+  }
+  return batch
 }
 
 export async function rejectAcademicResultBatch(
@@ -955,7 +1001,11 @@ export async function rejectAcademicResultBatch(
 ): Promise<AcademicResultBatch> {
   const db = await getInstitutionDb(institutionId)
   const [existing] = await db
-    .select({ id: resultBatches.id, status: resultBatches.status })
+    .select({
+      id: resultBatches.id,
+      status: resultBatches.status,
+      submittedBy: resultBatches.submittedBy,
+    })
     .from(resultBatches)
     .where(eq(resultBatches.id, batchId))
     .limit(1)
@@ -986,7 +1036,17 @@ export async function rejectAcademicResultBatch(
     metadata: { reason: input.reason },
   })
 
-  return buildResultBatch(institutionId, batchId)
+  const batch = await buildResultBatch(institutionId, batchId)
+  if (existing.submittedBy) {
+    await db.insert(notifications).values({
+      userId: existing.submittedBy,
+      title: `Results returned: ${batch.courseCode}`,
+      body: input.reason,
+      category: 'Results',
+      actionUrl: '/lecturer/results',
+    })
+  }
+  return batch
 }
 
 export async function listAcademicAtRiskStudents(
@@ -1279,27 +1339,188 @@ function programmeCodeFromName(name: string): string {
   return `${slug}-${randomBytes(2).toString('hex').toUpperCase()}`
 }
 
-async function resolveDepartmentId(
+function normalizeDepartmentLabel(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\bdepartment of\b/g, ' ')
+    .replace(/\b(dept\.?|department)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function departmentMatchScore(term: string, name: string, code: string): number {
+  const needle = normalizeDepartmentLabel(term)
+  const haystack = normalizeDepartmentLabel(name)
+  const codeNorm = code.trim().toLowerCase()
+  if (!needle) return 0
+  if (haystack === needle || codeNorm === needle) return 4
+  if (haystack.includes(needle) || needle.includes(haystack)) return 3
+  const needleWord = needle.split(' ')[0] ?? ''
+  const haystackWord = haystack.split(' ')[0] ?? ''
+  if (needleWord.length >= 4 && (haystackWord.startsWith(needleWord) || needleWord.startsWith(haystackWord))) {
+    return 2
+  }
+  return 0
+}
+
+function titleCaseWords(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function canonicalDepartmentName(term: string): string {
+  const stripped = term
+    .trim()
+    .replace(/^(the\s+)?(department|dept)\s+(of\s+)?/i, '')
+    .trim()
+  return `Department of ${titleCaseWords(stripped || term)}`
+}
+
+function canonicalFacultyName(departmentName: string): string {
+  const core = departmentName.replace(/^(department|dept)\s+(of\s+)?/i, '').trim()
+  return `Faculty of ${titleCaseWords(core)}`
+}
+
+function codeStub(name: string, fallback: string): string {
+  const core = name.replace(/^(department|faculty)\s+of\s+/i, '')
+  return core.replace(/[^a-zA-Z]/g, '').slice(0, 4).toUpperCase() || fallback
+}
+
+async function uniqueCode(
+  exists: (code: string) => Promise<boolean>,
+  base: string,
+): Promise<string> {
+  const stub = base.slice(0, 8).toUpperCase() || 'CODE'
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const code = attempt === 0 ? stub : `${stub.slice(0, 4)}${randomBytes(1).toString('hex').toUpperCase()}`
+    if (!(await exists(code))) return code
+  }
+  return `${stub.slice(0, 3)}${randomBytes(2).toString('hex').toUpperCase()}`
+}
+
+export async function resolveDepartmentId(
   db: Awaited<ReturnType<typeof getInstitutionDb>>,
   departmentName: string,
 ): Promise<string> {
   const term = departmentName.trim()
-  const [byDepartment] = await db
-    .select({ id: departments.id })
-    .from(departments)
-    .where(or(ilike(departments.name, term), ilike(departments.name, `%${term}%`)))
-    .limit(1)
-  if (byDepartment) return byDepartment.id
+  if (term.length < 2) throw badRequest('Department is required.')
 
-  const [byFaculty] = await db
-    .select({ id: departments.id })
+  const all = await db
+    .select({ id: departments.id, name: departments.name, code: departments.code })
     .from(departments)
-    .innerJoin(faculties, eq(faculties.id, departments.facultyId))
-    .where(or(ilike(faculties.name, term), ilike(faculties.name, `%${term}%`)))
-    .limit(1)
-  if (byFaculty) return byFaculty.id
 
-  throw badRequest('Could not find that department.')
+  let best: { id: string; score: number } | null = null
+  for (const dept of all) {
+    const score = departmentMatchScore(term, dept.name, dept.code)
+    if (!best || score > best.score) best = { id: dept.id, score }
+  }
+  if (best && best.score >= 3) return best.id
+
+  const name = canonicalDepartmentName(term)
+  const facultyName = canonicalFacultyName(name)
+
+  const facultyRows = await db
+    .select({ id: faculties.id, name: faculties.name, code: faculties.code })
+    .from(faculties)
+
+  let facultyId: string | undefined
+  let facultyBest: { id: string; score: number } | null = null
+  for (const faculty of facultyRows) {
+    const score = departmentMatchScore(facultyName, faculty.name, faculty.code)
+    if (!facultyBest || score > facultyBest.score) facultyBest = { id: faculty.id, score }
+  }
+  if (facultyBest && facultyBest.score >= 3) {
+    facultyId = facultyBest.id
+  } else {
+    const [createdFaculty] = await db
+      .insert(faculties)
+      .values({
+        code: await uniqueCode(async (code) => {
+          const [hit] = await db.select({ id: faculties.id }).from(faculties).where(eq(faculties.code, code)).limit(1)
+          return Boolean(hit)
+        }, codeStub(facultyName, 'FAC')),
+        name: facultyName,
+      })
+      .returning({ id: faculties.id })
+    facultyId = createdFaculty!.id
+  }
+
+  const [created] = await db
+    .insert(departments)
+    .values({
+      facultyId,
+      code: await uniqueCode(async (code) => {
+        const [hit] = await db.select({ id: departments.id }).from(departments).where(eq(departments.code, code)).limit(1)
+        return Boolean(hit)
+      }, codeStub(name, 'DEPT')),
+      name,
+    })
+    .returning({ id: departments.id })
+
+  return created!.id
+}
+
+async function ensureCurrentOffering(
+  db: Awaited<ReturnType<typeof getInstitutionDb>>,
+  institutionId: string,
+  courseId: string,
+): Promise<string | null> {
+  const semester = await currentSemester(institutionId)
+  if (!semester) return null
+
+  const [existing] = await db
+    .select({ id: courseOfferings.id })
+    .from(courseOfferings)
+    .where(and(eq(courseOfferings.courseId, courseId), eq(courseOfferings.semesterId, semester.id)))
+    .limit(1)
+  if (existing) return existing.id
+
+  const [created] = await db
+    .insert(courseOfferings)
+    .values({ courseId, semesterId: semester.id, section: 'A' })
+    .returning({ id: courseOfferings.id })
+  return created?.id ?? null
+}
+
+async function assignLeadLecturer(
+  db: Awaited<ReturnType<typeof getInstitutionDb>>,
+  institutionId: string,
+  courseId: string,
+  lecturerId: string | null,
+  assignedBy: string,
+): Promise<void> {
+  const offeringId = await ensureCurrentOffering(db, institutionId, courseId)
+  if (!offeringId) {
+    if (lecturerId) throw badRequest('There is no current semester to assign a lecturer to.')
+    return
+  }
+
+  await db
+    .delete(lecturerAssignments)
+    .where(and(eq(lecturerAssignments.courseOfferingId, offeringId), eq(lecturerAssignments.isLead, true)))
+
+  if (!lecturerId) return
+
+  const [lecturer] = await db
+    .select({ id: users.id, role: users.role, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, lecturerId))
+    .limit(1)
+  if (!lecturer || lecturer.role !== 'Lecturer' || !lecturer.isActive) {
+    throw badRequest('Choose an active lecturer.')
+  }
+
+  await db.insert(lecturerAssignments).values({
+    courseOfferingId: offeringId,
+    lecturerId,
+    isLead: true,
+    assignedBy,
+  })
 }
 
 function mapCalendarEvent(row: {
@@ -1372,10 +1593,15 @@ export async function updateAcademicProgramme(
     .limit(1)
   if (!existing) throw notFound('That programme')
 
+  const departmentId = input.departmentName
+    ? await resolveDepartmentId(db, input.departmentName)
+    : undefined
+
   await db
     .update(programmes)
     .set({
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+      ...(departmentId ? { departmentId } : {}),
       ...(input.durationYears !== undefined ? { durationYears: input.durationYears } : {}),
       ...(input.totalCredits !== undefined ? { totalCreditsRequired: input.totalCredits } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
@@ -1406,6 +1632,13 @@ export async function createAcademicCourse(
   const departmentId = await resolveDepartmentId(db, input.departmentName)
   const code = normalizeCourseCode(input.code)
 
+  const [duplicate] = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(eq(courses.code, code))
+    .limit(1)
+  if (duplicate) throw conflict(`A course with code ${code} already exists.`)
+
   const [created] = await db
     .insert(courses)
     .values({
@@ -1432,6 +1665,10 @@ export async function createAcademicCourse(
         isMandatory: true,
       }).onConflictDoNothing()
     }
+  }
+
+  if (input.lecturerId) {
+    await assignLeadLecturer(db, institutionId, created!.id, input.lecturerId, actor.id)
   }
 
   await writeAudit({
@@ -1463,16 +1700,35 @@ export async function updateAcademicCourse(
     .limit(1)
   if (!existing) throw notFound('That course')
 
-  await db
-    .update(courses)
-    .set({
-      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-      ...(input.credits !== undefined ? { credits: input.credits } : {}),
-      ...(input.yearOfStudy !== undefined ? { yearOfStudy: input.yearOfStudy } : {}),
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-    })
-    .where(eq(courses.id, courseId))
+  let nextCode = existing.code
+  if (input.code !== undefined) {
+    nextCode = normalizeCourseCode(input.code)
+    if (nextCode !== existing.code) {
+      const [duplicate] = await db
+        .select({ id: courses.id })
+        .from(courses)
+        .where(and(eq(courses.code, nextCode), ne(courses.id, courseId)))
+        .limit(1)
+      if (duplicate) throw badRequest('Another course already uses that code.')
+    }
+  }
+
+  const departmentId = input.departmentName
+    ? await resolveDepartmentId(db, input.departmentName)
+    : undefined
+
+  const coursePatch = {
+    ...(input.code !== undefined ? { code: nextCode } : {}),
+    ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+    ...(departmentId ? { departmentId } : {}),
+    ...(input.credits !== undefined ? { credits: input.credits } : {}),
+    ...(input.yearOfStudy !== undefined ? { yearOfStudy: input.yearOfStudy } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+  }
+  if (Object.keys(coursePatch).length > 0) {
+    await db.update(courses).set(coursePatch).where(eq(courses.id, courseId))
+  }
 
   if (input.prerequisiteCodes) {
     await db.delete(coursePrerequisites).where(eq(coursePrerequisites.courseId, courseId))
@@ -1492,6 +1748,10 @@ export async function updateAcademicCourse(
     }
   }
 
+  if (input.lecturerId !== undefined) {
+    await assignLeadLecturer(db, institutionId, courseId, input.lecturerId, actor.id)
+  }
+
   await writeAudit({
     institutionId,
     actorId: actor.id,
@@ -1500,7 +1760,10 @@ export async function updateAcademicCourse(
     action: 'course.update',
     targetType: 'course',
     targetId: courseId,
-    metadata: { code: existing.code, name: input.name ?? existing.name },
+    ...(nextCode !== existing.code
+      ? { changes: { code: { from: existing.code, to: nextCode } } }
+      : {}),
+    metadata: { code: nextCode, name: input.name ?? existing.name },
   })
 
   const rows = await listAcademicCourses(institutionId)
@@ -1621,4 +1884,158 @@ export async function deleteAcademicCalendarEvent(
     targetId: eventId,
     metadata: { title: existing.title },
   })
+}
+
+export async function changeAcademicStudentStatus(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  idOrNumber: string,
+  input: ChangeAcademicStudentStatusRequest,
+): Promise<AcademicStudentDetail> {
+  const db = await getInstitutionDb(institutionId)
+  const isUuid = /^[0-9a-f-]{36}$/i.test(idOrNumber)
+  const [row] = await db
+    .select({
+      id: students.id,
+      studentNumber: students.studentNumber,
+      programmeId: students.programmeId,
+      enrolmentStatus: students.enrolmentStatus,
+    })
+    .from(students)
+    .where(isUuid ? eq(students.id, idOrNumber) : eq(students.studentNumber, idOrNumber))
+    .limit(1)
+
+  if (!row) throw notFound('That student')
+
+  const fromStatus = row.enrolmentStatus
+  const today = new Date().toISOString().slice(0, 10)
+
+  if (input.action === 'transfer') {
+    if (!input.targetProgrammeId) throw badRequest('Choose a programme to transfer to.')
+    if (input.targetProgrammeId === row.programmeId) {
+      throw badRequest('The student is already on that programme.')
+    }
+
+    const [programme] = await db
+      .select({ id: programmes.id, name: programmes.name })
+      .from(programmes)
+      .where(eq(programmes.id, input.targetProgrammeId))
+      .limit(1)
+    if (!programme) throw notFound('That programme')
+
+    const [fromProgramme] = await db
+      .select({ name: programmes.name })
+      .from(programmes)
+      .where(eq(programmes.id, row.programmeId))
+      .limit(1)
+
+    await db
+      .update(students)
+      .set({
+        programmeId: input.targetProgrammeId,
+        ...(input.yearOfStudy !== undefined ? { yearOfStudy: input.yearOfStudy } : {}),
+      })
+      .where(eq(students.id, row.id))
+
+    await db.insert(enrolmentHistory).values({
+      studentId: row.id,
+      fromStatus,
+      toStatus: 'Active',
+      reason: `${input.reason.trim()} (Programme: ${fromProgramme?.name ?? '—'} → ${programme.name})`,
+      effectiveDate: today,
+      changedBy: actor.id,
+    })
+
+    await writeAudit({
+      institutionId,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      action: 'student.transfer',
+      targetType: 'student',
+      targetId: row.id,
+      changes: {
+        programmeId: { from: row.programmeId, to: input.targetProgrammeId },
+        ...(input.yearOfStudy !== undefined
+          ? { yearOfStudy: { from: null, to: input.yearOfStudy } }
+          : {}),
+      },
+      metadata: { studentNumber: row.studentNumber, reason: input.reason.trim() },
+    })
+  } else {
+    const toStatus = {
+      suspend: 'Suspended',
+      graduate: 'Graduated',
+      withdraw: 'Withdrawn',
+    }[input.action] as 'Suspended' | 'Graduated' | 'Withdrawn'
+
+    if (fromStatus === toStatus) throw badRequest('The student is already in that status.')
+    if (fromStatus === 'Graduated' || fromStatus === 'Withdrawn') {
+      throw badRequest('This enrolment record can no longer be changed.')
+    }
+
+    await db
+      .update(students)
+      .set({
+        enrolmentStatus: toStatus,
+        ...(input.action === 'graduate' ? { graduatedAt: today } : {}),
+      })
+      .where(eq(students.id, row.id))
+
+    await db.insert(enrolmentHistory).values({
+      studentId: row.id,
+      fromStatus,
+      toStatus,
+      reason: input.reason.trim(),
+      effectiveDate: today,
+      changedBy: actor.id,
+    })
+
+    await writeAudit({
+      institutionId,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      action: `student.${input.action}`,
+      targetType: 'student',
+      targetId: row.id,
+      changes: { enrolmentStatus: { from: fromStatus, to: toStatus } },
+      metadata: { studentNumber: row.studentNumber, reason: input.reason.trim() },
+    })
+  }
+
+  return getAcademicStudent(institutionId, row.studentNumber)
+}
+
+export async function bulkCreateAcademicCourses(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  input: BulkCreateAcademicCoursesRequest,
+): Promise<{ created: number; failed: Array<{ code: string; error: string }> }> {
+  let created = 0
+  const failed: Array<{ code: string; error: string }> = []
+
+  for (const course of input.courses) {
+    try {
+      await createAcademicCourse(institutionId, actor, course)
+      created += 1
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Could not create course.'
+      failed.push({ code: course.code, error: message })
+    }
+  }
+
+  if (created > 0) {
+    await writeAudit({
+      institutionId,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      action: 'course.bulk_import',
+      targetType: 'course',
+      metadata: { created, failed: failed.length },
+    })
+  }
+
+  return { created, failed }
 }

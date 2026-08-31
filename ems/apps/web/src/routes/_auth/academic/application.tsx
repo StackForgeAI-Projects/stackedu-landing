@@ -386,13 +386,26 @@ function ApplicationDetailPage() {
                     {app.payment.reference}
                   </p>
                   {app.payment.status !== 'Completed' && (
-                    <Button
-                      className="mt-2"
-                      disabled={confirmPay.isPending}
-                      onClick={() => confirmPay.mutate()}
-                    >
-                      {confirmPay.isPending ? 'Confirming…' : 'Confirm payment received'}
-                    </Button>
+                    <ConfirmAlertDialog
+                      trigger={
+                        <Button className="mt-2" disabled={confirmPay.isPending}>
+                          {confirmPay.isPending ? 'Confirming…' : 'Confirm payment received'}
+                        </Button>
+                      }
+                      title="Mark this payment as received?"
+                      tone="success"
+                      headlineLabel="Action"
+                      headline="Confirm payment"
+                      summary={`${formatCurrency(app.payment.amount)} for ${app.fullName} will be marked as completed.`}
+                      notices={[
+                        { icon: 'info', label: 'This does not admit the applicant. You still need to record a decision.' },
+                        { icon: 'user', label: 'The applicant will see the updated payment status on Track.' },
+                      ]}
+                      confirmLabel={confirmPay.isPending ? 'Confirming…' : 'Confirm'}
+                      confirmVariant="brand"
+                      loading={confirmPay.isPending}
+                      onConfirm={() => confirmPay.mutate()}
+                    />
                   )}
                 </div>
               ) : (

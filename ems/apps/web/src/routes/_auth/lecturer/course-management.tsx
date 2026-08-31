@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Upload, Plus, Trash2, Pin } from 'lucide-react'
-import { AppShell } from '@/components/AppShell'
+import { LecturerShell } from '@/components/LecturerShell'
 import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import {
-  LECTURER, LECTURER_NAV, LECTURER_COURSES, COURSE_MATERIALS, ANNOUNCEMENTS,
+  LECTURER_COURSES, COURSE_MATERIALS, ANNOUNCEMENTS,
   type CourseMaterial, type CourseAnnouncement,
 } from '@/data/lecturer'
 
@@ -44,17 +44,7 @@ function CourseManagementPage() {
   }
 
   return (
-    <AppShell
-      navItems={LECTURER_NAV}
-      pageTitle="Course Management"
-      userName={LECTURER.fullName}
-      userRole="Lecturer"
-      userInitials={LECTURER.initials}
-      unreadCount={3}
-      infoCardLabel="LECTURER ID"
-      infoCardValue={LECTURER.id}
-      infoCardSubtext={LECTURER.department}
-    >
+    <LecturerShell pageTitle="Course Management">
       <div className="animate-fade-up" style={{ padding: '32px 32px 56px', maxWidth: 900, margin: '0 auto' }}>
 
         {/* Header */}
@@ -146,7 +136,7 @@ function CourseManagementPage() {
           <PostAnnouncementForm courseId={courseId} onClose={() => setAnnounceOpen(false)} onPosted={(a) => { setAnnouncements(prev => [a, ...prev]); setAnnounceOpen(false) }} />
         </SheetContent>
       </Sheet>
-    </AppShell>
+    </LecturerShell>
   )
 }
 

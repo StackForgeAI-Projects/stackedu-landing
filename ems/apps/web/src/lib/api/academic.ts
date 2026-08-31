@@ -14,9 +14,12 @@ import type {
   AcademicStudentDetail,
   AcademicStudentRow,
   AcademicTimetableSlot,
+  AcademicDepartmentOption,
   CreateAcademicCalendarEventRequest,
   CreateAcademicCourseRequest,
   CreateAcademicProgrammeRequest,
+  ChangeAcademicStudentStatusRequest,
+  BulkCreateAcademicCoursesRequest,
   RejectResultBatchRequest,
   UpdateAcademicCalendarEventRequest,
   UpdateAcademicCourseRequest,
@@ -34,6 +37,7 @@ export const academicProgrammeQueryKey = (id: string) => ['academic', 'programme
 export const academicCalendarQueryKey = ['academic', 'calendar'] as const
 export const academicTimetableQueryKey = ['academic', 'timetable'] as const
 export const academicLecturersQueryKey = ['academic', 'lecturers'] as const
+export const academicDepartmentsQueryKey = ['academic', 'departments'] as const
 export const academicSemestersQueryKey = ['academic', 'semesters'] as const
 export const academicResultsQueryKey = (semesterId?: string, status?: string) =>
   ['academic', 'results', semesterId ?? 'all', status ?? 'all'] as const
@@ -58,6 +62,17 @@ export async function listAcademicStudents(): Promise<AcademicStudentRow[]> {
 
 export async function getAcademicStudent(id: string): Promise<AcademicStudentDetail> {
   const { student } = await api.get<{ student: AcademicStudentDetail }>(`/academic/students/${id}`)
+  return student
+}
+
+export async function changeAcademicStudentStatus(
+  id: string,
+  input: ChangeAcademicStudentStatusRequest,
+): Promise<AcademicStudentDetail> {
+  const { student } = await api.post<{ student: AcademicStudentDetail }>(
+    `/academic/students/${id}/status`,
+    input,
+  )
   return student
 }
 
@@ -89,6 +104,11 @@ export async function listAcademicTimetableSlots(): Promise<AcademicTimetableSlo
 export async function listAcademicLecturers(): Promise<AcademicLecturerRow[]> {
   const { lecturers } = await api.get<{ lecturers: AcademicLecturerRow[] }>('/academic/lecturers')
   return lecturers
+}
+
+export async function listAcademicDepartments(): Promise<AcademicDepartmentOption[]> {
+  const { departments } = await api.get<{ departments: AcademicDepartmentOption[] }>('/academic/departments')
+  return departments
 }
 
 export async function listAcademicSemesters(): Promise<AcademicSemesterOption[]> {
@@ -160,6 +180,16 @@ export async function updateAcademicProgramme(id: string, input: UpdateAcademicP
 export async function createAcademicCourse(input: CreateAcademicCourseRequest): Promise<AcademicCourseRow> {
   const { course } = await api.post<{ course: AcademicCourseRow }>('/academic/courses', input)
   return course
+}
+
+export async function bulkCreateAcademicCourses(
+  input: BulkCreateAcademicCoursesRequest,
+): Promise<{ created: number; failed: Array<{ code: string; error: string }> }> {
+  const { result } = await api.post<{ result: { created: number; failed: Array<{ code: string; error: string }> } }>(
+    '/academic/courses/bulk',
+    input,
+  )
+  return result
 }
 
 export async function updateAcademicCourse(id: string, input: UpdateAcademicCourseRequest): Promise<AcademicCourseRow> {

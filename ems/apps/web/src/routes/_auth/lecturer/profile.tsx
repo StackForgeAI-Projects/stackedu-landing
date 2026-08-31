@@ -1,33 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { Building2, IdCard } from 'lucide-react'
-import { AppShell } from '@/components/AppShell'
+import { LecturerShell } from '@/components/LecturerShell'
 import { AccountProfileView } from '@/components/account/AccountProfileView'
-import { LECTURER, LECTURER_NAV } from '@/data/lecturer'
+import { getLecturerProfile, lecturerProfileQueryKey } from '@/lib/api/lecturer'
 
 export const Route = createFileRoute('/_auth/lecturer/profile')({
   component: LecturerProfilePage,
 })
 
 function LecturerProfilePage() {
+  const { data } = useQuery({ queryKey: lecturerProfileQueryKey, queryFn: getLecturerProfile })
   return (
-    <AppShell
-      navItems={LECTURER_NAV}
-      pageTitle="My Profile"
-      userName={LECTURER.fullName}
-      userRole="Lecturer"
-      userInitials={LECTURER.initials}
-      infoCardLabel="LECTURER ID"
-      infoCardValue={LECTURER.id}
-      infoCardSubtext={LECTURER.department}
-    >
+    <LecturerShell pageTitle="My Profile">
       <AccountProfileView
         breadcrumb="Lecturer"
-        subtitle={`Lecturer · ${LECTURER.department}`}
+        subtitle={data ? `Lecturer · ${data.department}` : 'Lecturer'}
         extraFields={[
-          { icon: IdCard, label: 'Staff ID', value: LECTURER.id, mono: true },
-          { icon: Building2, label: 'Department', value: LECTURER.department },
+          { icon: IdCard, label: 'Staff ID', value: data?.staffId ?? '—', mono: true },
+          { icon: Building2, label: 'Department', value: data?.department ?? '—' },
         ]}
       />
-    </AppShell>
+    </LecturerShell>
   )
 }

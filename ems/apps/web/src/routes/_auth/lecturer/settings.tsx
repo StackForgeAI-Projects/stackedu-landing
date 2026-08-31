@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { AppShell } from '@/components/AppShell'
+import { LecturerShell } from '@/components/LecturerShell'
 import { AccountSettingsView } from '@/components/account/AccountSettingsView'
-import { LECTURER, LECTURER_NAV } from '@/data/lecturer'
 
 export const Route = createFileRoute('/_auth/lecturer/settings')({
   component: LecturerSettingsPage,
@@ -9,16 +8,7 @@ export const Route = createFileRoute('/_auth/lecturer/settings')({
 
 function LecturerSettingsPage() {
   return (
-    <AppShell
-      navItems={LECTURER_NAV}
-      pageTitle="Account Settings"
-      userName={LECTURER.fullName}
-      userRole="Lecturer"
-      userInitials={LECTURER.initials}
-      infoCardLabel="LECTURER ID"
-      infoCardValue={LECTURER.id}
-      infoCardSubtext={LECTURER.department}
-    >
+    <LecturerShell pageTitle="Account Settings">
       <AccountSettingsView
         breadcrumb="Lecturer"
         notificationPrefs={[
@@ -28,6 +18,6 @@ function LecturerSettingsPage() {
           { key: 'system', label: 'System announcements', email: true, sms: false, inapp: false },
         ]}
       />
-    </AppShell>
+    </LecturerShell>
   )
 }

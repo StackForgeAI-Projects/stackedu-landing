@@ -115,6 +115,7 @@ export const academicCourseRowSchema = z.object({
   department: z.string(),
   credits: z.number().int(),
   type: z.enum(['Compulsory', 'Elective']),
+  lecturerId: uuidSchema.nullable(),
   lecturerName: z.string().nullable(),
   enrolled: z.number().int().nonnegative(),
   status: z.enum(['Active', 'Archived']),
@@ -297,6 +298,7 @@ export const createAcademicProgrammeRequestSchema = z.object({
 
 export const updateAcademicProgrammeRequestSchema = z.object({
   name: z.string().trim().min(2).max(200).optional(),
+  departmentName: z.string().trim().min(2).max(200).optional(),
   durationYears: z.number().int().min(1).max(8).optional(),
   totalCredits: z.number().int().min(1).max(999).optional(),
   isActive: z.boolean().optional(),
@@ -310,15 +312,19 @@ export const createAcademicCourseRequestSchema = z.object({
   yearOfStudy: z.number().int().min(1).max(8).optional(),
   description: z.string().trim().max(2000).optional(),
   prerequisiteCodes: z.array(z.string().trim().min(2).max(20)).max(10).optional(),
+  lecturerId: uuidSchema.optional(),
 })
 
 export const updateAcademicCourseRequestSchema = z.object({
+  code: z.string().trim().min(2).max(20).optional(),
   name: z.string().trim().min(2).max(200).optional(),
+  departmentName: z.string().trim().min(2).max(200).optional(),
   credits: z.number().int().min(1).max(30).optional(),
   yearOfStudy: z.number().int().min(1).max(8).nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   isActive: z.boolean().optional(),
   prerequisiteCodes: z.array(z.string().trim().min(2).max(20)).max(10).optional(),
+  lecturerId: uuidSchema.nullable().optional(),
 })
 
 export const createAcademicCalendarEventRequestSchema = z.object({
@@ -330,6 +336,26 @@ export const createAcademicCalendarEventRequestSchema = z.object({
 })
 
 export const updateAcademicCalendarEventRequestSchema = createAcademicCalendarEventRequestSchema.partial()
+
+export const changeAcademicStudentStatusRequestSchema = z.object({
+  action: z.enum(['suspend', 'transfer', 'graduate', 'withdraw']),
+  reason: z.string().trim().min(4, 'Please enter a reason (at least 4 characters).').max(500),
+  targetProgrammeId: uuidSchema.optional(),
+  yearOfStudy: z.number().int().min(1).max(8).optional(),
+})
+
+export const bulkCreateAcademicCoursesRequestSchema = z.object({
+  courses: z.array(createAcademicCourseRequestSchema).min(1).max(200),
+})
+
+export const academicDepartmentOptionSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  code: z.string(),
+})
+
+export type ChangeAcademicStudentStatusRequest = z.infer<typeof changeAcademicStudentStatusRequestSchema>
+export type BulkCreateAcademicCoursesRequest = z.infer<typeof bulkCreateAcademicCoursesRequestSchema>
 
 export type AcademicProfile = z.infer<typeof academicProfileSchema>
 export type AcademicDashboard = z.infer<typeof academicDashboardSchema>
@@ -353,3 +379,4 @@ export type CreateAcademicCourseRequest = z.infer<typeof createAcademicCourseReq
 export type UpdateAcademicCourseRequest = z.infer<typeof updateAcademicCourseRequestSchema>
 export type CreateAcademicCalendarEventRequest = z.infer<typeof createAcademicCalendarEventRequestSchema>
 export type UpdateAcademicCalendarEventRequest = z.infer<typeof updateAcademicCalendarEventRequestSchema>
+export type AcademicDepartmentOption = z.infer<typeof academicDepartmentOptionSchema>

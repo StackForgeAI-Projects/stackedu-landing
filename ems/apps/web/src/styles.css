@@ -596,3 +596,66 @@ h6 {
     width: min(720px, 45vw);
   }
 }
+
+/* ── App scrollbar (same as the sidebar menu: slim forest-green pill) ── */
+:root {
+  --scrollbar-size: 5px;
+  --scrollbar-thumb: rgba(15, 189, 59, 0.45);
+  --scrollbar-thumb-hover: rgba(15, 189, 59, 0.65);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ── Course code pill (lecturer dashboard, courses, etc.) ── */
+.course-code-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  flex-shrink: 0;
+}
+
+.course-code-pill--sm {
+  width: 44px;
+  height: 44px;
+}
+
+.course-code-pill--md {
+  width: 48px;
+  height: 48px;
+}
+
+.course-code-pill__text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  line-height: 1.15;
+  text-align: center;
+  padding: 0 4px;
+  max-width: 100%;
+  word-break: break-word;
+}

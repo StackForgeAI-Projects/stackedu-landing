@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import type { ChangeAcademicStudentStatusRequest } from '@stackedu/shared'
 import { ChevronLeft, CheckCircle2, AlertCircle, Clock, RotateCcw, XCircle } from 'lucide-react'
 import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
 import { AcademicShell } from '@/components/AcademicShell'
@@ -8,10 +9,15 @@ import { DataTable } from '@/components/DataTable'
 import { studentStatusColors, gradeColors } from '@/data/academic'
 import {
   academicStudentQueryKey,
+  academicStudentsQueryKey,
+  changeAcademicStudentStatus,
   getAcademicStudent,
+  listAcademicProgrammes,
+  academicProgrammesQueryKey,
 } from '@/lib/api/academic'
 import { apiErrorMessage } from '@/lib/api/client'
 import { formatCurrency, formatDateShort } from '@/lib/utils'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_auth/academic/student')({
   validateSearch: (s: Record<string, unknown>) => ({ id: (s.id as string) || '' }),
@@ -22,14 +28,47 @@ type Tab = 'personal' | 'academic' | 'history'
 
 function StudentProfilePage() {
   const { id } = Route.useSearch()
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('personal')
   const [showGradCheck, setShowGradCheck] = useState(false)
   const [graduateDialogOpen, setGraduateDialogOpen] = useState(false)
+  const [graduateReason, setGraduateReason] = useState('')
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [transferReason, setTransferReason] = useState('')
+  const [transferProgrammeId, setTransferProgrammeId] = useState('')
+  const [transferYear, setTransferYear] = useState(1)
+  const [suspendReason, setSuspendReason] = useState('')
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [suspendOpen, setSuspendOpen] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
 
   const { data: s, isPending, error } = useQuery({
     queryKey: academicStudentQueryKey(id),
     queryFn: () => getAcademicStudent(id),
     enabled: Boolean(id),
+  })
+
+  const programmesQuery = useQuery({
+    queryKey: academicProgrammesQueryKey,
+    queryFn: listAcademicProgrammes,
+  })
+
+  const statusMutation = useMutation({
+    mutationFn: (input: ChangeAcademicStudentStatusRequest) => changeAcademicStudentStatus(id, input),
+    onSuccess: async (student) => {
+      toast.success('Student record updated.')
+      queryClient.setQueryData(academicStudentQueryKey(id), student)
+      await queryClient.invalidateQueries({ queryKey: academicStudentsQueryKey })
+      setGraduateDialogOpen(false)
+      setGraduateReason('')
+      setTransferDialogOpen(false)
+      setTransferReason('')
+      setSuspendOpen(false)
+      setSuspendReason('')
+      setWithdrawOpen(false)
+      setWithdrawReason('')
+    },
+    onError: (cause) => toast.error(apiErrorMessage(cause, 'Could not update student status.')),
   })
 
   const retakes = useMemo(() => {
@@ -111,8 +150,8 @@ function StudentProfilePage() {
           <span className="t-label px-3 py-1.5 mt-1" style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 'var(--radius-sm)' }}>{s.status}</span>
         </div>
 
-        <div className="flex gap-6">
-          <div style={{ flex: '0 0 65%', maxWidth: '65%' }}>
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 min-w-0 lg:max-w-[65%]">
             <div className="flex gap-1 mb-5" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
               {TABS.map((t) => (
                 <button key={t.key} type="button" onClick={() => setTab(t.key)}
@@ -253,7 +292,7 @@ function StudentProfilePage() {
             )}
           </div>
 
-          <div className="flex flex-col gap-4" style={{ flex: '0 0 35%', maxWidth: '35%' }}>
+          <div className="flex flex-col gap-4 w-full lg:w-[35%] lg:max-w-[35%]">
             <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 20 }}>
               <h3 className="t-h3 mb-4" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', fontSize: '0.9375rem' }}>Student Status</h3>
               <div className="flex items-center gap-2 flex-wrap mb-4">
@@ -280,7 +319,30 @@ function StudentProfilePage() {
             <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: 20 }}>
               <h3 className="t-h3 mb-4" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)', fontSize: '0.9375rem' }}>Actions</h3>
               <div className="flex flex-col gap-2.5">
-                <ActionButton label="Suspend student" color="var(--error)" confirmTitle="Suspend student?" confirmDesc={`This will suspend ${s.fullName}'s access to all platform features.`} />
+                <ConfirmAlertDialog
+                  open={suspendOpen}
+                  onOpenChange={(open) => { setSuspendOpen(open); if (!open) setSuspendReason('') }}
+                  trigger={
+                    <button type="button" className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
+                      style={{ border: '1px solid var(--error)', color: 'var(--error)', backgroundColor: 'transparent', cursor: 'pointer' }}>
+                      Suspend student
+                    </button>
+                  }
+                  title="Suspend student?"
+                  tone="destructive"
+                  headlineLabel="Action"
+                  headline="Suspend student"
+                  summary={`This will suspend ${s.fullName}'s access to platform features.`}
+                  notices={[{ icon: 'user', label: 'An audit entry will be recorded on this student profile.' }]}
+                  confirmLabel={statusMutation.isPending ? 'Saving…' : 'Confirm'}
+                  confirmVariant="destructive"
+                  confirmDisabled={suspendReason.trim().length < 4}
+                  loading={statusMutation.isPending}
+                  onConfirm={() => statusMutation.mutate({ action: 'suspend', reason: suspendReason.trim() })}
+                >
+                  <ReasonField value={suspendReason} onChange={setSuspendReason} />
+                </ConfirmAlertDialog>
+
                 <div>
                   {!showGradCheck ? (
                     <button type="button" onClick={() => setShowGradCheck(true)} className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
@@ -313,7 +375,7 @@ function StudentProfilePage() {
                       </button>
                       <ConfirmAlertDialog
                         open={graduateDialogOpen}
-                        onOpenChange={setGraduateDialogOpen}
+                        onOpenChange={(open) => { setGraduateDialogOpen(open); if (!open) setGraduateReason('') }}
                         title="Graduate student?"
                         tone="success"
                         headlineLabel="Action"
@@ -321,10 +383,14 @@ function StudentProfilePage() {
                         summary={`Confirm graduation for ${s.fullName}.`}
                         notices={[{ icon: 'user', label: 'The student will be marked as graduated on their record.' }]}
                         caution="This cannot be undone."
-                        confirmLabel="Confirm"
+                        confirmLabel={statusMutation.isPending ? 'Saving…' : 'Confirm'}
                         confirmVariant="brand"
-                        onConfirm={() => setGraduateDialogOpen(false)}
-                      />
+                        confirmDisabled={graduateReason.trim().length < 4}
+                        loading={statusMutation.isPending}
+                        onConfirm={() => statusMutation.mutate({ action: 'graduate', reason: graduateReason.trim() })}
+                      >
+                        <ReasonField value={graduateReason} onChange={setGraduateReason} />
+                      </ConfirmAlertDialog>
                       <button type="button" onClick={() => setShowGradCheck(false)} className="w-full py-1.5 rounded-lg text-xs font-medium transition-colors duration-150"
                         style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>
                         Hide checklist
@@ -332,8 +398,93 @@ function StudentProfilePage() {
                     </div>
                   )}
                 </div>
-                <ActionButton label="Transfer programme" color="var(--foreground)" confirmTitle="Transfer programme?" confirmDesc={`You are about to initiate a programme transfer for ${s.fullName}.`} />
-                <ActionButton label="Defer enrollment" color="var(--foreground)" confirmTitle="Defer enrollment?" confirmDesc={`Defer ${s.fullName}'s enrollment to a future semester.`} />
+
+                <ConfirmAlertDialog
+                  open={transferDialogOpen}
+                  onOpenChange={(open) => { setTransferDialogOpen(open); if (!open) { setTransferReason(''); setTransferProgrammeId('') } }}
+                  trigger={
+                    <button
+                      type="button"
+                      onClick={() => setTransferYear(s.yearOfStudy)}
+                      className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
+                      style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}
+                    >
+                      Transfer programme
+                    </button>
+                  }
+                  title="Transfer programme?"
+                  tone="info"
+                  headlineLabel="Action"
+                  headline="Transfer programme"
+                  summary={`Move ${s.fullName} to a different programme.`}
+                  notices={[{ icon: 'user', label: 'Enrollment history and audit log will be updated.' }]}
+                  confirmLabel={statusMutation.isPending ? 'Saving…' : 'Confirm transfer'}
+                  confirmDisabled={transferReason.trim().length < 4 || !transferProgrammeId}
+                  loading={statusMutation.isPending}
+                  onConfirm={() => statusMutation.mutate({
+                    action: 'transfer',
+                    reason: transferReason.trim(),
+                    targetProgrammeId: transferProgrammeId,
+                    yearOfStudy: transferYear,
+                  })}
+                >
+                  <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="t-label" style={{ color: 'var(--muted-foreground)' }}>New programme</span>
+                      <select
+                        value={transferProgrammeId}
+                        onChange={(event) => setTransferProgrammeId(event.target.value)}
+                        className="w-full text-sm rounded-lg px-3 h-9 outline-none"
+                        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                      >
+                        <option value="">Select programme</option>
+                        {(programmesQuery.data ?? [])
+                          .filter((programme) => programme.name !== s.programmeName)
+                          .map((programme) => (
+                            <option key={programme.id} value={programme.id}>{programme.name}</option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="t-label" style={{ color: 'var(--muted-foreground)' }}>Year of study</span>
+                      <select
+                        value={transferYear}
+                        onChange={(event) => setTransferYear(Number.parseInt(event.target.value, 10))}
+                        className="w-full text-sm rounded-lg px-3 h-9 outline-none"
+                        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                      >
+                        {[1, 2, 3, 4, 5, 6].map((year) => (
+                          <option key={year} value={year}>Year {year}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <ReasonField value={transferReason} onChange={setTransferReason} />
+                  </div>
+                </ConfirmAlertDialog>
+
+                <ConfirmAlertDialog
+                  open={withdrawOpen}
+                  onOpenChange={(open) => { setWithdrawOpen(open); if (!open) setWithdrawReason('') }}
+                  trigger={
+                    <button type="button" className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
+                      style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'transparent', cursor: 'pointer' }}>
+                      Withdraw student
+                    </button>
+                  }
+                  title="Withdraw student?"
+                  tone="warning"
+                  headlineLabel="Action"
+                  headline="Withdraw student"
+                  summary={`Mark ${s.fullName} as withdrawn from the institution.`}
+                  notices={[{ icon: 'user', label: 'This update will be recorded on the student profile and audit log.' }]}
+                  confirmLabel={statusMutation.isPending ? 'Saving…' : 'Confirm'}
+                  confirmVariant="warning"
+                  confirmDisabled={withdrawReason.trim().length < 4}
+                  loading={statusMutation.isPending}
+                  onConfirm={() => statusMutation.mutate({ action: 'withdraw', reason: withdrawReason.trim() })}
+                >
+                  <ReasonField value={withdrawReason} onChange={setWithdrawReason} />
+                </ConfirmAlertDialog>
               </div>
             </div>
           </div>
@@ -352,39 +503,18 @@ function SectionCard({ title, children }: { title: string; children: React.React
   )
 }
 
-function ActionButton({
-  label,
-  color,
-  confirmTitle,
-  confirmDesc,
-  confirmHeadline,
-  tone = 'info',
-}: {
-  label: string
-  color: string
-  confirmTitle: string
-  confirmDesc: string
-  confirmHeadline?: string
-  tone?: 'info' | 'warning' | 'destructive'
-}) {
-  const isDestructive = color === 'var(--error)'
-  const borderColor = isDestructive ? 'var(--error)' : 'var(--border)'
+function ReasonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
-    <ConfirmAlertDialog
-      trigger={
-        <button type="button" className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
-          style={{ border: `1px solid ${borderColor}`, color, backgroundColor: 'transparent', cursor: 'pointer' }}>
-          {label}
-        </button>
-      }
-      title={confirmTitle}
-      tone={isDestructive ? 'destructive' : tone}
-      headlineLabel="Action"
-      headline={confirmHeadline ?? label}
-      summary={confirmDesc}
-      notices={[{ icon: 'user', label: 'This update will be recorded on the student profile.' }]}
-      confirmLabel="Confirm"
-      confirmVariant={isDestructive ? 'destructive' : 'default'}
-    />
+    <label className="flex flex-col gap-1.5">
+      <span className="t-label" style={{ color: 'var(--muted-foreground)' }}>Reason (required)</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={3}
+        className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+        placeholder="Brief reason for this change"
+      />
+    </label>
   )
 }

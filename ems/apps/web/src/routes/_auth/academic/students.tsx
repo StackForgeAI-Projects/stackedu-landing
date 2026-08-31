@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download } from 'lucide-react'
 import { AcademicShell } from '@/components/AcademicShell'
 import { DataTable } from '@/components/DataTable'
+import { ExportMenu } from '@/components/ExportMenu'
 import { studentStatusColors } from '@/data/academic'
 import {
   academicStudentsQueryKey,
@@ -23,6 +24,23 @@ function StudentRegistryPage() {
 
   const students = data ?? []
 
+  const exportPayload = useMemo(() => {
+    const stamp = new Date().toISOString().slice(0, 10)
+    return {
+      filename: `student-registry-${stamp}`,
+      title: 'Student Registry',
+      headers: ['Student ID', 'Name', 'Programme', 'Year', 'Enrollment Date', 'Status'],
+      rows: students.map((s) => [
+        s.studentNumber,
+        s.fullName,
+        s.programmeName,
+        `Year ${s.yearOfStudy}`,
+        formatDateShort(s.enrollmentDate),
+        s.status,
+      ]),
+    }
+  }, [students])
+
   return (
     <AcademicShell pageTitle="Students">
       <div className="page-body animate-fade-up">
@@ -33,15 +51,7 @@ function StudentRegistryPage() {
               {isPending ? 'Loading…' : `${students.length} enrolled students`}
             </p>
           </div>
-          <button
-            type="button"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150"
-            style={{ border: '1px solid var(--border)', color: 'var(--foreground)', backgroundColor: 'var(--card)', cursor: 'pointer' }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--muted)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)' }}
-          >
-            <Download style={{ width: 14, height: 14 }} />Export
-          </button>
+          <ExportMenu payload={exportPayload} disabled={isPending || Boolean(error)} />
         </div>
 
         {error ? (

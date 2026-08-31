@@ -136,7 +136,14 @@ def main():
             "notifications, and account settings (notification preferences stored in the database).",
             "The Academic Admin portal is live: dashboard, applications inbox, students, courses "
             "and programmes (create and edit), calendar (create, edit, delete), timetable "
-            "(read-only), faculty list, result approval, at-risk, reports, and notifications.",
+            "(read-only live grid with conflict hints), faculty list, result approval, at-risk, "
+            "reports, and notifications.",
+            "The Lecturer portal is live on core teaching flows: dashboard, my courses, "
+            "attendance (take and history), results entry and submission, assignments, at-risk, "
+            "notifications, profile, settings, and timetable (each lecturer adds and edits slots "
+            "for their assigned courses only). Academic Admin approves or returns submitted "
+            "result batches. course-management, assessment-builder, and result-review screens "
+            "still use placeholder content.",
             "Shared account layer is live on all portals: profile, password change (revokes all "
             "sessions), notification preferences in the database, TOTP two-factor authentication "
             "with authenticator apps, dark/light mode on this device, and a header notification "
@@ -150,10 +157,31 @@ def main():
             "sign in. A six-digit code is emailed immediately; the applicant verifies in a modal "
             "on the create-account screen (or at /apply/verify when returning). Sign-in and access "
             "to the form, documents, and payment happen only after verification.",
-            "Lecturer, Bursar, and Librarian screens still show mock data. They will write into "
-            "the same tables the Student and Academic portals already read.",
+            "Bursar and Librarian screens still use mock data. They will write into the same "
+            "tables the Student, Academic, and Lecturer portals already read.",
+            "Marketing site: the public landing page no longer shows a Login link in the top menu "
+            "(staff and students use the app sign-in URL directly).",
             "Every signed-in page shows a short guide box so staff and students know what "
             "that screen is for.",
+        ],
+    )
+
+    h2(doc, "1.5 Recent completions — August 2026 (EMS)")
+    bullets(
+        doc,
+        [
+            "Lecturer API and routes under /lecturer/* with role checks and assigned-course scoping.",
+            "Shared lecturer-portal schemas in packages/shared for dashboard, courses, attendance, "
+            "results, assessments, at-risk, notifications, rooms, and timetable slots.",
+            "Lecturer Timetable page: add, edit, and remove weekly class slots (day, time, room, "
+            "session type) for assigned courses. Academic Admin sees the same live slots read-only.",
+            "Lecturer permission timetable.write added so lecturers maintain their own schedule.",
+            "Demo seed data: lecturer course registrations, attendance sample, assessments, "
+            "notifications, and default timetable slots where missing.",
+            "Course code pills: bolder, clearer course codes on lecturer dashboard and courses.",
+            "App-wide scrollbar styling aligned with the sidebar menu (DRY CSS tokens).",
+            "Academic Admin export menus and page guides on key registrar screens.",
+            "All 61 API tests passing.",
         ],
     )
 
@@ -209,9 +237,10 @@ def main():
     )
     para(
         doc,
-        "Build order for the remaining portals: Bursar (fees and holds) → Lecturer "
-        "(teaching and results entry) → Librarian (catalogue). ICT and Academic Admin "
-        "are done. AI stays paused until the core portals are real.",
+        "Build order for the remaining portals: Bursar (fees, holds, and live payment webhooks) "
+        "→ Librarian (catalogue). Lecturer core teaching is live; finish course materials, "
+        "assessment builder, and submission grading. ICT and Academic Admin are done. AI stays "
+        "paused until the core portals are real.",
     )
 
     h2(doc, "1.2 The main recommendations in this document")
@@ -324,7 +353,7 @@ def main():
             ["Public authentication", "4", "4", "Complete"],
             ["Public admissions (apply)", "7", "Not itemised in spec", "Complete"],
             ["Student", "15", "15", "Complete (My Profile folded into other screens)"],
-            ["Lecturer", "14", "13", "Complete"],
+            ["Lecturer", "15", "13", "Live (core teaching)"],
             ["Bursar", "9", "7", "Complete"],
             ["Academic Admin", "16", "13", "Complete"],
             ["ICT Manager", "15", "10", "Complete"],
@@ -336,11 +365,14 @@ def main():
     numbered(
         doc,
         [
-            "Lecturer, Bursar, and Librarian portals still use mock data files. Their screens "
-            "exist but do not yet read or write the institution database.",
-            "Academic timetable and full faculty management are read-only in the UI. Calendar, "
-            "programmes, and courses can be created and edited; timetable conflict detection "
-            "and lecturer assignment are not wired yet.",
+            "Bursar and Librarian portals still use mock data files. Their screens exist but do "
+            "not yet read or write the institution database.",
+            "Lecturer portal: core teaching is live (attendance, results submit, assignments, "
+            "timetable slots, at-risk). Course materials upload, full assessment builder, and "
+            "submission grading remain placeholder screens.",
+            "Academic Admin timetable is read-only (live grid and conflict hints). Lecturers edit "
+            "slots on Lecturer → Timetable. Full faculty add-or-assign outside Courses is not "
+            "built yet.",
             "Live payment gateways (MoMo, Airtel, DPO) and production webhooks are not connected. "
             "Student and admissions fees run in sandbox mode; ICT toggles block live MoMo/Airtel "
             "when turned off.",
@@ -2471,7 +2503,7 @@ def main():
         7,
         "Academic Admin (Registrar) Portal",
         "18 screens · LIVE on real records · AI paused",
-        "Done (timetable write and full faculty CRUD remain)",
+        "Done (lecturers write timetable; full faculty screen remains)",
         [
             (
                 "Screens covered",
@@ -2488,7 +2520,8 @@ def main():
                     "Applications inbox wired to the admissions API (review and decision).",
                     "Programme and course catalogue: create and edit via API.",
                     "Academic calendar: create, edit, and delete years, semesters, and events.",
-                    "Timetable read from enrolled offerings (display only; no write API yet).",
+                    "Timetable read from live slots (display only for Academic Admin; lecturers "
+                    "write slots on Lecturer → Timetable).",
                     "Faculty list from lecturer records (read-only; no add-or-assign API yet).",
                     "Result approval workflow (approve and reject with audit).",
                     "At-risk student list and academic reports from live aggregates.",
@@ -2499,8 +2532,7 @@ def main():
             (
                 "Still to build",
                 [
-                    "Timetable manager with conflict detection and write endpoints.",
-                    "Faculty management and course assignment to lecturers.",
+                    "Faculty management screen beyond course-level lecturer assignment.",
                     "Enrolment status changes: suspend, transfer, graduate, withdraw, each with "
                     "an audit entry.",
                     "Result batch publishing as a background job with student notifications.",
@@ -2513,9 +2545,38 @@ def main():
                 [
                     "A registrar can set the calendar, manage programmes and courses, review "
                     "applications, approve results, and monitor at-risk students — all on live data.",
-                    "Timetable editing and full faculty assignment complete the remaining registrar "
-                    "workflow.",
+                    "Lecturers maintain timetable slots; the registrar views the live grid and "
+                    "conflicts.",
                     "An academic admin cannot see any payment data, verified by test.",
+                ],
+            ),
+        ],
+    )
+
+    phase(
+        doc,
+        7.1,
+        "Lecturer Portal — status update (August 2026)",
+        "Core teaching live · a few screens still placeholder",
+        "Shipped incrementally",
+        [
+            (
+                "Live today",
+                [
+                    "Dashboard, my courses, attendance and history, results entry and submit, "
+                    "assignments list, at-risk, notifications, profile, settings.",
+                    "Timetable: lecturers add, edit, and remove class slots for assigned courses.",
+                    "API: /lecturer/* with assigned-offering checks; shared Zod schemas; demo seed.",
+                    "Handshake with Academic Admin: submitted results appear as Pending; approve or "
+                    "return notifies the lecturer.",
+                ],
+            ),
+            (
+                "Still placeholder",
+                [
+                    "course-management (materials and announcements UI).",
+                    "assessment-builder and full submission-review grading flow.",
+                    "result-review (lecturer view of published batches).",
                 ],
             ),
         ],
@@ -3221,9 +3282,10 @@ def main():
     para(
         doc,
         "Much of this plan is already built and live on Render and Vercel for the pilot "
-        "institution. Remaining work is concentrated in Bursar, Lecturer, Librarian, live "
-        "payment webhooks, and the central notification service. Regenerate this document "
-        "locally with scripts/generate-implementation-plan.py whenever a major milestone ships.",
+        "institution. Remaining work is concentrated in Bursar, Librarian, live payment "
+        "webhooks, lecturer placeholder screens (materials and assessment builder), and the "
+        "central notification service. Regenerate this document locally with "
+        "scripts/generate-implementation-plan.py whenever a major milestone ships.",
     )
 
     # ── Appendix ─────────────────────────────────────────────────────────────
@@ -3255,10 +3317,10 @@ def main():
             ],
             [
                 "Lecturer",
-                "index, dashboard, courses, course-management, attendance, attendance-history, "
-                "results, result-review, assignments, submission-review, assessment-builder, "
-                "analytics, at-risk, notifications",
-                "6",
+                "index, dashboard, courses, timetable, course-management, attendance, "
+                "attendance-history, results, result-review, assignments, submission-review, "
+                "assessment-builder, analytics, at-risk, notifications, profile, settings",
+                "6 — Live (core)",
             ],
             [
                 "Academic Admin",
@@ -3314,7 +3376,8 @@ def main():
             ["apps/web/src/data/academic.ts", "1,144 lines of fake data", "7"],
             ["apps/web/src/data/ict.ts", "847 lines of fake data", "10"],
             ["apps/web/src/data/courses.ts", "684 lines of fake data", "5 to 7"],
-            ["apps/web/src/data/lecturer.ts", "422 lines of fake data", "6"],
+            ["apps/web/src/data/lecturer.ts", "Navigation labels only; portal uses live API", "6 — Done"],
+            ["apps/web/src/lib/api/lecturer.ts", "Live lecturer API client", "6 — Done"],
             ["apps/web/src/data/bursar.ts", "398 lines of fake data", "8"],
         ],
     )
