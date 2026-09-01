@@ -1,15 +1,19 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Users, ChevronRight, Search } from 'lucide-react'
+import { Users, ChevronRight, Search, Plus, ExternalLink } from 'lucide-react'
 import type { LecturerCourseDetail, LecturerCourseRow } from '@stackedu/shared'
 import { LecturerShell } from '@/components/LecturerShell'
 import { CourseCodePill } from '@/components/CourseCodePill'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { apiErrorMessage } from '@/lib/api/client'
+import { toast } from 'sonner'
 import {
+  createLecturerMaterial,
   getLecturerCourse,
   lecturerCourseQueryKey,
   lecturerCoursesQueryKey,
@@ -66,13 +70,21 @@ function MyCoursesPage() {
             </div>
           </div>
           <div className="page-master-detail">
-            {selected && <CourseDetail course={selected} detail={detail} studentSearch={studentSearch} onStudentSearchChange={setStudentSearch} onStudentClick={setActiveStudentId} />}
+            {selected && (
+              <CourseDetail
+                course={selected}
+                detail={detail}
+                studentSearch={studentSearch}
+                onStudentSearchChange={setStudentSearch}
+                onStudentClick={setActiveStudentId}
+              />
+            )}
           </div>
         </div>
       )}
 
       <Sheet open={activeStudent !== null} onOpenChange={(open) => { if (!open) setActiveStudentId(null) }}>
-        <SheetContent side="right" className="p-0 border-l overflow-hidden flex flex-col sheet-md">
+        <SheetContent side="right" className="p-0 overflow-hidden flex flex-col sheet-md">
           {activeStudent && selected && (
             <StudentSheet student={activeStudent} course={selected} onClose={() => setActiveStudentId(null)} />
           )}
@@ -122,6 +134,8 @@ function CourseDetail({
   onStudentSearchChange: (q: string) => void
   onStudentClick: (id: string) => void
 }) {
+  const queryClient = useQueryClient()
+  const [materialOpen, setMaterialOpen] = useState(false)
   const students = detail?.students ?? []
   const filtered = students.filter((s) =>
     !studentSearch
@@ -148,8 +162,9 @@ function CourseDetail({
               {slot.day} · {slot.time} · {slot.room}
             </span>
           ))}
-          <span className="flex items-center gap-1 t-caption" style={{ color: 'var(--muted-foreground)' }}>
-            <Users style={{ width: 12, height: 12 }} /> {course.enrolledCount} students
+          <span className="meta-stat t-caption" style={{ color: 'var(--muted-foreground)' }}>
+            <Users className="meta-stat__icon" aria-hidden />
+            <span>{course.enrolledCount} students</span>
           </span>
         </div>
       </div>
@@ -191,9 +206,31 @@ function CourseDetail({
         </TabsContent>
 
         <TabsContent value="content">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>
+              Add reading materials here. Create assignments from the Assignments page — they appear below once published.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                onClick={() => setMaterialOpen(true)}
+                style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', gap: 6 }}
+              >
+                <Plus style={{ width: 14, height: 14 }} /> Add material
+              </Button>
+              <Link to="/lecturer/assignments">
+                <Button type="button" variant="outline" className="gap-1.5">
+                  Create assignment <ExternalLink style={{ width: 13, height: 13 }} />
+                </Button>
+              </Link>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(detail?.materials ?? []).length === 0 && (detail?.assessments ?? []).length === 0 ? (
-              <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>No materials or assessments published yet.</p>
+              <div className="text-center py-10 px-4" style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)' }}>
+                <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>No materials or assessments published yet.</p>
+              </div>
             ) : null}
             {(detail?.materials ?? []).map((m) => (
               <div key={m.id} style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '14px 16px' }}>
@@ -223,6 +260,89 @@ function CourseDetail({
           </div>
         </TabsContent>
       </Tabs>
+
+      <Sheet open={materialOpen} onOpenChange={setMaterialOpen}>
+        <SheetContent side="right" className="p-0 border-l overflow-hidden flex flex-col sheet-md">
+          <AddMaterialForm
+            offeringId={course.offeringId}
+            onClose={() => setMaterialOpen(false)}
+            onSuccess={async () => {
+              await queryClient.invalidateQueries({ queryKey: lecturerCourseQueryKey(course.offeringId) })
+              setMaterialOpen(false)
+            }}
+          />
+        </SheetContent>
+      </Sheet>
+    </div>
+  )
+}
+
+function AddMaterialForm({
+  offeringId,
+  onClose,
+  onSuccess,
+}: {
+  offeringId: string
+  onClose: () => void
+  onSuccess: () => Promise<void>
+}) {
+  const [title, setTitle] = useState('')
+  const [moduleName, setModuleName] = useState('')
+  const [description, setDescription] = useState('')
+  const [externalUrl, setExternalUrl] = useState('')
+
+  const create = useMutation({
+    mutationFn: () =>
+      createLecturerMaterial({
+        offeringId,
+        title: title.trim(),
+        moduleName: moduleName.trim() || undefined,
+        description: description.trim() || undefined,
+        externalUrl: externalUrl.trim() || undefined,
+        publish: true,
+      }),
+    onSuccess: async (material) => {
+      toast.success(`Material "${material.title}" added`)
+      await onSuccess()
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not add that material.')),
+  })
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div style={{ padding: '20px 56px 18px 24px', borderBottom: '1px solid var(--border)' }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 600, color: 'var(--foreground)' }}>Add course material</h3>
+        <p className="t-caption mt-1" style={{ color: 'var(--muted-foreground)' }}>Published materials appear on the Course Content tab and in the student portal.</p>
+      </div>
+      <div style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <label className="t-label mb-1.5 block" style={{ color: 'var(--foreground)' }}>Title</label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Week 1 lecture slides" />
+        </div>
+        <div>
+          <label className="t-label mb-1.5 block" style={{ color: 'var(--foreground)' }}>Module / week (optional)</label>
+          <Input value={moduleName} onChange={(e) => setModuleName(e.target.value)} placeholder="e.g. Week 1" />
+        </div>
+        <div>
+          <label className="t-label mb-1.5 block" style={{ color: 'var(--foreground)' }}>Description (optional)</label>
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief note for students…" rows={3} />
+        </div>
+        <div>
+          <label className="t-label mb-1.5 block" style={{ color: 'var(--foreground)' }}>Link URL (optional)</label>
+          <Input value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} placeholder="https://…" type="url" />
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+          <Button
+            type="button"
+            disabled={title.trim().length < 2 || create.isPending}
+            onClick={() => create.mutate()}
+            style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}
+          >
+            {create.isPending ? 'Publishing…' : 'Publish material'}
+          </Button>
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
     </div>
   )
 }

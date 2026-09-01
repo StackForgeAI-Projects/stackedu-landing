@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type {
   AttendancePolicy,
   CreateLecturerAssessmentRequest,
+  CreateLecturerMaterialRequest,
   Grade,
   LecturerAssessmentDetail,
   LecturerAssessmentRow,
@@ -639,6 +640,58 @@ export async function getLecturerCourse(
       isPublished: row.isPublished,
     })),
   }
+}
+
+export async function createLecturerMaterial(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  input: CreateLecturerMaterialRequest,
+): Promise<LecturerCourseDetail['materials'][number]> {
+  const { db } = await requireLecturer(institutionId, actor.id)
+  await requireAssignedOffering(db, actor.id, input.offeringId)
+
+  const externalUrl = input.externalUrl?.trim()
+  if (externalUrl) {
+    try {
+      new URL(externalUrl)
+    } catch {
+      throw badRequest('Enter a valid link URL or leave it blank.')
+    }
+  }
+
+  const publish = input.publish ?? true
+  const now = new Date().toISOString()
+  const [created] = await db
+    .insert(courseMaterials)
+    .values({
+      courseOfferingId: input.offeringId,
+      title: input.title,
+      description: input.description ?? null,
+      moduleName: input.moduleName ?? null,
+      externalUrl: externalUrl || null,
+      isPublished: publish,
+      publishedAt: publish ? now : null,
+      uploadedBy: actor.id,
+    })
+    .returning({
+      id: courseMaterials.id,
+      title: courseMaterials.title,
+      description: courseMaterials.description,
+      moduleName: courseMaterials.moduleName,
+    })
+
+  await writeAudit({
+    institutionId,
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: 'materials.write',
+    targetType: 'course_material',
+    targetId: created!.id,
+    metadata: { title: input.title, offeringId: input.offeringId },
+  })
+
+  return created!
 }
 
 async function loadAttendanceSessions(

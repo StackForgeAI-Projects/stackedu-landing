@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import {
   createLecturerAssessmentRequestSchema,
+  createLecturerMaterialRequestSchema,
   resolveLecturerAtRiskRequestSchema,
   saveLecturerAttendanceRequestSchema,
   saveLecturerGradeRequestSchema,
@@ -13,6 +14,7 @@ import { requireAuth, requireRole, type AuthVariables } from '../middleware/auth
 import type { RequestVariables } from '../middleware/request-context'
 import {
   createLecturerAssessment,
+  createLecturerMaterial,
   createLecturerTimetableSlot,
   deleteLecturerTimetableSlot,
   getLecturerAssessment,
@@ -73,6 +75,14 @@ lecturerRoutes.get('/lecturer/courses/:offeringId', ...lecturerOnly, async (c) =
   const user = c.get('user')!
   return c.json({
     course: await getLecturerCourse(user.institution.id, user.id, c.req.param('offeringId')),
+  })
+})
+
+lecturerRoutes.post('/lecturer/materials', ...lecturerOnly, async (c) => {
+  const parsed = createLecturerMaterialRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  return c.json({
+    material: await createLecturerMaterial(c.get('user')!.institution.id, actor(c), parsed.data),
   })
 })
 

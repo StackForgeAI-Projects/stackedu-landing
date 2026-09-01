@@ -238,6 +238,15 @@ export const createLecturerAssessmentRequestSchema = z.object({
   publish: z.boolean().optional(),
 })
 
+export const createLecturerMaterialRequestSchema = z.object({
+  offeringId: uuidSchema,
+  title: z.string().trim().min(2).max(200),
+  description: z.string().trim().max(2000).optional(),
+  moduleName: z.string().trim().max(100).optional(),
+  externalUrl: z.string().trim().max(500).optional(),
+  publish: z.boolean().optional(),
+})
+
 export const lecturerSubmissionRowSchema = z.object({
   studentId: uuidSchema,
   studentNumber: z.string(),
@@ -307,6 +316,7 @@ export type SaveLecturerResultsRequest = z.infer<typeof saveLecturerResultsReque
 export type LecturerAssessmentRow = z.infer<typeof lecturerAssessmentRowSchema>
 export type LecturerAssessmentDetail = z.infer<typeof lecturerAssessmentDetailSchema>
 export type CreateLecturerAssessmentRequest = z.infer<typeof createLecturerAssessmentRequestSchema>
+export type CreateLecturerMaterialRequest = z.infer<typeof createLecturerMaterialRequestSchema>
 export type SaveLecturerGradeRequest = z.infer<typeof saveLecturerGradeRequestSchema>
 export type LecturerAtRiskStudent = z.infer<typeof lecturerAtRiskStudentSchema>
 export type LecturerNotification = z.infer<typeof lecturerNotificationSchema>

@@ -1,5 +1,6 @@
 import type {
   CreateLecturerAssessmentRequest,
+  CreateLecturerMaterialRequest,
   LecturerAssessmentDetail,
   LecturerAssessmentRow,
   LecturerAttendanceDetail,
@@ -56,6 +57,16 @@ export async function listLecturerCourses(): Promise<LecturerCourseRow[]> {
 export async function getLecturerCourse(offeringId: string): Promise<LecturerCourseDetail> {
   const { course } = await api.get<{ course: LecturerCourseDetail }>(`/lecturer/courses/${offeringId}`)
   return course
+}
+
+export async function createLecturerMaterial(
+  input: CreateLecturerMaterialRequest,
+): Promise<LecturerCourseDetail['materials'][number]> {
+  const { material } = await api.post<{ material: LecturerCourseDetail['materials'][number] }>(
+    '/lecturer/materials',
+    input,
+  )
+  return material
 }
 
 export async function listLecturerAttendance(offeringId?: string): Promise<LecturerAttendanceSession[]> {

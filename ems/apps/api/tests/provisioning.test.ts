@@ -28,7 +28,9 @@ import {
   lecturerAssignments,
 } from '../src/db/institution/schema/teaching'
 import {
+  createLecturerMaterial,
   deleteLecturerAttendanceSession,
+  getLecturerCourse,
   listLecturerAttendance,
   saveLecturerAttendance,
 } from '../src/services/lecturer'
@@ -380,5 +382,72 @@ describe('institution provisioning', () => {
     listed = await deleteLecturerAttendanceSession(result.institutionId, actor, draftForDelete.id)
     expect(listed.some((row) => row.id === draftForDelete.id)).toBe(false)
     expect(listed.some((row) => row.id === submitted.id)).toBe(true)
+  })
+
+  it('lets an assigned lecturer publish course materials for their offering', async () => {
+    const result = await provisionInstitution({
+      name: 'Material Flow University',
+      slug: uniqueSlug('matflow'),
+      shortName: 'MFU',
+      contactEmail: 'admin@mfu.test',
+    })
+    const db = await getInstitutionDb(result.institutionId)
+
+    const lecturer = await createUser({
+      institutionId: result.institutionId,
+      email: 'lecturer@mfu.test',
+      fullName: 'Material Lecturer',
+      role: 'Lecturer',
+      password: 'Lecturer#2026',
+    })
+
+    const [faculty] = await db.insert(faculties).values({ code: 'NUR', name: 'Nursing' }).returning()
+    const [department] = await db
+      .insert(departments)
+      .values({ facultyId: faculty!.id, code: 'NUR', name: 'Nursing Science' })
+      .returning()
+    const [year] = await db
+      .insert(academicYears)
+      .values({ name: '2026/2027', startDate: '2026-09-01', endDate: '2027-08-31', isCurrent: true })
+      .returning()
+    const [semester] = await db
+      .insert(semesters)
+      .values({
+        academicYearId: year!.id,
+        name: 'Semester 1',
+        sequence: 1,
+        startDate: '2026-09-01',
+        endDate: '2027-01-31',
+        isCurrent: true,
+      })
+      .returning()
+    const [course] = await db
+      .insert(courses)
+      .values({ departmentId: department!.id, code: 'NURS101', name: 'Intro to Nursing Science', credits: 6 })
+      .returning()
+    const [offering] = await db
+      .insert(courseOfferings)
+      .values({ courseId: course!.id, semesterId: semester!.id, section: 'A' })
+      .returning()
+    await db.insert(lecturerAssignments).values({
+      courseOfferingId: offering!.id,
+      lecturerId: lecturer.id,
+      isLead: true,
+    })
+
+    const actor = { id: lecturer.id, email: lecturer.email, role: lecturer.role as 'Lecturer' }
+    const material = await createLecturerMaterial(result.institutionId, actor, {
+      offeringId: offering!.id,
+      title: 'Week 1 lecture notes',
+      moduleName: 'Week 1',
+      description: 'Introduction to nursing practice',
+      externalUrl: 'https://example.com/week-1',
+      publish: true,
+    })
+
+    expect(material.title).toBe('Week 1 lecture notes')
+
+    const detail = await getLecturerCourse(result.institutionId, lecturer.id, offering!.id)
+    expect(detail.materials.some((row) => row.id === material.id)).toBe(true)
   })
 })
