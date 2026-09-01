@@ -76,6 +76,13 @@ export async function saveLecturerAttendance(
   return session
 }
 
+export async function deleteLecturerAttendanceSession(sessionId: string): Promise<LecturerAttendanceSession[]> {
+  const { sessions } = await api.delete<{ sessions: LecturerAttendanceSession[] }>(
+    `/lecturer/attendance/${sessionId}`,
+  )
+  return sessions
+}
+
 export async function getLecturerResults(offeringId: string): Promise<LecturerResultBatch> {
   const { results } = await api.get<{ results: LecturerResultBatch }>(`/lecturer/results/${offeringId}`)
   return results

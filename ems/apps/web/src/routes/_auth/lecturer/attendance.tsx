@@ -1,10 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import { ClipboardList, CheckCircle2, Eye } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ClipboardList, CheckCircle2, Eye, Lock, Pencil, Trash2 } from 'lucide-react'
 import type { AttendanceStatus, LecturerAttendanceSession } from '@stackedu/shared'
 import { LecturerShell } from '@/components/LecturerShell'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
+import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -12,6 +20,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { toast } from 'sonner'
 import { apiErrorMessage } from '@/lib/api/client'
 import {
+  deleteLecturerAttendanceSession,
   getLecturerAttendanceSession,
   getLecturerCourse,
   lecturerAttendanceQueryKey,
@@ -31,6 +40,12 @@ export const Route = createFileRoute('/_auth/lecturer/attendance')({
 
 type AttStatus = Extract<AttendanceStatus, 'Present' | 'Absent' | 'Late'>
 
+type ActiveSession = {
+  id?: string
+  sessionDate: string
+  topic: string
+}
+
 function AttendancePage() {
   const queryClient = useQueryClient()
   const { data: courses = [] } = useQuery({
@@ -39,8 +54,11 @@ function AttendancePage() {
   })
   const [offeringId, setOfferingId] = useState('')
   const [sessionActive, setSessionActive] = useState(false)
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
   const [statuses, setStatuses] = useState<Record<string, AttStatus>>({})
   const [viewSessionId, setViewSessionId] = useState<string | null>(null)
+  const [deleteSession, setDeleteSession] = useState<LecturerAttendanceSession | null>(null)
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!offeringId && courses[0]) setOfferingId(courses[0].offeringId)
@@ -72,36 +90,123 @@ function AttendancePage() {
     { present: 0, absent: 0, late: 0 },
   )
 
+  const resetSession = () => {
+    setSessionActive(false)
+    setActiveSession(null)
+    setStatuses({})
+  }
+
   const startSession = () => {
     const initial: Record<string, AttStatus> = {}
     students.forEach((s) => { initial[s.studentId] = 'Present' })
     setStatuses(initial)
+    setActiveSession({ sessionDate: today, topic: `Session ${nextSessionNum}` })
     setSessionActive(true)
   }
 
+  const openSessionForEdit = async (session: LecturerAttendanceSession) => {
+    if (!session.editable) {
+      toast.error('This session can no longer be edited.')
+      return
+    }
+    setLoadingEditId(session.id)
+    try {
+      if (session.offeringId !== offeringId) {
+        setOfferingId(session.offeringId)
+        await queryClient.fetchQuery({
+          queryKey: lecturerCourseQueryKey(session.offeringId),
+          queryFn: () => getLecturerCourse(session.offeringId),
+        })
+      }
+      const detail = await getLecturerAttendanceSession(session.id)
+      const initial: Record<string, AttStatus> = {}
+      for (const record of detail.records) {
+        if (record.status === 'Present' || record.status === 'Absent' || record.status === 'Late') {
+          initial[record.studentId] = record.status
+        }
+      }
+      setStatuses(initial)
+      setActiveSession({
+        id: session.id,
+        sessionDate: session.sessionDate,
+        topic: session.topic ?? `Session ${session.sessionNumber}`,
+      })
+      setSessionActive(true)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not open this session for editing.'))
+    } finally {
+      setLoadingEditId(null)
+    }
+  }
+
+  const buildRecords = () =>
+    students.map((s) => ({ studentId: s.studentId, status: getStatus(s.studentId) }))
+
+  const invalidateAttendance = async () => {
+    await queryClient.invalidateQueries({ queryKey: lecturerAttendanceQueryKey(offeringId) })
+    await queryClient.invalidateQueries({ queryKey: lecturerDashboardQueryKey })
+  }
+
   const save = useMutation({
-    mutationFn: (close: boolean) =>
-      saveLecturerAttendance({
+    mutationFn: (close: boolean) => {
+      if (!activeSession) throw new Error('No active session')
+      return saveLecturerAttendance({
+        sessionId: activeSession.id,
         offeringId,
-        sessionDate: today,
-        topic: `Session ${nextSessionNum}`,
+        sessionDate: activeSession.sessionDate,
+        topic: activeSession.topic,
         close,
-        records: students.map((s) => ({ studentId: s.studentId, status: getStatus(s.studentId) })),
-      }),
+        records: buildRecords(),
+      })
+    },
     onSuccess: async (_data, close) => {
       toast.success(close ? `Attendance recorded for ${course?.code ?? 'this course'}` : 'Draft saved')
-      if (close) {
-        setSessionActive(false)
-        setStatuses({})
-      }
-      await queryClient.invalidateQueries({ queryKey: lecturerAttendanceQueryKey(offeringId) })
-      await queryClient.invalidateQueries({ queryKey: lecturerDashboardQueryKey })
+      if (close) resetSession()
+      await invalidateAttendance()
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Could not save attendance.')),
   })
 
+  const submitDraft = useMutation({
+    mutationFn: async (session: LecturerAttendanceSession) => {
+      const detail = await getLecturerAttendanceSession(session.id)
+      return saveLecturerAttendance({
+        sessionId: session.id,
+        offeringId: session.offeringId,
+        sessionDate: session.sessionDate,
+        topic: session.topic ?? undefined,
+        close: true,
+        records: detail.records.map((record) => ({
+          studentId: record.studentId,
+          status: record.status,
+        })),
+      })
+    },
+    onSuccess: async () => {
+      toast.success('Attendance submitted')
+      resetSession()
+      await invalidateAttendance()
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not submit attendance.')),
+  })
+
+  const remove = useMutation({
+    mutationFn: (sessionId: string) => deleteLecturerAttendanceSession(sessionId),
+    onSuccess: async (_sessions, sessionId) => {
+      toast.success('Attendance session deleted')
+      setDeleteSession(null)
+      if (activeSession?.id === sessionId) resetSession()
+      await invalidateAttendance()
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not delete this session.')),
+  })
+
+  const editingExisting = Boolean(activeSession?.id)
+  const sessionLabel = activeSession?.topic ?? `Session ${nextSessionNum}`
+  const sessionDateLabel = activeSession?.sessionDate ?? today
+
   return (
-    <LecturerShell pageTitle="Attendance" guide="Start a session, mark each enrolled student Present, Absent or Late, then submit. History is stored per course.">
+    <LecturerShell pageTitle="Attendance" guide="Choose a course, start or resume a session, mark each student Present, Absent or Late, then submit. Drafts stay editable; submitted records can be edited within the window set by ICT. Use the table to search, filter rows, edit, submit drafts, or delete.">
       <div className="animate-fade-up px-4 sm:px-8 py-8 pb-14" style={{ maxWidth: 900, margin: '0 auto' }}>
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-7">
           <div>
@@ -109,7 +214,7 @@ function AttendancePage() {
             <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>Record and track student attendance per session.</p>
           </div>
           {courses.length > 0 && (
-            <Select value={offeringId} onValueChange={(id) => { setOfferingId(id); setSessionActive(false); setStatuses({}) }}>
+            <Select value={offeringId} onValueChange={(id) => { setOfferingId(id); resetSession() }}>
               <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {courses.map((c) => (
@@ -129,9 +234,13 @@ function AttendancePage() {
           style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', padding: '20px 24px' }}
         >
           <div>
-            <p className="t-label mb-1" style={{ color: 'var(--muted-foreground)' }}>CURRENT SESSION</p>
+            <p className="t-label mb-1" style={{ color: 'var(--muted-foreground)' }}>
+              {sessionActive ? (editingExisting ? 'EDITING SESSION' : 'CURRENT SESSION') : 'CURRENT SESSION'}
+            </p>
             <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{course ? `${course.code} — ${course.name}` : 'Select a course'}</p>
-            <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>Session {nextSessionNum} · {formatDateLong(today)}</p>
+            <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+              {sessionLabel} · {formatDateLong(sessionDateLabel)}
+            </p>
           </div>
           {!sessionActive && (
             <Button onClick={startSession} disabled={!course || students.length === 0} style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}>
@@ -189,11 +298,16 @@ function AttendancePage() {
               })}
             </div>
             <div className="flex flex-wrap items-center gap-3 mt-4">
-              <Button onClick={() => save.mutate(true)} disabled={save.isPending} style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}>
+              <Button onClick={() => save.mutate(true)} disabled={save.isPending || submitDraft.isPending} style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}>
                 <CheckCircle2 style={{ width: 15, height: 15, marginRight: 6 }} />
                 Submit attendance
               </Button>
-              <Button variant="outline" disabled={save.isPending} onClick={() => save.mutate(false)}>Save draft</Button>
+              <Button variant="outline" disabled={save.isPending || submitDraft.isPending} onClick={() => save.mutate(false)}>
+                Save draft
+              </Button>
+              <Button variant="ghost" disabled={save.isPending || submitDraft.isPending} onClick={resetSession}>
+                Cancel
+              </Button>
             </div>
           </div>
         )}
@@ -205,63 +319,386 @@ function AttendancePage() {
             </div>
             <p className="t-h3 mb-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>No active session</p>
             <p className="t-body-sm" style={{ color: 'var(--muted-foreground)', maxWidth: 320 }}>
-              Click Start session to begin recording attendance for today.
+              Click Start session for a new roll call, or use Edit on a draft or editable record in history.
             </p>
           </div>
         )}
 
         <div>
           <h2 className="t-h3 mb-4" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>Attendance History</h2>
-          <HistoryTable sessions={sessions} loading={isPending} onView={setViewSessionId} />
+          <HistoryTable
+            sessions={sessions}
+            loading={isPending}
+            loadingEditId={loadingEditId}
+            onView={setViewSessionId}
+            onEdit={openSessionForEdit}
+            onDelete={setDeleteSession}
+            onSubmitDraft={(session) => submitDraft.mutate(session)}
+            submittingDraftId={submitDraft.isPending ? submitDraft.variables?.id ?? null : null}
+          />
         </div>
       </div>
 
       <Sheet open={viewSessionId !== null} onOpenChange={(open) => { if (!open) setViewSessionId(null) }}>
         <SheetContent side="right" className="p-0 border-l overflow-hidden flex flex-col sheet-md">
-          {viewSessionId && <SessionDetailSheet sessionId={viewSessionId} onClose={() => setViewSessionId(null)} />}
+          {viewSessionId && (
+            <SessionDetailSheet
+              sessionId={viewSessionId}
+              onClose={() => setViewSessionId(null)}
+              onEdit={(session) => {
+                setViewSessionId(null)
+                void openSessionForEdit(session)
+              }}
+            />
+          )}
         </SheetContent>
       </Sheet>
+
+      <ConfirmAlertDialog
+        open={Boolean(deleteSession)}
+        onOpenChange={(open) => { if (!open) setDeleteSession(null) }}
+        title="Delete attendance session?"
+        tone="destructive"
+        headline="This cannot be undone"
+        summary={deleteSession
+          ? `${deleteSession.topic ?? 'Session'} on ${formatDateShort(deleteSession.sessionDate)} will be permanently removed.`
+          : ''}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={() => { if (deleteSession) void remove.mutate(deleteSession.id) }}
+        loading={remove.isPending}
+      />
     </LecturerShell>
+  )
+}
+
+function statusBadge(status: LecturerAttendanceSession['status']) {
+  const isDraft = status === 'Draft'
+  return (
+    <span
+      className="t-label px-2 py-0.5 inline-block whitespace-nowrap"
+      style={{
+        backgroundColor: isDraft ? 'var(--warning-bg)' : 'var(--success-bg)',
+        color: isDraft ? 'var(--warning)' : 'var(--success)',
+        borderRadius: 'var(--radius-sm)',
+      }}
+    >
+      {status}
+    </span>
+  )
+}
+
+const ACTION_ICON = { width: 15, height: 15 } as const
+const LOCKED_TOOLTIP = 'This record is no longer editable'
+
+function ActionTooltip({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactElement
+}) {
+  return (
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function SessionActionButton({
+  label,
+  onClick,
+  disabled,
+  tone = 'default',
+  children,
+}: {
+  label: string
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
+  disabled?: boolean
+  tone?: 'default' | 'success' | 'brand' | 'danger'
+  children: React.ReactNode
+}) {
+  const colors = {
+    default: 'var(--foreground)',
+    success: 'var(--success)',
+    brand: 'var(--brand)',
+    danger: 'var(--error)',
+  }
+
+  return (
+    <ActionTooltip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        disabled={disabled}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-45"
+        style={{
+          color: colors[tone],
+          background: 'none',
+          border: 'none',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    </ActionTooltip>
+  )
+}
+
+function SessionLockedIndicator() {
+  const [open, setOpen] = useState(false)
+  const [pinned, setPinned] = useState(false)
+
+  useEffect(() => {
+    if (!pinned) return
+    const dismiss = () => {
+      setPinned(false)
+      setOpen(false)
+    }
+    window.addEventListener('click', dismiss)
+    return () => window.removeEventListener('click', dismiss)
+  }, [pinned])
+
+  return (
+    <Tooltip
+      open={open}
+      delayDuration={0}
+      onOpenChange={(next) => {
+        if (!pinned) setOpen(next)
+      }}
+    >
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={LOCKED_TOOLTIP}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--muted)]"
+          style={{
+            color: 'var(--muted-foreground)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (pinned) {
+              setPinned(false)
+              setOpen(false)
+              return
+            }
+            setPinned(true)
+            setOpen(true)
+          }}
+        >
+          <Lock style={ACTION_ICON} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{LOCKED_TOOLTIP}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function SessionRowActions({
+  row,
+  loadingEditId,
+  submittingDraftId,
+  onView,
+  onEdit,
+  onDelete,
+  onSubmitDraft,
+}: {
+  row: LecturerAttendanceSession
+  loadingEditId: string | null
+  submittingDraftId: string | null
+  onView: (id: string) => void
+  onEdit: (session: LecturerAttendanceSession) => void
+  onDelete: (session: LecturerAttendanceSession) => void
+  onSubmitDraft: (session: LecturerAttendanceSession) => void
+}) {
+  return (
+    <div
+      className="flex flex-nowrap items-center justify-end gap-0.5"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <SessionActionButton label="View session" tone="success" onClick={() => onView(row.id)}>
+        <Eye style={ACTION_ICON} />
+      </SessionActionButton>
+      {row.editable ? (
+        <>
+          <SessionActionButton
+            label={loadingEditId === row.id ? 'Opening session…' : 'Edit session'}
+            disabled={loadingEditId === row.id}
+            onClick={() => { void onEdit(row) }}
+          >
+            <Pencil style={ACTION_ICON} />
+          </SessionActionButton>
+          {row.status === 'Draft' ? (
+            <SessionActionButton
+              label={submittingDraftId === row.id ? 'Submitting…' : 'Submit attendance'}
+              tone="brand"
+              disabled={submittingDraftId === row.id}
+              onClick={() => onSubmitDraft(row)}
+            >
+              <CheckCircle2 style={ACTION_ICON} />
+            </SessionActionButton>
+          ) : null}
+          <SessionActionButton label="Delete session" tone="danger" onClick={() => onDelete(row)}>
+            <Trash2 style={ACTION_ICON} />
+          </SessionActionButton>
+        </>
+      ) : (
+        <SessionLockedIndicator />
+      )}
+    </div>
   )
 }
 
 function HistoryTable({
   sessions,
   loading,
+  loadingEditId,
   onView,
+  onEdit,
+  onDelete,
+  onSubmitDraft,
+  submittingDraftId,
 }: {
   sessions: LecturerAttendanceSession[]
   loading: boolean
+  loadingEditId: string | null
   onView: (id: string) => void
+  onEdit: (session: LecturerAttendanceSession) => void
+  onDelete: (session: LecturerAttendanceSession) => void
+  onSubmitDraft: (session: LecturerAttendanceSession) => void
+  submittingDraftId: string | null
 }) {
-  return (
-    <div style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)', overflow: 'hidden' }}>
-      <div className="hidden sm:grid px-5 py-3" style={{ gridTemplateColumns: '100px 1fr 100px 80px 80px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}>
-        {['DATE', 'TOPIC', 'PRESENT', 'RATE', ''].map((h) => <span key={h} className="t-label" style={{ color: 'var(--muted-foreground)' }}>{h}</span>)}
-      </div>
-      {loading ? (
-        <div className="py-10 text-center"><p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>Loading sessions…</p></div>
-      ) : sessions.length === 0 ? (
-        <div className="py-10 text-center"><p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>No sessions recorded yet.</p></div>
-      ) : sessions.map((s, i) => {
-        const pct = s.total ? Math.round(((s.present + s.late) / s.total) * 100) : 0
+  const columns = useMemo<DataTableColumn<LecturerAttendanceSession>[]>(() => [
+    {
+      id: 'date',
+      header: 'DATE',
+      sortable: true,
+      sortValue: (row) => row.sessionDate,
+      value: (row) => formatDateShort(row.sessionDate),
+      cell: (row) => (
+        <span className="t-caption whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>
+          {formatDateShort(row.sessionDate)}
+        </span>
+      ),
+    },
+    {
+      id: 'topic',
+      header: 'TOPIC',
+      sortable: true,
+      value: (row) => row.topic ?? 'Class session',
+      cell: (row) => (
+        <span className="text-sm" style={{ color: 'var(--foreground)' }}>{row.topic ?? 'Class session'}</span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'STATUS',
+      sortable: true,
+      sortValue: (row) => row.status,
+      value: (row) => row.status,
+      cell: (row) => statusBadge(row.status),
+    },
+    {
+      id: 'present',
+      header: 'PRESENT',
+      sortable: true,
+      sortValue: (row) => (row.total ? (row.present + row.late) / row.total : 0),
+      value: (row) => `${row.present + row.late} / ${row.total}`,
+      cell: (row) => (
+        <span className="text-sm whitespace-nowrap" style={{ color: 'var(--foreground)' }}>
+          {row.present + row.late} / {row.total}
+        </span>
+      ),
+    },
+    {
+      id: 'rate',
+      header: 'RATE',
+      sortable: true,
+      sortValue: (row) => (row.total ? Math.round(((row.present + row.late) / row.total) * 100) : 0),
+      cell: (row) => {
+        const pct = row.total ? Math.round(((row.present + row.late) / row.total) * 100) : 0
         return (
-          <div key={s.id} className="flex flex-col sm:grid sm:items-center px-5 gap-1" style={{ gridTemplateColumns: '100px 1fr 100px 80px 80px', paddingTop: 13, paddingBottom: 13, borderBottom: i < sessions.length - 1 ? '1px solid var(--border)' : 'none' }}>
-            <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>{formatDateShort(s.sessionDate)}</span>
-            <span className="text-sm" style={{ color: 'var(--foreground)' }}>{s.topic ?? 'Class session'}</span>
-            <span className="text-sm" style={{ color: 'var(--foreground)' }}>{s.present + s.late} / {s.total}</span>
-            <span className="t-label px-2 py-0.5 w-fit" style={{ backgroundColor: pct >= 80 ? 'var(--success-bg)' : 'var(--warning-bg)', color: pct >= 80 ? 'var(--success)' : 'var(--warning)', borderRadius: 'var(--radius-sm)' }}>{pct}%</span>
-            <button className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--success)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => onView(s.id)}>
-              <Eye style={{ width: 12, height: 12 }} /> View
-            </button>
-          </div>
+          <span
+            className="t-label px-2 py-0.5 inline-block whitespace-nowrap"
+            style={{
+              backgroundColor: pct >= 80 ? 'var(--success-bg)' : 'var(--warning-bg)',
+              color: pct >= 80 ? 'var(--success)' : 'var(--warning)',
+              borderRadius: 'var(--radius-sm)',
+            }}
+          >
+            {pct}%
+          </span>
         )
-      })}
-    </div>
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      headerClassName: 'w-[9.5rem]',
+      className: 'text-right whitespace-nowrap',
+      cell: (row) => (
+        <SessionRowActions
+          row={row}
+          loadingEditId={loadingEditId}
+          submittingDraftId={submittingDraftId}
+          onView={onView}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onSubmitDraft={onSubmitDraft}
+        />
+      ),
+    },
+  ], [loadingEditId, onDelete, onEdit, onSubmitDraft, onView, submittingDraftId])
+
+  if (loading) {
+    return (
+      <div
+        className="py-10 text-center"
+        style={{
+          backgroundColor: 'var(--card)',
+          borderRadius: 'var(--radius-xl)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>Loading sessions…</p>
+      </div>
+    )
+  }
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <DataTable
+        columns={columns}
+        rows={sessions}
+        rowKey={(row) => row.id}
+        searchPlaceholder="Search by topic, date or status…"
+        searchFilter={(row, query) => {
+          const haystack = `${formatDateShort(row.sessionDate)} ${row.topic ?? ''} ${row.status}`.toLowerCase()
+          return haystack.includes(query)
+        }}
+        defaultPageSize={10}
+        pageSizeOptions={[5, 10, 25, 50]}
+        empty="No sessions recorded yet."
+        onRowClick={(row) => onView(row.id)}
+      />
+    </TooltipProvider>
   )
 }
 
-function SessionDetailSheet({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+function SessionDetailSheet({
+  sessionId,
+  onClose,
+  onEdit,
+}: {
+  sessionId: string
+  onClose: () => void
+  onEdit: (session: LecturerAttendanceSession) => void
+}) {
   const { data, isPending, error } = useQuery({
     queryKey: lecturerAttendanceSessionQueryKey(sessionId),
     queryFn: () => getLecturerAttendanceSession(sessionId),
@@ -271,7 +708,10 @@ function SessionDetailSheet({ sessionId, onClose }: { sessionId: string; onClose
     <div className="flex flex-col h-full overflow-y-auto">
       <div style={{ padding: '20px 56px 18px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <p className="t-label mb-1" style={{ color: 'var(--muted-foreground)' }}>ATTENDANCE SESSION</p>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 600, color: 'var(--foreground)', lineHeight: 1.4 }}>{data?.topic ?? 'Session'}</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 600, color: 'var(--foreground)', lineHeight: 1.4 }}>{data?.topic ?? 'Session'}</h3>
+          {data ? statusBadge(data.status) : null}
+        </div>
         <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
           {data ? `${data.courseCode} · Session ${data.sessionNumber} · ${formatDateShort(data.sessionDate)}` : '…'}
         </p>
@@ -300,7 +740,16 @@ function SessionDetailSheet({ sessionId, onClose }: { sessionId: string; onClose
           </>
         ) : null}
       </div>
-      <div style={{ padding: '0 24px 28px', flexShrink: 0 }}>
+      <div className="flex flex-col gap-2 px-6 pb-7 flex-shrink-0">
+        {data?.editable ? (
+          <Button
+            className="w-full"
+            style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}
+            onClick={() => onEdit(data)}
+          >
+            Edit session
+          </Button>
+        ) : null}
         <Button variant="outline" className="w-full" onClick={onClose}>Close</Button>
       </div>
     </div>

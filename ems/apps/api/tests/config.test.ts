@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_ATTENDANCE_POLICY,
+  isAttendanceSessionEditable,
+} from '@stackedu/shared'
 import { loadEnv } from '../src/config/env'
 import { expandOriginsForEnvironment, isOriginAllowed } from '../src/config/cors'
 import {
@@ -135,5 +139,42 @@ describe('database naming', () => {
     expect(adminConnectionUrl('postgres://user:pass@db.example:5432/anything')).toContain(
       '/postgres',
     )
+  })
+})
+
+describe('attendance edit policy', () => {
+  it('treats drafts as always editable', () => {
+    expect(isAttendanceSessionEditable(null, DEFAULT_ATTENDANCE_POLICY)).toBe(true)
+  })
+
+  it('blocks submitted sessions when editing after submit is disabled', () => {
+    const closedAt = '2026-08-31T10:00:00.000Z'
+    expect(
+      isAttendanceSessionEditable(closedAt, { allowEditAfterSubmit: false, editWindowMinutes: 60 }),
+    ).toBe(false)
+  })
+
+  it('allows edits within the configured window', () => {
+    const closedAt = '2026-08-31T10:00:00.000Z'
+    const now = new Date('2026-08-31T10:30:00.000Z').getTime()
+    expect(
+      isAttendanceSessionEditable(
+        closedAt,
+        { allowEditAfterSubmit: true, editWindowMinutes: 60 },
+        now,
+      ),
+    ).toBe(true)
+  })
+
+  it('locks submitted sessions after the window expires', () => {
+    const closedAt = '2026-08-31T10:00:00.000Z'
+    const now = new Date('2026-08-31T11:30:00.000Z').getTime()
+    expect(
+      isAttendanceSessionEditable(
+        closedAt,
+        { allowEditAfterSubmit: true, editWindowMinutes: 60 },
+        now,
+      ),
+    ).toBe(false)
   })
 })

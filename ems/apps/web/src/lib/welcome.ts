@@ -1,9 +1,11 @@
+import { titleAndFirstName } from '@stackedu/shared'
+
 const WELCOME_STORAGE_KEY = 'stackedu:welcome-name'
 
 export function rememberWelcome(fullName: string): void {
-  const first = fullName.trim().split(/\s+/)[0]
-  if (!first) return
-  sessionStorage.setItem(WELCOME_STORAGE_KEY, first)
+  const name = titleAndFirstName(fullName)
+  if (!name) return
+  sessionStorage.setItem(WELCOME_STORAGE_KEY, name)
 }
 
 export function consumeWelcomeName(): string | null {

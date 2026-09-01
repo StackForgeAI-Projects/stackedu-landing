@@ -1,7 +1,12 @@
 import { userRoleSchema } from '@stackedu/shared/enums'
+import {
+  ATTENDANCE_POLICY_SETTING_KEY,
+  DEFAULT_ATTENDANCE_POLICY,
+} from '@stackedu/shared'
 import type { UserRole } from '@stackedu/shared'
 import type { InstitutionDb } from './connection'
 import { permissions, rolePermissions, roles } from './institution/schema/people'
+import { upsertInstitutionSetting } from '../lib/institution-settings'
 import { eq } from 'drizzle-orm'
 
 /**
@@ -142,6 +147,11 @@ export async function seedInstitutionDefaults(db: InstitutionDb): Promise<void> 
   if (links.length > 0) {
     await db.insert(rolePermissions).values(links).onConflictDoNothing()
   }
+
+  await upsertInstitutionSetting(db, ATTENDANCE_POLICY_SETTING_KEY, DEFAULT_ATTENDANCE_POLICY, {
+    category: 'Teaching',
+    description: 'Whether lecturers may edit submitted attendance and for how long.',
+  })
 }
 
 /** Reads back the permission keys granted to a role. Used by tests and the ICT portal. */

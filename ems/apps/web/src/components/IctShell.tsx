@@ -3,6 +3,7 @@ import { AppShell } from '@/components/AppShell'
 import { PageGuide } from '@/components/PageGuide'
 import { ICT_NAV } from '@/data/ict'
 import { getIctProfile, ictProfileQueryKey } from '@/lib/api/ict'
+import { initialsFrom } from '@/lib/utils'
 
 interface IctShellProps {
   pageTitle: string
@@ -22,7 +23,7 @@ export function IctShell({ pageTitle, guide, children }: IctShellProps) {
       pageTitle={pageTitle}
       userName={data?.fullName ?? 'ICT Manager'}
       userRole="ICT Manager"
-      userInitials={data ? data.firstName.slice(0, 2).toUpperCase() : 'ICT'}
+      userInitials={data ? initialsFrom(data.fullName) : 'ICT'}
       unreadCount={data?.unreadCount ?? 0}
       infoCardLabel="INSTITUTION"
       infoCardValue={data?.institutionShortName ?? '—'}

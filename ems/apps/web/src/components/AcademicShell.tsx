@@ -4,6 +4,7 @@ import { PageGuide } from '@/components/PageGuide'
 import { ACADEMIC_NAV } from '@/data/academic'
 import { academicProfileQueryKey, getAcademicProfile } from '@/lib/api/academic'
 import { ACADEMIC_PAGE_GUIDES } from '@/lib/academic-guides'
+import { initialsFrom } from '@/lib/utils'
 
 interface AcademicShellProps {
   pageTitle: string
@@ -25,11 +26,7 @@ export function AcademicShell({ pageTitle, guide, children }: AcademicShellProps
       pageTitle={pageTitle}
       userName={data?.fullName ?? 'Academic Admin'}
       userRole="Academic Admin"
-      userInitials={
-        data
-          ? data.firstName.slice(0, 2).toUpperCase()
-          : 'AA'
-      }
+      userInitials={data ? initialsFrom(data.fullName) : 'AA'}
       unreadCount={data?.unreadCount ?? 0}
       infoCardLabel="INSTITUTION"
       infoCardValue={data?.institutionShortName ?? '—'}

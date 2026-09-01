@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import type { Application, ApplicationStatus } from '@stackedu/shared'
-import { formatRequestedDocumentsList } from '@stackedu/shared'
+import { formatRequestedDocumentsList, titleAndFirstName } from '@stackedu/shared'
 import {
   ClipboardCheck, Clock, CreditCard, Eye, EyeOff, FileText, GraduationCap, Search, XCircle,
   AlertCircle, CheckCircle2, Loader2,
@@ -344,7 +344,7 @@ function ApplicationStatusView() {
           }}
         >
           {application.fullName.split(' ')[0]
-            ? `Welcome back, ${application.fullName.split(' ')[0]}`
+            ? `Welcome back, ${titleAndFirstName(application.fullName)}`
             : 'Your application'}
         </h2>
         <p className="t-body mt-1" style={{ color: 'var(--muted-foreground)' }}>

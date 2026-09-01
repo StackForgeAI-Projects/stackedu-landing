@@ -9,6 +9,7 @@ import type {
   UpdateAccountProfileRequest,
   UpdateAccountSecurityRequest,
 } from '@stackedu/shared'
+import { splitFullName, titleAndFirstName } from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions, userDirectory } from '../db/platform/schema'
 import { notifications } from '../db/institution/schema/communication'
@@ -19,16 +20,8 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { createTotpSecret, totpQrDataUrl, totpUri, verifyTotpCode } from '../lib/totp'
 
-function firstName(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] ?? fullName
-}
-
 function splitName(fullName: string): { firstName: string; lastName: string } {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean)
-  return {
-    firstName: parts[0] ?? fullName,
-    lastName: parts.slice(1).join(' ') || (parts[0] ?? fullName),
-  }
+  return splitFullName(fullName)
 }
 
 export async function getAccountProfile(institutionId: string, userId: string): Promise<AccountProfile> {
@@ -74,7 +67,7 @@ export async function getAccountProfile(institutionId: string, userId: string): 
     id: user.id,
     email: user.email,
     fullName: user.fullName,
-    firstName: firstName(user.fullName),
+    firstName: titleAndFirstName(user.fullName),
     phone: user.phone,
     role: user.role,
     twoFactorEnabled: user.twoFactorEnabled,

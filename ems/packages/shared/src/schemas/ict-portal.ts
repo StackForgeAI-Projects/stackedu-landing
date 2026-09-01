@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { userRoleSchema } from '../enums'
+import { attendancePolicySchema } from '../attendance-policy'
 import { emailSchema, isoDateTimeSchema, phoneSchema, uuidSchema } from '../primitives'
 
 export const ictStaffRoleSchema = z.enum([
@@ -146,6 +147,7 @@ export const ictSettingsSchema = z.object({
   website: z.string().nullable(),
   location: z.string().nullable(),
   logoUrl: z.string().nullable(),
+  attendancePolicy: attendancePolicySchema,
 })
 
 export const updateIctSettingsRequestSchema = z.object({
@@ -156,6 +158,7 @@ export const updateIctSettingsRequestSchema = z.object({
   locale: z.enum(['en', 'fr', 'rw']).optional(),
   website: z.string().trim().max(500).nullable().optional(),
   location: z.string().trim().max(200).nullable().optional(),
+  attendancePolicy: attendancePolicySchema.partial().optional(),
 })
 
 export const publicInstitutionBrandingSchema = z.object({

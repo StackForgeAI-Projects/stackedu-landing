@@ -6,6 +6,7 @@ import { IctShell } from '@/components/IctShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   getIctSettings,
   ictProfileQueryKey,
@@ -33,6 +34,8 @@ function SystemSettingsPage() {
     locale: 'en' as 'en' | 'fr' | 'rw',
     website: '',
     location: '',
+    allowEditAfterSubmit: true,
+    editWindowMinutes: 60,
   })
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -47,6 +50,8 @@ function SystemSettingsPage() {
         locale: data.locale,
         website: data.website ?? '',
         location: data.location ?? '',
+        allowEditAfterSubmit: data.attendancePolicy.allowEditAfterSubmit,
+        editWindowMinutes: data.attendancePolicy.editWindowMinutes,
       })
       setLogoPreview(data.logoUrl)
     }
@@ -63,9 +68,17 @@ function SystemSettingsPage() {
     mutationFn: async () => {
       if (logoFile) await uploadIctLogo(logoFile)
       return updateIctSettings({
-        ...form,
+        name: form.name,
+        shortName: form.shortName,
+        contactEmail: form.contactEmail,
+        timezone: form.timezone,
+        locale: form.locale,
         website: form.website.trim() || null,
         location: form.location.trim() || null,
+        attendancePolicy: {
+          allowEditAfterSubmit: form.allowEditAfterSubmit,
+          editWindowMinutes: form.editWindowMinutes,
+        },
       })
     },
     onSuccess: async (settings) => {
@@ -183,6 +196,53 @@ function SystemSettingsPage() {
                 <option value="rw">Kinyarwanda</option>
               </select>
             </div>
+
+            <div
+              className="rounded-xl p-4 flex flex-col gap-4"
+              style={{ border: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}
+            >
+              <div>
+                <p className="text-sm font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--foreground)' }}>
+                  Attendance editing
+                </p>
+                <p className="t-caption mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                  Control whether lecturers can change attendance after it has been submitted.
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="allow-edit">Allow editing after submit</Label>
+                  <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                    When off, submitted attendance is locked immediately.
+                  </p>
+                </div>
+                <Switch
+                  id="allow-edit"
+                  checked={form.allowEditAfterSubmit}
+                  onCheckedChange={(checked) => setForm({ ...form, allowEditAfterSubmit: checked })}
+                />
+              </div>
+              {form.allowEditAfterSubmit ? (
+                <div>
+                  <Label htmlFor="edit-window">Edit window (minutes)</Label>
+                  <Input
+                    id="edit-window"
+                    type="number"
+                    min={0}
+                    max={10080}
+                    value={form.editWindowMinutes}
+                    onChange={(e) => setForm({
+                      ...form,
+                      editWindowMinutes: Math.max(0, Math.min(10_080, Number(e.target.value) || 0)),
+                    })}
+                  />
+                  <p className="t-caption mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                    How long after submission a lecturer may still edit. Use 0 for no time limit.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Saving…' : 'Save settings'}
             </Button>

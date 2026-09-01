@@ -18,6 +18,7 @@ import type {
   StudentTranscript,
   SubmitAssessmentRequest,
 } from '@stackedu/shared'
+import { splitFullName, titleAndFirstName } from '@stackedu/shared'
 import { env } from '../config/env'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions } from '../db/platform/schema'
@@ -117,8 +118,8 @@ export async function getStudentProfile(
   userId: string,
 ): Promise<StudentProfile> {
   const row = await requireStudent(institutionId, userId)
-  const firstName = row.firstName ?? row.fullName.split(' ')[0] ?? row.fullName
-  const lastName = row.lastName ?? row.fullName.split(' ').slice(1).join(' ')
+  const firstName = row.firstName ?? titleAndFirstName(row.fullName)
+  const lastName = row.lastName ?? splitFullName(row.fullName).lastName
   return {
     studentId: row.studentId,
     userId: row.userId,

@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type {
+  AttendancePolicy,
   CreateLecturerAssessmentRequest,
   Grade,
   LecturerAssessmentDetail,
@@ -23,7 +24,15 @@ import type {
   UpdateLecturerTimetableSlotRequest,
   UserRole,
 } from '@stackedu/shared'
+import {
+  ATTENDANCE_POLICY_SETTING_KEY,
+  attendancePolicySchema,
+  attendanceSessionStatus,
+  DEFAULT_ATTENDANCE_POLICY,
+  isAttendanceSessionEditable,
+} from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
+import { readInstitutionSetting, upsertInstitutionSetting } from '../lib/institution-settings'
 import { institutions } from '../db/platform/schema'
 import {
   academicYears,
@@ -221,6 +230,7 @@ function mapSession(
   },
   counts: { present: number; late: number; absent: number; total: number },
   sessionNumber: number,
+  policy: AttendancePolicy,
 ): LecturerAttendanceSession {
   return {
     id: row.id,
@@ -235,8 +245,31 @@ function mapSession(
     absent: counts.absent,
     total: counts.total,
     closed: Boolean(row.closedAt),
+    status: attendanceSessionStatus(row.closedAt),
+    closedAt: row.closedAt,
+    editable: isAttendanceSessionEditable(row.closedAt, policy),
     sessionNumber,
   }
+}
+
+async function getAttendancePolicy(db: InstitutionDb): Promise<AttendancePolicy> {
+  return readInstitutionSetting(
+    db,
+    ATTENDANCE_POLICY_SETTING_KEY,
+    attendancePolicySchema,
+    DEFAULT_ATTENDANCE_POLICY,
+  )
+}
+
+async function requireEditableSession(
+  db: InstitutionDb,
+  closedAt: string | null,
+): Promise<AttendancePolicy> {
+  const policy = await getAttendancePolicy(db)
+  if (!isAttendanceSessionEditable(closedAt, policy)) {
+    throw badRequest('That attendance session can no longer be edited.')
+  }
+  return policy
 }
 
 async function sessionCounts(db: InstitutionDb, sessionIds: string[]) {
@@ -435,8 +468,14 @@ export async function getLecturerDashboard(institutionId: string, userId: string
     db,
     sessionRows.map((row) => row.id),
   )
+  const attendancePolicy = await getAttendancePolicy(db)
   const recentAttendance = sessionRows.map((row, index) =>
-    mapSession(row, counts.get(row.id) ?? { present: 0, late: 0, absent: 0, total: 0 }, sessionRows.length - index),
+    mapSession(
+      row,
+      counts.get(row.id) ?? { present: 0, late: 0, absent: 0, total: 0 },
+      sessionRows.length - index,
+      attendancePolicy,
+    ),
   )
 
   const pendingActions: LecturerDashboard['pendingActions'] = []
@@ -607,6 +646,7 @@ async function loadAttendanceSessions(
   offeringIds: string[],
 ): Promise<LecturerAttendanceSession[]> {
   if (offeringIds.length === 0) return []
+  const policy = await getAttendancePolicy(db)
   const rows = await db
     .select({
       id: attendanceSessions.id,
@@ -635,7 +675,12 @@ async function loadAttendanceSessions(
     numbered.set(row.offeringId, numbered.get(row.id)!)
   }
   return rows.map((row) =>
-    mapSession(row, counts.get(row.id) ?? { present: 0, late: 0, absent: 0, total: 0 }, numbered.get(row.id) ?? 1),
+    mapSession(
+      row,
+      counts.get(row.id) ?? { present: 0, late: 0, absent: 0, total: 0 },
+      numbered.get(row.id) ?? 1,
+      policy,
+    ),
   )
 }
 
@@ -693,6 +738,7 @@ export async function getLecturerAttendanceSession(
 
   const sessions = await loadAttendanceSessions(db, [row.offeringId])
   const summary = sessions.find((session) => session.id === sessionId)
+  const policy = await getAttendancePolicy(db)
   const counts = {
     present: recordRows.filter((item) => item.status === 'Present' || item.status === 'Excused').length,
     late: recordRows.filter((item) => item.status === 'Late').length,
@@ -701,7 +747,7 @@ export async function getLecturerAttendanceSession(
   }
 
   return {
-    ...(summary ?? mapSession(row, counts, 1)),
+    ...(summary ?? mapSession(row, counts, 1, policy)),
     records: recordRows,
   }
 }
@@ -723,20 +769,48 @@ export async function saveLecturerAttendance(
   }
 
   const startTime = input.startTime ?? '08:00'
-  const [existing] = await db
-    .select({ id: attendanceSessions.id, closedAt: attendanceSessions.closedAt })
-    .from(attendanceSessions)
-    .where(
-      and(
-        eq(attendanceSessions.courseOfferingId, input.offeringId),
-        eq(attendanceSessions.sessionDate, input.sessionDate),
-        eq(attendanceSessions.startTime, startTime),
-      ),
-    )
-    .limit(1)
-  if (existing?.closedAt) throw badRequest('That attendance session is closed and can no longer be edited.')
+  let sessionId = input.sessionId
+  let existingClosedAt: string | null = null
 
-  let sessionId = existing?.id
+  if (sessionId) {
+    const [existingById] = await db
+      .select({
+        id: attendanceSessions.id,
+        offeringId: attendanceSessions.courseOfferingId,
+        closedAt: attendanceSessions.closedAt,
+      })
+      .from(attendanceSessions)
+      .where(eq(attendanceSessions.id, sessionId))
+      .limit(1)
+    if (!existingById) throw notFound('That attendance session')
+    if (existingById.offeringId !== input.offeringId) {
+      throw badRequest('That session does not belong to this course.')
+    }
+    await requireEditableSession(db, existingById.closedAt)
+    existingClosedAt = existingById.closedAt
+  } else {
+    const [existing] = await db
+      .select({ id: attendanceSessions.id, closedAt: attendanceSessions.closedAt })
+      .from(attendanceSessions)
+      .where(
+        and(
+          eq(attendanceSessions.courseOfferingId, input.offeringId),
+          eq(attendanceSessions.sessionDate, input.sessionDate),
+          eq(attendanceSessions.startTime, startTime),
+        ),
+      )
+      .limit(1)
+    if (existing) {
+      await requireEditableSession(db, existing.closedAt)
+      sessionId = existing.id
+      existingClosedAt = existing.closedAt
+    }
+  }
+
+  const now = new Date().toISOString()
+  const closingDraft = Boolean(input.close && !existingClosedAt)
+  const closedAtPatch = closingDraft ? now : existingClosedAt
+
   if (!sessionId) {
     const [created] = await db
       .insert(attendanceSessions)
@@ -747,7 +821,7 @@ export async function saveLecturerAttendance(
         endTime: input.endTime ?? null,
         topic: input.topic ?? 'Class session',
         takenBy: actor.id,
-        closedAt: input.close ? new Date().toISOString() : null,
+        closedAt: input.close ? now : null,
       })
       .returning({ id: attendanceSessions.id })
     sessionId = created!.id
@@ -758,7 +832,7 @@ export async function saveLecturerAttendance(
         topic: input.topic ?? undefined,
         endTime: input.endTime ?? undefined,
         takenBy: actor.id,
-        closedAt: input.close ? new Date().toISOString() : undefined,
+        ...(closingDraft ? { closedAt: now } : {}),
       })
       .where(eq(attendanceSessions.id, sessionId))
   }
@@ -788,12 +862,46 @@ export async function saveLecturerAttendance(
     actorId: actor.id,
     actorEmail: actor.email,
     actorRole: actor.role,
-    action: 'attendance.record',
+    action: closingDraft || closedAtPatch ? 'attendance.submit' : 'attendance.record',
     targetType: 'attendanceSession',
     targetId: sessionId,
   })
 
   return getLecturerAttendanceSession(institutionId, actor.id, sessionId)
+}
+
+export async function deleteLecturerAttendanceSession(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  sessionId: string,
+): Promise<LecturerAttendanceSession[]> {
+  const { db } = await requireLecturer(institutionId, actor.id)
+  const [row] = await db
+    .select({
+      id: attendanceSessions.id,
+      offeringId: attendanceSessions.courseOfferingId,
+      closedAt: attendanceSessions.closedAt,
+    })
+    .from(attendanceSessions)
+    .where(eq(attendanceSessions.id, sessionId))
+    .limit(1)
+  if (!row) throw notFound('That attendance session')
+  await requireAssignedOffering(db, actor.id, row.offeringId)
+  await requireEditableSession(db, row.closedAt)
+
+  await db.delete(attendanceSessions).where(eq(attendanceSessions.id, sessionId))
+
+  await writeAudit({
+    institutionId,
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: 'attendance.delete',
+    targetType: 'attendanceSession',
+    targetId: sessionId,
+  })
+
+  return loadAttendanceSessions(db, [row.offeringId])
 }
 
 function resultStats(students: LecturerResultBatch['students']) {

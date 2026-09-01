@@ -123,6 +123,7 @@ export function AppShell({
             infoCardValue={infoCardValue}
             infoCardSubtext={infoCardSubtext}
             isCollapsed={false}
+            onToggleCollapse={() => setMobileOpen(false)}
             onLogout={() => { setMobileOpen(false); handleLogout() }}
           />
         </SheetContent>

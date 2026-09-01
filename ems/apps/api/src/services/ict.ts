@@ -26,10 +26,17 @@ import type {
   UpdateIctUserRequest,
   UserRole,
 } from '@stackedu/shared'
-import { auditSummary } from '@stackedu/shared'
+import {
+  ATTENDANCE_POLICY_SETTING_KEY,
+  attendancePolicySchema,
+  auditSummary,
+  DEFAULT_ATTENDANCE_POLICY,
+  titleAndFirstName,
+} from '@stackedu/shared'
 import { env } from '../config/env'
-import { writeInstitutionLogo } from '../lib/storage'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
+import { readInstitutionSetting, upsertInstitutionSetting } from '../lib/institution-settings'
+import { writeInstitutionLogo } from '../lib/storage'
 import { institutions, userDirectory } from '../db/platform/schema'
 import { programmes } from '../db/institution/schema/academic'
 import { announcements } from '../db/institution/schema/teaching'
@@ -83,8 +90,8 @@ function withAuditSummary<T extends {
   }
 }
 
-function firstName(fullName: string): string {
-  return fullName.split(' ')[0] ?? fullName
+function profileFirstName(fullName: string): string {
+  return titleAndFirstName(fullName)
 }
 
 async function unreadCount(institutionId: string, userId: string): Promise<number> {
@@ -120,7 +127,7 @@ export async function getIctProfile(institutionId: string, userId: string): Prom
   return {
     userId: user.userId,
     fullName: user.fullName,
-    firstName: firstName(user.fullName),
+    firstName: profileFirstName(user.fullName),
     email: user.email,
     role: user.role,
     institutionName: institution?.name ?? 'Institution',
@@ -887,7 +894,15 @@ export async function getIctSettings(institutionId: string): Promise<IctSettings
     .where(eq(institutions.id, institutionId))
     .limit(1)
   if (!row) throw notFound('That institution')
-  return mapIctSettings(row)
+
+  const db = await getInstitutionDb(institutionId)
+  const attendancePolicy = await readInstitutionSetting(
+    db,
+    ATTENDANCE_POLICY_SETTING_KEY,
+    attendancePolicySchema,
+    DEFAULT_ATTENDANCE_POLICY,
+  )
+  return mapIctSettings(row, attendancePolicy)
 }
 
 function publicLogoUrl(slug: string, logoFileKey: string | null): string | null {
@@ -895,17 +910,20 @@ function publicLogoUrl(slug: string, logoFileKey: string | null): string | null 
   return `${env().API_PUBLIC_URL.replace(/\/$/, '')}/public/institution/${slug}/logo`
 }
 
-function mapIctSettings(row: {
-  name: string
-  shortName: string
-  contactEmail: string
-  timezone: string
-  locale: string
-  slug: string
-  website: string | null
-  location: string | null
-  logoFileKey: string | null
-}): IctSettings {
+function mapIctSettings(
+  row: {
+    name: string
+    shortName: string
+    contactEmail: string
+    timezone: string
+    locale: string
+    slug: string
+    website: string | null
+    location: string | null
+    logoFileKey: string | null
+  },
+  attendancePolicy = DEFAULT_ATTENDANCE_POLICY,
+): IctSettings {
   return {
     name: row.name,
     shortName: row.shortName,
@@ -916,6 +934,7 @@ function mapIctSettings(row: {
     website: row.website,
     location: row.location,
     logoUrl: publicLogoUrl(row.slug, row.logoFileKey),
+    attendancePolicy,
   }
 }
 
@@ -950,6 +969,24 @@ export async function updateIctSettings(
       ...(input.location !== undefined ? { location: input.location?.trim() || null } : {}),
     })
     .where(eq(institutions.id, institutionId))
+
+  if (input.attendancePolicy) {
+    const db = await getInstitutionDb(institutionId)
+    const nextPolicy = attendancePolicySchema.parse({
+      ...current.attendancePolicy,
+      ...input.attendancePolicy,
+    })
+    await upsertInstitutionSetting(
+      db,
+      ATTENDANCE_POLICY_SETTING_KEY,
+      nextPolicy,
+      {
+        category: 'Teaching',
+        description: 'Whether lecturers may edit submitted attendance and for how long.',
+      },
+      actor.id,
+    )
+  }
 
   await writeAudit({
     institutionId,

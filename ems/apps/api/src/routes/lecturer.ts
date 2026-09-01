@@ -34,6 +34,7 @@ import {
   saveLecturerAttendance,
   saveLecturerGrade,
   saveLecturerResults,
+  deleteLecturerAttendanceSession,
   updateLecturerTimetableSlot,
   submitLecturerResults,
 } from '../services/lecturer'
@@ -94,6 +95,16 @@ lecturerRoutes.post('/lecturer/attendance', ...lecturerOnly, async (c) => {
   if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
   return c.json({
     session: await saveLecturerAttendance(c.get('user')!.institution.id, actor(c), parsed.data),
+  })
+})
+
+lecturerRoutes.delete('/lecturer/attendance/:sessionId', ...lecturerOnly, async (c) => {
+  return c.json({
+    sessions: await deleteLecturerAttendanceSession(
+      c.get('user')!.institution.id,
+      actor(c),
+      c.req.param('sessionId'),
+    ),
   })
 })
 

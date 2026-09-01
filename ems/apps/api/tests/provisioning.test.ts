@@ -1,12 +1,38 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import postgres from 'postgres'
+import {
+  ATTENDANCE_POLICY_SETTING_KEY,
+  attendancePolicySchema,
+  DEFAULT_ATTENDANCE_POLICY,
+} from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../src/db/connection'
 import { deprovisionInstitution, provisionInstitution } from '../src/db/provision'
 import { permissionsForRole } from '../src/db/seed-defaults'
 import { institutionDatabases, institutions } from '../src/db/platform/schema'
 import { adminConnectionUrl } from '../src/db/naming'
 import { AppError } from '../src/lib/errors'
+import { readInstitutionSetting, upsertInstitutionSetting } from '../src/lib/institution-settings'
+import {
+  academicYears,
+  courses,
+  departments,
+  faculties,
+  programmes,
+  semesters,
+} from '../src/db/institution/schema/academic'
+import { students } from '../src/db/institution/schema/students'
+import {
+  courseOfferings,
+  courseRegistrations,
+  lecturerAssignments,
+} from '../src/db/institution/schema/teaching'
+import {
+  deleteLecturerAttendanceSession,
+  listLecturerAttendance,
+  saveLecturerAttendance,
+} from '../src/services/lecturer'
+import { createUser } from '../src/services/users'
 import {
   createTestPlatform,
   TEST_SERVER_URL,
@@ -181,5 +207,178 @@ describe('institution provisioning', () => {
       .where(eq(institutionDatabases.institutionId, result.institutionId))
 
     expect(registry).toHaveLength(0)
+  })
+
+  it('seeds the default attendance editing policy', async () => {
+    const result = await provisionInstitution({
+      name: 'Attendance Policy University',
+      slug: uniqueSlug('attpol'),
+      shortName: 'APU',
+      contactEmail: 'admin@apu.test',
+    })
+
+    const db = await getInstitutionDb(result.institutionId)
+    const policy = await readInstitutionSetting(
+      db,
+      ATTENDANCE_POLICY_SETTING_KEY,
+      attendancePolicySchema,
+      DEFAULT_ATTENDANCE_POLICY,
+    )
+    expect(policy).toEqual(DEFAULT_ATTENDANCE_POLICY)
+  })
+
+  it('supports draft, submit, edit and delete flows for lecturer attendance', async () => {
+    const result = await provisionInstitution({
+      name: 'Attendance Flow University',
+      slug: uniqueSlug('attflow'),
+      shortName: 'AFU',
+      contactEmail: 'admin@afu.test',
+    })
+    const db = await getInstitutionDb(result.institutionId)
+
+    const lecturer = await createUser({
+      institutionId: result.institutionId,
+      email: 'lecturer@afu.test',
+      fullName: 'Flow Lecturer',
+      role: 'Lecturer',
+      password: 'Lecturer#2026',
+    })
+    const studentUser = await createUser({
+      institutionId: result.institutionId,
+      email: 'student@afu.test',
+      fullName: 'Flow Student',
+      role: 'Student',
+      password: 'Student#2026',
+    })
+
+    const [faculty] = await db.insert(faculties).values({ code: 'CSE', name: 'Computing' }).returning()
+    const [department] = await db
+      .insert(departments)
+      .values({ facultyId: faculty!.id, code: 'CS', name: 'Computer Science' })
+      .returning()
+    const [programme] = await db
+      .insert(programmes)
+      .values({
+        departmentId: department!.id,
+        code: 'BSC-CS',
+        name: 'BSc Computer Science',
+        level: 'Bachelor',
+        durationYears: 3,
+        totalCreditsRequired: 360,
+      })
+      .returning()
+    const [year] = await db
+      .insert(academicYears)
+      .values({ name: '2026/2027', startDate: '2026-09-01', endDate: '2027-08-31', isCurrent: true })
+      .returning()
+    const [semester] = await db
+      .insert(semesters)
+      .values({
+        academicYearId: year!.id,
+        name: 'Semester 1',
+        sequence: 1,
+        startDate: '2026-09-01',
+        endDate: '2027-01-31',
+        isCurrent: true,
+      })
+      .returning()
+    const [course] = await db
+      .insert(courses)
+      .values({ departmentId: department!.id, code: 'CS101', name: 'Intro Computing', credits: 3 })
+      .returning()
+    const [offering] = await db
+      .insert(courseOfferings)
+      .values({ courseId: course!.id, semesterId: semester!.id, section: 'A' })
+      .returning()
+    await db.insert(lecturerAssignments).values({
+      courseOfferingId: offering!.id,
+      lecturerId: lecturer.id,
+      isLead: true,
+    })
+    const [student] = await db
+      .insert(students)
+      .values({
+        userId: studentUser.id,
+        studentNumber: 'AFU-0001',
+        programmeId: programme!.id,
+        yearOfStudy: 1,
+      })
+      .returning()
+    await db.insert(courseRegistrations).values({
+      studentId: student!.id,
+      courseOfferingId: offering!.id,
+      status: 'Approved',
+      registeredAt: new Date().toISOString(),
+    })
+
+    const actor = { id: lecturer.id, email: lecturer.email, role: lecturer.role as 'Lecturer' }
+
+    const draft = await saveLecturerAttendance(result.institutionId, actor, {
+      offeringId: offering!.id,
+      sessionDate: '2026-09-02',
+      topic: 'Session 1',
+      close: false,
+      records: [{ studentId: student!.id, status: 'Present' }],
+    })
+    expect(draft.status).toBe('Draft')
+    expect(draft.editable).toBe(true)
+
+    let listed = await listLecturerAttendance(result.institutionId, lecturer.id, offering!.id)
+    expect(listed.some((row) => row.id === draft.id && row.status === 'Draft')).toBe(true)
+
+    const submitted = await saveLecturerAttendance(result.institutionId, actor, {
+      sessionId: draft.id,
+      offeringId: offering!.id,
+      sessionDate: '2026-09-02',
+      close: true,
+      records: [{ studentId: student!.id, status: 'Absent' }],
+    })
+    expect(submitted.status).toBe('Submitted')
+    expect(submitted.absent).toBe(1)
+
+    const edited = await saveLecturerAttendance(result.institutionId, actor, {
+      sessionId: submitted.id,
+      offeringId: offering!.id,
+      sessionDate: '2026-09-02',
+      close: false,
+      records: [{ studentId: student!.id, status: 'Late' }],
+    })
+    expect(edited.status).toBe('Submitted')
+    expect(edited.late).toBe(1)
+
+    await upsertInstitutionSetting(
+      db,
+      ATTENDANCE_POLICY_SETTING_KEY,
+      { allowEditAfterSubmit: false, editWindowMinutes: 60 },
+      { category: 'Teaching', description: 'test lock' },
+    )
+
+    await expect(
+      saveLecturerAttendance(result.institutionId, actor, {
+        sessionId: submitted.id,
+        offeringId: offering!.id,
+        sessionDate: '2026-09-02',
+        records: [{ studentId: student!.id, status: 'Present' }],
+      }),
+    ).rejects.toThrow(/no longer be edited/)
+
+    await upsertInstitutionSetting(
+      db,
+      ATTENDANCE_POLICY_SETTING_KEY,
+      DEFAULT_ATTENDANCE_POLICY,
+      { category: 'Teaching', description: 'restore default' },
+    )
+
+    const draftForDelete = await saveLecturerAttendance(result.institutionId, actor, {
+      offeringId: offering!.id,
+      sessionDate: '2026-09-04',
+      topic: 'Delete me',
+      close: false,
+      records: [{ studentId: student!.id, status: 'Present' }],
+    })
+
+    listed = await deleteLecturerAttendanceSession(result.institutionId, actor, draftForDelete.id)
+    expect(listed.some((row) => row.id === draftForDelete.id)).toBe(false)
+    expect(listed.some((row) => row.id === submitted.id)).toBe(true)
   })
 })

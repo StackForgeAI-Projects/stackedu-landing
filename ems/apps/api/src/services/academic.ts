@@ -66,10 +66,10 @@ import { writeAudit } from '../lib/audit'
 import { courseColor } from '../lib/course-color'
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
 
+import { titleAndFirstName } from '@stackedu/shared'
+
 export function firstName(fullName: string): string {
-  const titles = new Set(['dr', 'dr.', 'prof', 'prof.', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.'])
-  const parts = fullName.split(/\s+/).filter(Boolean)
-  return parts.find((part) => !titles.has(part.toLowerCase())) ?? parts[0] ?? fullName
+  return titleAndFirstName(fullName)
 }
 
 export function initials(fullName: string): string {

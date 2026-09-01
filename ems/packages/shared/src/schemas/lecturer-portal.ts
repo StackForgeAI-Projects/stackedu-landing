@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { attendancePolicySchema } from '../attendance-policy'
 import {
   assessmentTypeSchema,
   attendanceStatusSchema,
@@ -80,6 +81,9 @@ export const lecturerAttendanceSessionSchema = z.object({
   absent: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
   closed: z.boolean(),
+  status: z.enum(['Draft', 'Submitted']),
+  closedAt: isoDateTimeSchema.nullable(),
+  editable: z.boolean(),
   sessionNumber: z.number().int().positive(),
 })
 
@@ -150,6 +154,7 @@ export const lecturerAttendanceDetailSchema = lecturerAttendanceSessionSchema.ex
 })
 
 export const saveLecturerAttendanceRequestSchema = z.object({
+  sessionId: uuidSchema.optional(),
   offeringId: uuidSchema,
   sessionDate: isoDateSchema,
   startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
