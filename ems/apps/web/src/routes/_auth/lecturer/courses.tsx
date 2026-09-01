@@ -401,6 +401,36 @@ function CourseDetail({
   )
 }
 
+function TableIconButton({
+  label,
+  onClick,
+  icon: Icon,
+  danger,
+}: {
+  label: string
+  onClick?: () => void
+  icon: typeof Pencil
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="flex items-center justify-center h-7 w-7 rounded-lg shrink-0"
+      style={{
+        border: '1px solid var(--border)',
+        color: danger ? 'var(--error)' : 'var(--muted-foreground)',
+        cursor: 'pointer',
+        background: 'transparent',
+      }}
+    >
+      <Icon style={{ width: 12, height: 12 }} />
+    </button>
+  )
+}
+
 function MaterialRowActions({
   material,
   onEdit,
@@ -429,21 +459,13 @@ function MaterialRowActions({
   }
 
   return (
-    <div className="flex items-center justify-end gap-2 flex-wrap">
+    <div className="flex items-center justify-end gap-2 flex-nowrap">
       {material.fileKey ? (
-        <Button type="button" variant="outline" size="sm" className="gap-1" onClick={download}>
-          <Download style={{ width: 12, height: 12 }} /> Open
-        </Button>
+        <TableIconButton label="Open file" icon={Download} onClick={download} />
       ) : null}
-      <Button type="button" variant="outline" size="sm" className="gap-1" onClick={onEdit}>
-        <Pencil style={{ width: 12, height: 12 }} /> Edit
-      </Button>
+      <TableIconButton label="Edit" icon={Pencil} onClick={onEdit} />
       <ConfirmAlertDialog
-        trigger={
-          <Button type="button" variant="outline" size="sm" className="gap-1" style={{ color: 'var(--error)' }}>
-            <Trash2 style={{ width: 12, height: 12 }} /> Delete
-          </Button>
-        }
+        trigger={<TableIconButton label="Delete" icon={Trash2} danger />}
         title="Delete this material?"
         tone="destructive"
         headlineLabel="Action"
