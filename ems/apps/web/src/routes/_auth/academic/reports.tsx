@@ -61,15 +61,14 @@ function AcademicReportsPage() {
             const isActive = activeReport === cfg.key
             return (
               <button key={cfg.key} type="button" onClick={() => { setActiveReport(cfg.key); setGenerated(false) }}
-                className="text-left p-6 rounded-xl transition-all duration-150"
-                style={{ backgroundColor: isActive ? 'var(--foreground)' : 'var(--card)', border: `1px solid ${isActive ? 'var(--foreground)' : 'var(--border)'}`, boxShadow: isActive ? 'var(--shadow-md)' : 'var(--shadow-sm)', cursor: 'pointer' }}>
+                className={`select-card ${isActive ? 'select-card--active' : ''}`}>
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="flex items-center justify-center rounded-xl" style={{ width: 40, height: 40, backgroundColor: isActive ? 'rgba(255,255,255,0.12)' : 'rgba(15, 189, 59,0.08)' }}>
-                    <Icon style={{ width: 18, height: 18, color: isActive ? '#fff' : 'var(--brand)' }} />
+                  <div className="select-card__icon-wrap">
+                    <Icon className="select-card__icon" />
                   </div>
-                  <h3 className="t-h3" style={{ fontFamily: 'var(--font-display)', color: isActive ? '#fff' : 'var(--foreground)', fontSize: '1rem' }}>{cfg.title}</h3>
+                  <h3 className="t-h3 select-card__title">{cfg.title}</h3>
                 </div>
-                <p className="t-body-sm" style={{ color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--muted-foreground)' }}>{cfg.description}</p>
+                <p className="t-body-sm select-card__description">{cfg.description}</p>
               </button>
             )
           })}

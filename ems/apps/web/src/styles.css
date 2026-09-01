@@ -597,6 +597,104 @@ h6 {
   }
 }
 
+/* ── Filter tabs & selection cards (active state uses --ink in both themes) ── */
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.75rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background-color: transparent;
+  color: var(--muted-foreground);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.filter-tab--active {
+  background-color: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-foreground);
+}
+
+.filter-tab__badge {
+  font-size: 10px;
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  background-color: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.filter-tab--active .filter-tab__badge {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: var(--ink-foreground);
+}
+
+.select-card {
+  text-align: left;
+  padding: 1.5rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.select-card--active {
+  background-color: var(--ink);
+  border-color: var(--ink);
+  box-shadow: var(--shadow-md);
+}
+
+.select-card__title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--foreground);
+}
+
+.select-card--active .select-card__title {
+  color: var(--ink-foreground);
+}
+
+.select-card__description {
+  color: var(--muted-foreground);
+}
+
+.select-card--active .select-card__description {
+  color: var(--ink-muted);
+}
+
+.select-card__icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-xl);
+  background-color: rgba(15, 189, 59, 0.08);
+}
+
+.select-card--active .select-card__icon-wrap {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.select-card__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--brand);
+}
+
+.select-card--active .select-card__icon {
+  color: var(--ink-foreground);
+}
+
 /* ── App scrollbar (same as the sidebar menu: slim forest-green pill) ── */
 :root {
   --scrollbar-size: 5px;

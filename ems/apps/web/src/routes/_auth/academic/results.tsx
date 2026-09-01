@@ -125,10 +125,9 @@ function ResultManagementPage() {
             { key: 'published' as const, label: 'Published', count: published.length },
           ].map((t) => (
             <button key={t.key} type="button" onClick={() => setTab(t.key)}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-sm font-medium"
-              style={{ backgroundColor: tab === t.key ? 'var(--foreground)' : 'transparent', color: tab === t.key ? 'var(--ink-foreground)' : 'var(--muted-foreground)', border: tab === t.key ? '1px solid var(--foreground)' : '1px solid var(--border)', cursor: 'pointer' }}>
+              className={`filter-tab ${tab === t.key ? 'filter-tab--active' : ''}`}>
               {t.label}
-              <span className="t-label px-1.5 py-0.5 rounded-full" style={{ backgroundColor: tab === t.key ? 'rgba(255,255,255,0.15)' : 'var(--muted)', color: tab === t.key ? '#fff' : 'var(--muted-foreground)', fontSize: 10 }}>{t.count}</span>
+              <span className="t-label filter-tab__badge">{t.count}</span>
             </button>
           ))}
         </div>

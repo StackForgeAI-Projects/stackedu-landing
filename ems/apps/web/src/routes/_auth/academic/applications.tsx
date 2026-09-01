@@ -79,25 +79,10 @@ function ApplicationsPage() {
                 key={tab.value}
                 type="button"
                 onClick={() => setActiveTab(tab.value)}
-                className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-sm font-medium transition-colors duration-150"
-                style={{
-                  backgroundColor: active ? 'var(--foreground)' : 'transparent',
-                  color: active ? 'var(--ink-foreground)' : 'var(--muted-foreground)',
-                  border: active ? '1px solid var(--foreground)' : '1px solid var(--border)',
-                  cursor: 'pointer',
-                }}
+                className={`filter-tab ${active ? 'filter-tab--active' : ''}`}
               >
                 {tab.label}
-                <span
-                  className="t-label px-1.5 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor: active ? 'rgba(255,255,255,0.15)' : 'var(--muted)',
-                    color: active ? '#fff' : 'var(--muted-foreground)',
-                    fontSize: 10,
-                  }}
-                >
-                  {cnt}
-                </span>
+                <span className="t-label filter-tab__badge">{cnt}</span>
               </button>
             )
           })}

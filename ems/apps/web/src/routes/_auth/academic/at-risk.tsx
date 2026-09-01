@@ -78,10 +78,9 @@ function AtRiskManagementPage() {
             const isActive = activeTab === tab.value
             return (
               <button key={tab.value} type="button" onClick={() => setActiveTab(tab.value)}
-                className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-sm font-medium"
-                style={{ backgroundColor: isActive ? 'var(--foreground)' : 'transparent', color: isActive ? 'var(--ink-foreground)' : 'var(--muted-foreground)', border: isActive ? '1px solid var(--foreground)' : '1px solid var(--border)', cursor: 'pointer' }}>
+                className={`filter-tab ${isActive ? 'filter-tab--active' : ''}`}>
                 {tab.label}
-                <span className="t-label px-1.5 py-0.5 rounded-full" style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.15)' : 'var(--muted)', fontSize: 10 }}>{countFor(tab.value)}</span>
+                <span className="t-label filter-tab__badge">{countFor(tab.value)}</span>
               </button>
             )
           })}
