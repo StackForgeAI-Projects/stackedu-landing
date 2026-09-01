@@ -12,6 +12,7 @@ import { AcademicShell } from '@/components/AcademicShell'
 import { calEventColors } from '@/data/academic'
 import {
   academicCalendarQueryKey,
+  academicSemestersQueryKey,
   createAcademicCalendarEvent,
   deleteAcademicCalendarEvent,
   listAcademicCalendarEvents,
@@ -120,6 +121,7 @@ function CalendarPage() {
       setConfirmSave(false)
       setForm(BLANK_EVENT)
       await queryClient.invalidateQueries({ queryKey: academicCalendarQueryKey })
+      await queryClient.invalidateQueries({ queryKey: academicSemestersQueryKey })
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Could not create event.')),
   })

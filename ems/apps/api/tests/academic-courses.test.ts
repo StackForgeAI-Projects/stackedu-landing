@@ -3,9 +3,9 @@ import { eq } from 'drizzle-orm'
 import { LECTURER_ASSIGNMENT_REQUIRES_SEMESTER } from '@stackedu/shared'
 import { getInstitutionDb } from '../src/db/connection'
 import { provisionInstitution } from '../src/db/provision'
-import { academicYears, courses, departments, faculties, semesters } from '../src/db/institution/schema/academic'
+import { academicYears, courses, departments, faculties, semesters, academicCalendarEvents } from '../src/db/institution/schema/academic'
 import { AppError } from '../src/lib/errors'
-import { createAcademicCourse, deleteAcademicCourse } from '../src/services/academic'
+import { createAcademicCourse, deleteAcademicCourse, createAcademicCalendarEvent, listAcademicSemesters } from '../src/services/academic'
 import { createUser } from '../src/services/users'
 import { createTestPlatform, uniqueSlug, type TestPlatform } from './helpers/test-database'
 
@@ -134,5 +134,26 @@ describe('academic courses', () => {
     const db = await getInstitutionDb(institutionId)
     const rows = await db.select({ id: courses.id }).from(courses).where(eq(courses.id, created.id))
     expect(rows).toHaveLength(0)
+  })
+
+  it('creates a semester record when a Semester calendar event is added', async () => {
+    await createAcademicCalendarEvent(institutionId, actor, {
+      title: 'First Semester',
+      category: 'Semester',
+      startDate: '2026-09-07',
+      endDate: '2026-11-27',
+      description: 'First Semester of the new session begins',
+    })
+
+    const listed = await listAcademicSemesters(institutionId)
+    expect(listed.some((semester) => semester.label.includes('First Semester'))).toBe(true)
+
+    const db = await getInstitutionDb(institutionId)
+    const [linked] = await db
+      .select({ semesterId: academicCalendarEvents.semesterId })
+      .from(academicCalendarEvents)
+      .where(eq(academicCalendarEvents.title, 'First Semester'))
+      .limit(1)
+    expect(linked?.semesterId).toBeTruthy()
   })
 })

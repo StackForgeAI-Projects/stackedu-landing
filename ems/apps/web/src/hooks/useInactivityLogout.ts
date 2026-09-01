@@ -1,72 +1,86 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  computeInactivityIdleState,
+  INACTIVITY_LOGOUT_COUNTDOWN_SEC,
+} from '@stackedu/shared'
 
-const IDLE_MS = 3 * 60 * 1000
-const LOGOUT_COUNTDOWN_SEC = 60
+const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
+  'mousemove',
+  'mousedown',
+  'keydown',
+  'touchstart',
+  'touchmove',
+  'touchend',
+  'scroll',
+  'pointerdown',
+  'click',
+]
 
 export function useInactivityLogout(onLogout: () => void) {
   const [open, setOpen] = useState(false)
-  const [secondsLeft, setSecondsLeft] = useState(LOGOUT_COUNTDOWN_SEC)
-  const idleTimer = useRef<number | null>(null)
-  const countdownTimer = useRef<number | null>(null)
+  const [secondsLeft, setSecondsLeft] = useState(INACTIVITY_LOGOUT_COUNTDOWN_SEC)
+  const lastActivityAt = useRef(Date.now())
+  const warningOpen = useRef(false)
+  const onLogoutRef = useRef(onLogout)
+  onLogoutRef.current = onLogout
 
-  const clearIdleTimer = () => {
-    if (idleTimer.current !== null) {
-      window.clearTimeout(idleTimer.current)
-      idleTimer.current = null
+  const markActivity = useCallback(() => {
+    if (warningOpen.current) return
+    lastActivityAt.current = Date.now()
+  }, [])
+
+  const evaluateIdleState = useCallback(() => {
+    const state = computeInactivityIdleState(lastActivityAt.current, Date.now())
+
+    if (state.phase === 'logout') {
+      onLogoutRef.current()
+      return
     }
-  }
 
-  const clearCountdownTimer = () => {
-    if (countdownTimer.current !== null) {
-      window.clearInterval(countdownTimer.current)
-      countdownTimer.current = null
-    }
-  }
-
-  const resetIdleTimer = useCallback(() => {
-    if (open) return
-    clearIdleTimer()
-    idleTimer.current = window.setTimeout(() => {
-      setSecondsLeft(LOGOUT_COUNTDOWN_SEC)
+    if (state.phase === 'warning') {
+      warningOpen.current = true
       setOpen(true)
-    }, IDLE_MS)
-  }, [open])
+      setSecondsLeft(state.secondsLeft)
+      return
+    }
+
+    if (warningOpen.current) {
+      warningOpen.current = false
+      setOpen(false)
+      setSecondsLeft(INACTIVITY_LOGOUT_COUNTDOWN_SEC)
+    }
+  }, [])
 
   const staySignedIn = useCallback(() => {
-    clearCountdownTimer()
+    warningOpen.current = false
     setOpen(false)
-    setSecondsLeft(LOGOUT_COUNTDOWN_SEC)
-    resetIdleTimer()
-  }, [resetIdleTimer])
+    setSecondsLeft(INACTIVITY_LOGOUT_COUNTDOWN_SEC)
+    lastActivityAt.current = Date.now()
+  }, [])
 
   useEffect(() => {
-    const events: Array<keyof WindowEventMap> = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll']
-    const onActivity = () => resetIdleTimer()
-    events.forEach((event) => window.addEventListener(event, onActivity, { passive: true }))
-    resetIdleTimer()
+    ACTIVITY_EVENTS.forEach((event) => {
+      window.addEventListener(event, markActivity, { passive: true })
+    })
+
+    const onReturn = () => evaluateIdleState()
+    document.addEventListener('visibilitychange', onReturn)
+    window.addEventListener('pageshow', onReturn)
+    window.addEventListener('focus', onReturn)
+
+    const tick = window.setInterval(evaluateIdleState, 1000)
+    evaluateIdleState()
+
     return () => {
-      events.forEach((event) => window.removeEventListener(event, onActivity))
-      clearIdleTimer()
-      clearCountdownTimer()
-    }
-  }, [resetIdleTimer])
-
-  useEffect(() => {
-    if (!open) return
-    clearIdleTimer()
-    clearCountdownTimer()
-    countdownTimer.current = window.setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= 1) {
-          clearCountdownTimer()
-          onLogout()
-          return 0
-        }
-        return current - 1
+      ACTIVITY_EVENTS.forEach((event) => {
+        window.removeEventListener(event, markActivity)
       })
-    }, 1000)
-    return () => clearCountdownTimer()
-  }, [open, onLogout])
+      document.removeEventListener('visibilitychange', onReturn)
+      window.removeEventListener('pageshow', onReturn)
+      window.removeEventListener('focus', onReturn)
+      window.clearInterval(tick)
+    }
+  }, [evaluateIdleState, markActivity])
 
   return { open, secondsLeft, staySignedIn, onLogoutNow: onLogout }
 }

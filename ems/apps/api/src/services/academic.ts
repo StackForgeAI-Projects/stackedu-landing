@@ -924,6 +924,7 @@ export async function listAcademicSemesters(
   institutionId: string,
 ): Promise<AcademicSemesterOption[]> {
   const db = await getInstitutionDb(institutionId)
+  await syncOrphanCalendarSemesters(db)
   const rows = await db
     .select({
       id: semesters.id,
@@ -1826,17 +1827,148 @@ export async function deleteAcademicCourse(
   })
 }
 
+function isSemesterCategory(category: string): boolean {
+  return category.trim().toLowerCase() === 'semester'
+}
+
+/** e.g. 2026-09-07 -> 2026/2027 when the intake starts in the second half of the year. */
+function academicYearNameFromDate(startDate: string): string {
+  const year = Number(startDate.slice(0, 4))
+  const month = Number(startDate.slice(5, 7))
+  if (month >= 7) return `${year}/${year + 1}`
+  return `${year - 1}/${year}`
+}
+
+async function upsertSemesterFromCalendarEvent(
+  db: Awaited<ReturnType<typeof getInstitutionDb>>,
+  input: { title: string; startDate: string; endDate: string; category: string },
+): Promise<string | null> {
+  if (!isSemesterCategory(input.category)) return null
+
+  const startDate = input.startDate
+  const endDate = input.endDate ?? input.startDate
+  const title = input.title.trim()
+  const yearName = academicYearNameFromDate(startDate)
+  const [yearStartYear, yearEndYear] = yearName.split('/').map(Number)
+
+  let [year] = await db
+    .select({ id: academicYears.id })
+    .from(academicYears)
+    .where(eq(academicYears.name, yearName))
+    .limit(1)
+
+  if (!year) {
+    [year] = await db
+      .insert(academicYears)
+      .values({
+        name: yearName,
+        startDate: `${yearStartYear}-07-01`,
+        endDate: `${yearEndYear}-06-30`,
+        isCurrent: true,
+      })
+      .returning({ id: academicYears.id })
+  }
+
+  let [semester] = await db
+    .select({ id: semesters.id })
+    .from(semesters)
+    .where(and(eq(semesters.academicYearId, year!.id), eq(semesters.name, title)))
+    .limit(1)
+
+  const today = new Date().toISOString().slice(0, 10)
+  const isActiveNow = startDate <= today && endDate >= today
+
+  if (!semester) {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(semesters)
+      .where(eq(semesters.academicYearId, year!.id))
+
+    const [{ totalSemesters }] = await db
+      .select({ totalSemesters: sql<number>`count(*)::int` })
+      .from(semesters)
+
+    const makeCurrent = isActiveNow || (totalSemesters ?? 0) === 0
+
+    if (makeCurrent) {
+      await db.update(semesters).set({ isCurrent: false }).where(eq(semesters.isCurrent, true))
+    }
+
+    ;[semester] = await db
+      .insert(semesters)
+      .values({
+        academicYearId: year!.id,
+        name: title,
+        sequence: (count ?? 0) + 1,
+        startDate,
+        endDate,
+        status: isActiveNow ? 'Open' : 'Planned',
+        isCurrent: makeCurrent,
+      })
+      .returning({ id: semesters.id })
+  } else {
+    if (isActiveNow) {
+      await db.update(semesters).set({ isCurrent: false }).where(eq(semesters.isCurrent, true))
+    }
+    await db
+      .update(semesters)
+      .set({
+        startDate,
+        endDate,
+        ...(isActiveNow ? { isCurrent: true, status: 'Open' as const } : {}),
+      })
+      .where(eq(semesters.id, semester.id))
+  }
+
+  return semester!.id
+}
+
+/** Back-fill semester records for calendar events created before sync existed. */
+async function syncOrphanCalendarSemesters(db: Awaited<ReturnType<typeof getInstitutionDb>>): Promise<void> {
+  const orphans = await db
+    .select({
+      id: academicCalendarEvents.id,
+      title: academicCalendarEvents.title,
+      category: academicCalendarEvents.category,
+      startDate: academicCalendarEvents.startDate,
+      endDate: academicCalendarEvents.endDate,
+    })
+    .from(academicCalendarEvents)
+    .where(and(isNull(academicCalendarEvents.semesterId), sql`lower(${academicCalendarEvents.category}) = 'semester'`))
+
+  for (const event of orphans) {
+    const semesterId = await upsertSemesterFromCalendarEvent(db, {
+      title: event.title,
+      startDate: event.startDate,
+      endDate: event.endDate ?? event.startDate,
+      category: event.category,
+    })
+    if (semesterId) {
+      await db
+        .update(academicCalendarEvents)
+        .set({ semesterId })
+        .where(eq(academicCalendarEvents.id, event.id))
+    }
+  }
+}
+
 export async function createAcademicCalendarEvent(
   institutionId: string,
   actor: { id: string; email: string; role: UserRole },
   input: CreateAcademicCalendarEventRequest,
 ): Promise<AcademicCalendarEvent> {
   const db = await getInstitutionDb(institutionId)
-  const semester = await currentSemester(institutionId)
+  const semesterIdFromEvent = await upsertSemesterFromCalendarEvent(db, {
+    title: input.title,
+    startDate: input.startDate,
+    endDate: input.endDate ?? input.startDate,
+    category: input.category,
+  })
+  const current = await currentSemester(institutionId)
   const [created] = await db
     .insert(academicCalendarEvents)
     .values({
-      semesterId: semester?.id ?? null,
+      semesterId: semesterIdFromEvent ?? current?.id ?? null,
       title: input.title.trim(),
       description: input.description ?? null,
       category: input.category.trim(),
@@ -1876,11 +2008,29 @@ export async function updateAcademicCalendarEvent(
 ): Promise<AcademicCalendarEvent> {
   const db = await getInstitutionDb(institutionId)
   const [existing] = await db
-    .select({ id: academicCalendarEvents.id, title: academicCalendarEvents.title })
+    .select({
+      id: academicCalendarEvents.id,
+      title: academicCalendarEvents.title,
+      category: academicCalendarEvents.category,
+      startDate: academicCalendarEvents.startDate,
+      endDate: academicCalendarEvents.endDate,
+    })
     .from(academicCalendarEvents)
     .where(eq(academicCalendarEvents.id, eventId))
     .limit(1)
   if (!existing) throw notFound('That calendar event')
+
+  const nextTitle = input.title !== undefined ? input.title.trim() : existing.title
+  const nextCategory = input.category !== undefined ? input.category.trim() : existing.category
+  const nextStart = input.startDate ?? existing.startDate
+  const nextEnd = input.endDate ?? existing.endDate ?? nextStart
+
+  const semesterIdFromEvent = await upsertSemesterFromCalendarEvent(db, {
+    title: nextTitle,
+    startDate: nextStart,
+    endDate: nextEnd,
+    category: nextCategory,
+  })
 
   const [updated] = await db
     .update(academicCalendarEvents)
@@ -1890,6 +2040,7 @@ export async function updateAcademicCalendarEvent(
       ...(input.startDate !== undefined ? { startDate: input.startDate } : {}),
       ...(input.endDate !== undefined ? { endDate: input.endDate } : {}),
       ...(input.description !== undefined ? { description: input.description ?? null } : {}),
+      ...(semesterIdFromEvent ? { semesterId: semesterIdFromEvent } : {}),
     })
     .where(eq(academicCalendarEvents.id, eventId))
     .returning({
