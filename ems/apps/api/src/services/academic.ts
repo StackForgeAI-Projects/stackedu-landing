@@ -28,7 +28,7 @@ import type {
   UpdateAcademicProgrammeRequest,
   UserRole,
 } from '@stackedu/shared'
-import { formatAppDateDdMmYyyy, COURSE_DELETE_HAS_ENROLLMENTS, LECTURER_ASSIGNMENT_REQUIRES_SEMESTER } from '@stackedu/shared'
+import { formatAppDateDdMmYyyy, COURSE_DELETE_HAS_ENROLLMENTS, isSemesterCalendarCategory, LECTURER_ASSIGNMENT_REQUIRES_SEMESTER } from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions } from '../db/platform/schema'
 import { applications } from '../db/institution/schema/admissions'
@@ -932,8 +932,23 @@ export async function listAcademicSemesters(
       yearName: academicYears.name,
       isCurrent: semesters.isCurrent,
     })
-    .from(semesters)
+    .from(academicCalendarEvents)
+    .innerJoin(
+      semesters,
+      and(
+        eq(academicCalendarEvents.semesterId, semesters.id),
+        sql`lower(${academicCalendarEvents.category}) = 'semester'`,
+      ),
+    )
     .innerJoin(academicYears, eq(academicYears.id, semesters.academicYearId))
+    .groupBy(
+      semesters.id,
+      semesters.name,
+      academicYears.name,
+      semesters.isCurrent,
+      academicYears.startDate,
+      semesters.sequence,
+    )
     .orderBy(desc(academicYears.startDate), desc(semesters.sequence))
 
   return rows.map((row) => ({
@@ -1827,10 +1842,6 @@ export async function deleteAcademicCourse(
   })
 }
 
-function isSemesterCategory(category: string): boolean {
-  return category.trim().toLowerCase() === 'semester'
-}
-
 /** e.g. 2026-09-07 -> 2026/2027 when the intake starts in the second half of the year. */
 function academicYearNameFromDate(startDate: string): string {
   const year = Number(startDate.slice(0, 4))
@@ -1843,7 +1854,7 @@ async function upsertSemesterFromCalendarEvent(
   db: Awaited<ReturnType<typeof getInstitutionDb>>,
   input: { title: string; startDate: string; endDate: string; category: string },
 ): Promise<string | null> {
-  if (!isSemesterCategory(input.category)) return null
+  if (!isSemesterCalendarCategory(input.category)) return null
 
   const startDate = input.startDate
   const endDate = input.endDate ?? input.startDate
@@ -1921,6 +1932,29 @@ async function upsertSemesterFromCalendarEvent(
   }
 
   return semester!.id
+}
+
+async function removeSemesterIfUnused(
+  db: Awaited<ReturnType<typeof getInstitutionDb>>,
+  semesterId: string | null | undefined,
+): Promise<void> {
+  if (!semesterId) return
+
+  const [offering] = await db
+    .select({ id: courseOfferings.id })
+    .from(courseOfferings)
+    .where(eq(courseOfferings.semesterId, semesterId))
+    .limit(1)
+  if (offering) return
+
+  const [eventRef] = await db
+    .select({ id: academicCalendarEvents.id })
+    .from(academicCalendarEvents)
+    .where(eq(academicCalendarEvents.semesterId, semesterId))
+    .limit(1)
+  if (eventRef) return
+
+  await db.delete(semesters).where(eq(semesters.id, semesterId))
 }
 
 /** Back-fill semester records for calendar events created before sync existed. */
@@ -2014,6 +2048,7 @@ export async function updateAcademicCalendarEvent(
       category: academicCalendarEvents.category,
       startDate: academicCalendarEvents.startDate,
       endDate: academicCalendarEvents.endDate,
+      semesterId: academicCalendarEvents.semesterId,
     })
     .from(academicCalendarEvents)
     .where(eq(academicCalendarEvents.id, eventId))
@@ -2032,6 +2067,13 @@ export async function updateAcademicCalendarEvent(
     category: nextCategory,
   })
 
+  const current = await currentSemester(institutionId)
+  const nextSemesterId = isSemesterCalendarCategory(nextCategory)
+    ? semesterIdFromEvent
+    : current?.id ?? null
+
+  const oldSemesterRecordId = isSemesterCalendarCategory(existing.category) ? existing.semesterId : null
+
   const [updated] = await db
     .update(academicCalendarEvents)
     .set({
@@ -2040,7 +2082,7 @@ export async function updateAcademicCalendarEvent(
       ...(input.startDate !== undefined ? { startDate: input.startDate } : {}),
       ...(input.endDate !== undefined ? { endDate: input.endDate } : {}),
       ...(input.description !== undefined ? { description: input.description ?? null } : {}),
-      ...(semesterIdFromEvent ? { semesterId: semesterIdFromEvent } : {}),
+      semesterId: nextSemesterId,
     })
     .where(eq(academicCalendarEvents.id, eventId))
     .returning({
@@ -2051,6 +2093,10 @@ export async function updateAcademicCalendarEvent(
       endDate: academicCalendarEvents.endDate,
       description: academicCalendarEvents.description,
     })
+
+  if (oldSemesterRecordId && oldSemesterRecordId !== nextSemesterId) {
+    await removeSemesterIfUnused(db, oldSemesterRecordId)
+  }
 
   await writeAudit({
     institutionId,
@@ -2073,13 +2119,22 @@ export async function deleteAcademicCalendarEvent(
 ): Promise<void> {
   const db = await getInstitutionDb(institutionId)
   const [existing] = await db
-    .select({ id: academicCalendarEvents.id, title: academicCalendarEvents.title })
+    .select({
+      id: academicCalendarEvents.id,
+      title: academicCalendarEvents.title,
+      category: academicCalendarEvents.category,
+      semesterId: academicCalendarEvents.semesterId,
+    })
     .from(academicCalendarEvents)
     .where(eq(academicCalendarEvents.id, eventId))
     .limit(1)
   if (!existing) throw notFound('That calendar event')
 
+  const semesterRecordId = isSemesterCalendarCategory(existing.category) ? existing.semesterId : null
+
   await db.delete(academicCalendarEvents).where(eq(academicCalendarEvents.id, eventId))
+
+  await removeSemesterIfUnused(db, semesterRecordId)
 
   await writeAudit({
     institutionId,

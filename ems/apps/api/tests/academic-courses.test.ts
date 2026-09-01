@@ -5,7 +5,7 @@ import { getInstitutionDb } from '../src/db/connection'
 import { provisionInstitution } from '../src/db/provision'
 import { academicYears, courses, departments, faculties, semesters, academicCalendarEvents } from '../src/db/institution/schema/academic'
 import { AppError } from '../src/lib/errors'
-import { createAcademicCourse, deleteAcademicCourse, createAcademicCalendarEvent, listAcademicSemesters } from '../src/services/academic'
+import { createAcademicCourse, deleteAcademicCourse, createAcademicCalendarEvent, deleteAcademicCalendarEvent, listAcademicSemesters } from '../src/services/academic'
 import { createUser } from '../src/services/users'
 import { createTestPlatform, uniqueSlug, type TestPlatform } from './helpers/test-database'
 
@@ -155,5 +155,32 @@ describe('academic courses', () => {
       .where(eq(academicCalendarEvents.title, 'First Semester'))
       .limit(1)
     expect(linked?.semesterId).toBeTruthy()
+  })
+
+  it('does not list non-semester calendar events in the semester dropdown', async () => {
+    await createAcademicCalendarEvent(institutionId, actor, {
+      title: 'Orientation day',
+      category: 'Registration',
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+    })
+
+    const listed = await listAcademicSemesters(institutionId)
+    expect(listed.some((semester) => semester.label.includes('Orientation day'))).toBe(false)
+  })
+
+  it('removes a semester from the dropdown when its Semester calendar event is deleted', async () => {
+    const event = await createAcademicCalendarEvent(institutionId, actor, {
+      title: 'Second Semester',
+      category: 'Semester',
+      startDate: '2027-01-12',
+      endDate: '2027-04-30',
+    })
+
+    expect((await listAcademicSemesters(institutionId)).some((s) => s.label.includes('Second Semester'))).toBe(true)
+
+    await deleteAcademicCalendarEvent(institutionId, actor, event.id)
+
+    expect((await listAcademicSemesters(institutionId)).some((s) => s.label.includes('Second Semester'))).toBe(false)
   })
 })

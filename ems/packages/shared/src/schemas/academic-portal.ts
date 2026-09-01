@@ -397,6 +397,11 @@ export type AcademicProgrammeRow = z.infer<typeof academicProgrammeRowSchema>
 export type AcademicProgrammeDetail = z.infer<typeof academicProgrammeDetailSchema>
 export type AcademicCalendarEvent = z.infer<typeof academicCalendarEventSchema>
 export type AcademicTimetableSlot = z.infer<typeof academicTimetableSlotSchema>
+/** Calendar events with this category create/selectable semesters for course offerings. */
+export function isSemesterCalendarCategory(category: string): boolean {
+  return category.trim().toLowerCase() === 'semester'
+}
+
 export type AcademicLecturerRow = z.infer<typeof academicLecturerRowSchema>
 export type AcademicResultBatch = z.infer<typeof academicResultBatchSchema>
 export type AcademicSemesterOption = z.infer<typeof academicSemesterOptionSchema>

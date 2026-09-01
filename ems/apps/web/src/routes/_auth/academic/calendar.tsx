@@ -132,6 +132,7 @@ function CalendarPage() {
       toast.success('Event removed.')
       setDeleteTarget(null)
       await queryClient.invalidateQueries({ queryKey: academicCalendarQueryKey })
+      await queryClient.invalidateQueries({ queryKey: academicSemestersQueryKey })
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Could not delete event.')),
   })
