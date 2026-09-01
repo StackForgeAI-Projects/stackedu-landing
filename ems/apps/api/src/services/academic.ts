@@ -63,6 +63,7 @@ import {
   studentProfiles,
   students,
 } from '../db/institution/schema/students'
+import { notifyLecturerOfResultReview } from './role-notifications'
 import { writeAudit } from '../lib/audit'
 import { courseColor } from '../lib/course-color'
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
@@ -1001,13 +1002,13 @@ export async function approveAcademicResultBatch(
 
   const batch = await buildResultBatch(institutionId, batchId)
   if (existing.submittedBy) {
-    await db.insert(notifications).values({
-      userId: existing.submittedBy,
-      title: `Results approved: ${batch.courseCode}`,
-      body: `${batch.courseName} results have been approved and can be published to students.`,
-      category: 'Results',
-      actionUrl: '/lecturer/results',
-    })
+    await notifyLecturerOfResultReview(
+      db,
+      existing.submittedBy,
+      batch.courseCode,
+      batch.courseName,
+      'approved',
+    )
   }
   return batch
 }
@@ -1057,13 +1058,14 @@ export async function rejectAcademicResultBatch(
 
   const batch = await buildResultBatch(institutionId, batchId)
   if (existing.submittedBy) {
-    await db.insert(notifications).values({
-      userId: existing.submittedBy,
-      title: `Results returned: ${batch.courseCode}`,
-      body: input.reason,
-      category: 'Results',
-      actionUrl: '/lecturer/results',
-    })
+    await notifyLecturerOfResultReview(
+      db,
+      existing.submittedBy,
+      batch.courseCode,
+      batch.courseName,
+      'rejected',
+      input.reason,
+    )
   }
   return batch
 }

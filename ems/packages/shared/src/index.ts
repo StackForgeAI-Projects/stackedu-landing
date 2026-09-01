@@ -1,3 +1,4 @@
+export * from './course-material'
 export * from './inactivity-idle'
 export * from './attendance-policy'
 export * from './audit-copy'

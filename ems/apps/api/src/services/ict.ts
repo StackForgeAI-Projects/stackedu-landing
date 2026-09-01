@@ -51,6 +51,7 @@ import {
 } from '../db/institution/schema/people'
 import { auditLogs, integrations } from '../db/institution/schema/settings'
 import { studentProfiles, students } from '../db/institution/schema/students'
+import { notifyUserIds } from './role-notifications'
 import { writeAudit } from '../lib/audit'
 import { sendEmail } from '../lib/email'
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
@@ -1169,15 +1170,12 @@ export async function createIctAnnouncement(
     const audience = input.audience ?? decodeAudience(audienceRoles)
     const recipientIds = await resolveAudienceUserIds(institutionId, audience)
     if (recipientIds.length) {
-      await db.insert(notifications).values(
-        recipientIds.map((userId) => ({
-          userId,
-          title: input.title,
-          body: input.body,
-          category: 'Announcement',
-          actionUrl: null,
-        })),
-      )
+      await notifyUserIds(db, recipientIds, {
+        title: input.title,
+        body: input.body,
+        category: 'Announcement',
+        actionUrl: null,
+      })
     }
     await writeAudit({
       institutionId,

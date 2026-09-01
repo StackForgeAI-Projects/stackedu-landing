@@ -1,8 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { Download, ExternalLink } from 'lucide-react'
+import { materialSourceLabel } from '@stackedu/shared'
 import { StudentShell } from '@/components/StudentShell'
-import { getStudentCourse, studentCourseQueryKey } from '@/lib/api/student'
+import { Button } from '@/components/ui/button'
+import { getStudentCourse, getStudentMaterialDownloadUrl, studentCourseQueryKey } from '@/lib/api/student'
 import { apiErrorMessage } from '@/lib/api/client'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_auth/student/course-detail')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -62,9 +66,45 @@ function CourseDetailPage() {
               {data.materials.length === 0 ? (
                 <p className="t-body" style={{ color: 'var(--muted-foreground)' }}>No published materials yet.</p>
               ) : data.materials.map((item) => (
-                <div key={item.id} className="py-2" style={{ borderTop: '1px solid var(--border)' }}>
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="t-caption" style={{ color: 'var(--muted-foreground)' }}>{item.moduleName} {item.description}</p>
+                <div key={item.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{item.title}</p>
+                    <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                      {item.moduleName ?? 'General'}
+                      {item.description ? ` · ${item.description}` : ''}
+                    </p>
+                    <p className="t-caption mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                      {materialSourceLabel({ fileKey: item.hasFile ? item.fileName : null, externalUrl: item.externalUrl ?? null })}
+                      {item.fileName ? ` · ${item.fileName}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                    {item.hasFile ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={async () => {
+                          try {
+                            const target = await getStudentMaterialDownloadUrl(item.id)
+                            window.open(target.url, '_blank', 'noopener,noreferrer')
+                          } catch (err) {
+                            toast.error(apiErrorMessage(err, 'Could not open that file.'))
+                          }
+                        }}
+                      >
+                        <Download style={{ width: 13, height: 13 }} /> Download
+                      </Button>
+                    ) : null}
+                    {item.externalUrl ? (
+                      <a href={item.externalUrl} target="_blank" rel="noopener noreferrer">
+                        <Button type="button" variant="outline" size="sm" className="gap-1.5">
+                          <ExternalLink style={{ width: 13, height: 13 }} /> Open link
+                        </Button>
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </section>

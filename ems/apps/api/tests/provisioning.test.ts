@@ -12,6 +12,7 @@ import { permissionsForRole } from '../src/db/seed-defaults'
 import { institutionDatabases, institutions } from '../src/db/platform/schema'
 import { adminConnectionUrl } from '../src/db/naming'
 import { AppError } from '../src/lib/errors'
+import { writeLocalUpload } from '../src/lib/storage'
 import { readInstitutionSetting, upsertInstitutionSetting } from '../src/lib/institution-settings'
 import {
   academicYears,
@@ -30,9 +31,13 @@ import {
 import {
   createLecturerMaterial,
   deleteLecturerAttendanceSession,
+  deleteLecturerMaterial,
   getLecturerCourse,
+  getLecturerMaterialDownloadUrl,
   listLecturerAttendance,
+  reserveLecturerMaterialUpload,
   saveLecturerAttendance,
+  updateLecturerMaterial,
 } from '../src/services/lecturer'
 import { createUser } from '../src/services/users'
 import {
@@ -449,5 +454,47 @@ describe('institution provisioning', () => {
 
     const detail = await getLecturerCourse(result.institutionId, lecturer.id, offering!.id)
     expect(detail.materials.some((row) => row.id === material.id)).toBe(true)
+
+    const fileBytes = Buffer.from('%PDF-1.4 week-one')
+    const upload = await reserveLecturerMaterialUpload(result.institutionId, lecturer.id, {
+      offeringId: offering!.id,
+      fileName: 'week-1.pdf',
+      mimeType: 'application/pdf',
+      fileSizeBytes: fileBytes.length,
+    })
+    const uploadToken = upload.uploadUrl.split('/').pop()
+    expect(uploadToken).toBeTruthy()
+    await writeLocalUpload(uploadToken!, fileBytes, fileBytes.length)
+
+    const materialWithFile = await createLecturerMaterial(result.institutionId, actor, {
+      offeringId: offering!.id,
+      title: 'Week 1 slides',
+      moduleName: 'Week 1',
+      fileKey: upload.fileKey,
+      mimeType: 'application/pdf',
+      fileSizeBytes: fileBytes.length,
+      publish: true,
+    })
+    expect(materialWithFile.fileKey).toBe(upload.fileKey)
+    expect(materialWithFile.fileName).toContain('week-1.pdf')
+
+    const download = await getLecturerMaterialDownloadUrl(
+      result.institutionId,
+      lecturer.id,
+      materialWithFile.id,
+    )
+    expect(download.url).toBeTruthy()
+    expect(download.fileName).toContain('week-1.pdf')
+
+    const updated = await updateLecturerMaterial(result.institutionId, actor, materialWithFile.id, {
+      title: 'Week 1 slides (updated)',
+      description: 'Revised lecture slides',
+    })
+    expect(updated.title).toBe('Week 1 slides (updated)')
+
+    await deleteLecturerMaterial(result.institutionId, actor, materialWithFile.id)
+    const detailAfterDelete = await getLecturerCourse(result.institutionId, lecturer.id, offering!.id)
+    expect(detailAfterDelete.materials.some((row) => row.id === materialWithFile.id)).toBe(false)
+    expect(detailAfterDelete.materials.some((row) => row.id === material.id)).toBe(true)
   })
 })

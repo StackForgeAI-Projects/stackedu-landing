@@ -1,23 +1,36 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import { Users, ChevronRight, Search, Plus, ExternalLink } from 'lucide-react'
-import type { LecturerCourseDetail, LecturerCourseRow } from '@stackedu/shared'
+import { useEffect, useRef, useState } from 'react'
+import { Users, ChevronRight, Search, Plus, ExternalLink, Download, Pencil, Trash2, Upload } from 'lucide-react'
+import type { LecturerCourseDetail, LecturerCourseMaterial, LecturerCourseRow } from '@stackedu/shared'
+import {
+  COURSE_MATERIAL_ACCEPT,
+  COURSE_MATERIAL_MAX_BYTES,
+  formatMaterialFileSize,
+  materialSourceLabel,
+} from '@stackedu/shared'
 import { LecturerShell } from '@/components/LecturerShell'
 import { CourseCodePill } from '@/components/CourseCodePill'
+import { ConfirmAlertDialog } from '@/components/ConfirmAlertDialog'
+import { DataTable } from '@/components/DataTable'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { apiErrorMessage } from '@/lib/api/client'
+import { formatDateShort } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   createLecturerMaterial,
+  deleteLecturerMaterial,
   getLecturerCourse,
+  getLecturerMaterialDownloadUrl,
   lecturerCourseQueryKey,
-  lecturerCoursesQueryKey,
   listLecturerCourses,
+  lecturerCoursesQueryKey,
+  updateLecturerMaterial,
+  uploadLecturerMaterialFile,
 } from '@/lib/api/lecturer'
 import { gradeColor } from '@/data/lecturer'
 
@@ -136,6 +149,7 @@ function CourseDetail({
 }) {
   const queryClient = useQueryClient()
   const [materialOpen, setMaterialOpen] = useState(false)
+  const [editingMaterial, setEditingMaterial] = useState<LecturerCourseMaterial | null>(null)
   const students = detail?.students ?? []
   const filtered = students.filter((s) =>
     !studentSearch
@@ -208,12 +222,12 @@ function CourseDetail({
         <TabsContent value="content">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>
-              Add reading materials here. Create assignments from the Assignments page — they appear below once published.
+              Manage reading materials for this course. Assignments are created from the Assignments page.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
-                onClick={() => setMaterialOpen(true)}
+                onClick={() => { setEditingMaterial(null); setMaterialOpen(true) }}
                 style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)', gap: 6 }}
               >
                 <Plus style={{ width: 14, height: 14 }} /> Add material
@@ -226,25 +240,133 @@ function CourseDetail({
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {(detail?.materials ?? []).length === 0 && (detail?.assessments ?? []).length === 0 ? (
-              <div className="text-center py-10 px-4" style={{ backgroundColor: 'var(--card)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)' }}>
-                <p className="t-body-sm" style={{ color: 'var(--muted-foreground)' }}>No materials or assessments published yet.</p>
+          <DataTable
+            rows={detail?.materials ?? []}
+            rowKey={(row) => row.id}
+            searchPlaceholder="Search materials by title, module or description…"
+            searchFilter={(row, query) =>
+              row.title.toLowerCase().includes(query)
+              || (row.moduleName ?? '').toLowerCase().includes(query)
+              || (row.description ?? '').toLowerCase().includes(query)
+            }
+            filters={[
+              {
+                id: 'module',
+                label: 'Module',
+                getValue: (row) => row.moduleName?.trim() || 'General',
+                allLabel: 'All modules',
+              },
+              {
+                id: 'status',
+                label: 'Status',
+                options: [
+                  { label: 'Published', value: 'Published' },
+                  { label: 'Draft', value: 'Draft' },
+                ],
+                getValue: (row) => (row.isPublished ? 'Published' : 'Draft'),
+              },
+              {
+                id: 'type',
+                label: 'Type',
+                options: [
+                  { label: 'File', value: 'File' },
+                  { label: 'Link', value: 'Link' },
+                  { label: 'Notes', value: 'Notes' },
+                ],
+                getValue: (row) => materialSourceLabel(row),
+              },
+            ]}
+            empty="No course materials yet. Add your first reading note or upload a file."
+            defaultPageSize={10}
+            columns={[
+              {
+                id: 'title',
+                header: 'Title',
+                value: (row) => row.title,
+                cell: (row) => (
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{row.title}</p>
+                    {row.description ? (
+                      <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{row.description}</p>
+                    ) : null}
+                  </div>
+                ),
+              },
+              {
+                id: 'module',
+                header: 'Module',
+                value: (row) => row.moduleName ?? 'General',
+                cell: (row) => <span className="t-caption">{row.moduleName ?? 'General'}</span>,
+              },
+              {
+                id: 'type',
+                header: 'Type',
+                value: (row) => materialSourceLabel(row),
+                cell: (row) => <span className="t-label">{materialSourceLabel(row)}</span>,
+              },
+              {
+                id: 'file',
+                header: 'File',
+                value: (row) => row.fileName ?? '',
+                cell: (row) => (
+                  <span className="t-caption" style={{ color: 'var(--muted-foreground)' }}>
+                    {row.fileName ? `${row.fileName} · ${formatMaterialFileSize(row.fileSizeBytes)}` : '—'}
+                  </span>
+                ),
+              },
+              {
+                id: 'status',
+                header: 'Status',
+                value: (row) => (row.isPublished ? 'Published' : 'Draft'),
+                cell: (row) => (
+                  <span
+                    className="t-label px-2 py-0.5"
+                    style={{
+                      backgroundColor: row.isPublished ? 'var(--success-bg)' : 'var(--muted)',
+                      color: row.isPublished ? 'var(--success)' : 'var(--muted-foreground)',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    {row.isPublished ? 'Published' : 'Draft'}
+                  </span>
+                ),
+              },
+              {
+                id: 'added',
+                header: 'Added',
+                value: (row) => row.createdAt,
+                cell: (row) => <span className="t-caption">{formatDateShort(row.createdAt)}</span>,
+              },
+              {
+                id: 'actions',
+                header: '',
+                className: 'text-right',
+                cell: (row) => (
+                  <MaterialRowActions
+                    material={row}
+                    onEdit={() => { setEditingMaterial(row); setMaterialOpen(true) }}
+                    onChanged={async () => {
+                      await queryClient.invalidateQueries({ queryKey: lecturerCourseQueryKey(course.offeringId) })
+                    }}
+                  />
+                ),
+              },
+            ]}
+          />
+
+          {(detail?.assessments ?? []).length > 0 ? (
+            <div className="mt-8">
+              <h3 className="t-h3 mb-3" style={{ fontFamily: 'var(--font-display)' }}>Published assignments</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {(detail?.assessments ?? []).map((a) => (
+                  <div key={a.id} style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '14px 16px' }}>
+                    <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{a.title}</p>
+                    <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{a.type} · {a.weight}% · {a.totalMarks} marks</p>
+                  </div>
+                ))}
               </div>
-            ) : null}
-            {(detail?.materials ?? []).map((m) => (
-              <div key={m.id} style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '14px 16px' }}>
-                <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{m.title}</p>
-                <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{m.moduleName ?? 'Material'}{m.description ? ` · ${m.description}` : ''}</p>
-              </div>
-            ))}
-            {(detail?.assessments ?? []).map((a) => (
-              <div key={a.id} style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '14px 16px' }}>
-                <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{a.title}</p>
-                <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{a.type} · {a.weight}% · {a.totalMarks} marks</p>
-              </div>
-            ))}
-          </div>
+            </div>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="analytics">
@@ -261,14 +383,16 @@ function CourseDetail({
         </TabsContent>
       </Tabs>
 
-      <Sheet open={materialOpen} onOpenChange={setMaterialOpen}>
+      <Sheet open={materialOpen} onOpenChange={(open) => { setMaterialOpen(open); if (!open) setEditingMaterial(null) }}>
         <SheetContent side="right" className="p-0 border-l overflow-hidden flex flex-col sheet-md">
-          <AddMaterialForm
+          <MaterialForm
             offeringId={course.offeringId}
-            onClose={() => setMaterialOpen(false)}
+            material={editingMaterial}
+            onClose={() => { setMaterialOpen(false); setEditingMaterial(null) }}
             onSuccess={async () => {
               await queryClient.invalidateQueries({ queryKey: lecturerCourseQueryKey(course.offeringId) })
               setMaterialOpen(false)
+              setEditingMaterial(null)
             }}
           />
         </SheetContent>
@@ -277,42 +401,167 @@ function CourseDetail({
   )
 }
 
-function AddMaterialForm({
+function MaterialRowActions({
+  material,
+  onEdit,
+  onChanged,
+}: {
+  material: LecturerCourseMaterial
+  onEdit: () => void
+  onChanged: () => Promise<void>
+}) {
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteLecturerMaterial(material.id),
+    onSuccess: async () => {
+      toast.success(`"${material.title}" removed.`)
+      await onChanged()
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not delete that material.')),
+  })
+
+  const download = async () => {
+    try {
+      const target = await getLecturerMaterialDownloadUrl(material.id)
+      window.open(target.url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not open that file.'))
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-2 flex-wrap">
+      {material.fileKey ? (
+        <Button type="button" variant="outline" size="sm" className="gap-1" onClick={download}>
+          <Download style={{ width: 12, height: 12 }} /> Open
+        </Button>
+      ) : null}
+      <Button type="button" variant="outline" size="sm" className="gap-1" onClick={onEdit}>
+        <Pencil style={{ width: 12, height: 12 }} /> Edit
+      </Button>
+      <ConfirmAlertDialog
+        trigger={
+          <Button type="button" variant="outline" size="sm" className="gap-1" style={{ color: 'var(--error)' }}>
+            <Trash2 style={{ width: 12, height: 12 }} /> Delete
+          </Button>
+        }
+        title="Delete this material?"
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Delete course material"
+        summary={`"${material.title}" will be removed from the course content list.`}
+        notices={[
+          { icon: 'trash', label: 'Students will no longer see this material in the portal.' },
+          { icon: 'file', label: material.fileKey ? 'Any uploaded file will also be removed from storage.' : 'This action cannot be undone.' },
+        ]}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+      />
+    </div>
+  )
+}
+
+function MaterialForm({
   offeringId,
+  material,
   onClose,
   onSuccess,
 }: {
   offeringId: string
+  material: LecturerCourseMaterial | null
   onClose: () => void
   onSuccess: () => Promise<void>
 }) {
-  const [title, setTitle] = useState('')
-  const [moduleName, setModuleName] = useState('')
-  const [description, setDescription] = useState('')
-  const [externalUrl, setExternalUrl] = useState('')
+  const isEdit = material !== null
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [title, setTitle] = useState(material?.title ?? '')
+  const [moduleName, setModuleName] = useState(material?.moduleName ?? '')
+  const [description, setDescription] = useState(material?.description ?? '')
+  const [externalUrl, setExternalUrl] = useState(material?.externalUrl ?? '')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [removeFile, setRemoveFile] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  const create = useMutation({
-    mutationFn: () =>
-      createLecturerMaterial({
-        offeringId,
-        title: title.trim(),
-        moduleName: moduleName.trim() || undefined,
-        description: description.trim() || undefined,
-        externalUrl: externalUrl.trim() || undefined,
-        publish: true,
-      }),
-    onSuccess: async (material) => {
-      toast.success(`Material "${material.title}" added`)
+  useEffect(() => {
+    setTitle(material?.title ?? '')
+    setModuleName(material?.moduleName ?? '')
+    setDescription(material?.description ?? '')
+    setExternalUrl(material?.externalUrl ?? '')
+    setSelectedFile(null)
+    setRemoveFile(false)
+  }, [material])
+
+  const currentFileLabel = selectedFile?.name ?? (removeFile ? null : material?.fileName ?? null)
+
+  const saveMaterial = async () => {
+    if (title.trim().length < 2) return
+    if (selectedFile && selectedFile.size > COURSE_MATERIAL_MAX_BYTES) {
+      toast.error('The file must be 10 MB or smaller.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      let filePayload: { fileKey: string; mimeType: string; fileSizeBytes: number } | undefined
+      if (selectedFile) {
+        filePayload = await uploadLecturerMaterialFile({ offeringId, file: selectedFile })
+      }
+
+      if (isEdit && material) {
+        await updateLecturerMaterial(material.id, {
+          title: title.trim(),
+          moduleName: moduleName.trim() || undefined,
+          description: description.trim() || undefined,
+          externalUrl: externalUrl.trim() || undefined,
+          ...(filePayload
+            ? {
+                fileKey: filePayload.fileKey,
+                fileName: selectedFile!.name,
+                mimeType: filePayload.mimeType,
+                fileSizeBytes: filePayload.fileSizeBytes,
+              }
+            : {}),
+          ...(removeFile && !selectedFile ? { clearFile: true } : {}),
+          publish: true,
+        })
+        toast.success(`Material "${title.trim()}" updated.`)
+      } else {
+        await createLecturerMaterial({
+          offeringId,
+          title: title.trim(),
+          moduleName: moduleName.trim() || undefined,
+          description: description.trim() || undefined,
+          externalUrl: externalUrl.trim() || undefined,
+          ...(filePayload
+            ? {
+                fileKey: filePayload.fileKey,
+                fileName: selectedFile!.name,
+                mimeType: filePayload.mimeType,
+                fileSizeBytes: filePayload.fileSizeBytes,
+              }
+            : {}),
+          publish: true,
+        })
+        toast.success(`Material "${title.trim()}" published.`)
+      }
       await onSuccess()
-    },
-    onError: (err) => toast.error(apiErrorMessage(err, 'Could not add that material.')),
-  })
+    } catch (err) {
+      toast.error(apiErrorMessage(err, isEdit ? 'Could not update that material.' : 'Could not publish that material.'))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div style={{ padding: '20px 56px 18px 24px', borderBottom: '1px solid var(--border)' }}>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 600, color: 'var(--foreground)' }}>Add course material</h3>
-        <p className="t-caption mt-1" style={{ color: 'var(--muted-foreground)' }}>Published materials appear on the Course Content tab and in the student portal.</p>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.0625rem', fontWeight: 600, color: 'var(--foreground)' }}>
+          {isEdit ? 'Edit course material' : 'Add course material'}
+        </h3>
+        <p className="t-caption mt-1" style={{ color: 'var(--muted-foreground)' }}>
+          Published materials appear here and in the student portal. File upload is optional.
+        </p>
       </div>
       <div style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
@@ -331,15 +580,72 @@ function AddMaterialForm({
           <label className="t-label mb-1.5 block" style={{ color: 'var(--foreground)' }}>Link URL (optional)</label>
           <Input value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} placeholder="https://…" type="url" />
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 pt-2">
-          <Button
+        <div>
+          <label className="t-label mb-1.5 block" style={{ color: 'var(--foreground)' }}>File (optional)</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={COURSE_MATERIAL_ACCEPT}
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0] ?? null
+              setSelectedFile(file)
+              if (file) setRemoveFile(false)
+            }}
+          />
+          <button
             type="button"
-            disabled={title.trim().length < 2 || create.isPending}
-            onClick={() => create.mutate()}
-            style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full rounded-xl border border-dashed px-4 py-5 text-left transition-colors hover:bg-[var(--muted)]"
+            style={{ borderColor: 'var(--border)' }}
           >
-            {create.isPending ? 'Publishing…' : 'Publish material'}
-          </Button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center rounded-lg" style={{ width: 36, height: 36, backgroundColor: 'rgba(15, 189, 59, 0.08)' }}>
+                <Upload style={{ width: 16, height: 16, color: 'var(--brand)' }} />
+              </div>
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                  {currentFileLabel ?? 'Upload PDF, Word document, or image'}
+                </p>
+                <p className="t-caption mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                  Max 10 MB · PDF, DOCX, DOC, PNG, JPG, WEBP, GIF
+                </p>
+              </div>
+            </div>
+          </button>
+          {material?.fileKey && !selectedFile && !removeFile ? (
+            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setRemoveFile(true)}>
+              Remove current file
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+          <ConfirmAlertDialog
+            trigger={
+              <Button
+                type="button"
+                disabled={title.trim().length < 2 || saving}
+                style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-ink)' }}
+              >
+                {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Publish material'}
+              </Button>
+            }
+            title={isEdit ? 'Save these changes?' : 'Publish this material?'}
+            tone="success"
+            headlineLabel="Action"
+            headline={isEdit ? 'Update course material' : 'Publish course material'}
+            summary={isEdit
+              ? `Students will see the updated version of "${title.trim() || material?.title}".`
+              : `"${title.trim()}" will be published to this course.`}
+            notices={[
+              { icon: 'user', label: 'Enrolled students can access published materials in their portal.' },
+              { icon: 'file', label: selectedFile ? `File "${selectedFile.name}" will be uploaded.` : 'Only the details you entered will be published.' },
+            ]}
+            confirmLabel={isEdit ? 'Save changes' : 'Publish'}
+            confirmVariant="brand"
+            loading={saving}
+            onConfirm={saveMaterial}
+          />
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
         </div>
       </div>

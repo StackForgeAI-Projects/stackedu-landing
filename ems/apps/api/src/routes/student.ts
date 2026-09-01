@@ -11,6 +11,7 @@ import type { RequestVariables } from '../middleware/request-context'
 import {
   getRegistrationState,
   getStudentCourse,
+  getStudentMaterialDownloadUrl,
   getStudentDashboard,
   getStudentFees,
   getStudentOnboarding,
@@ -58,6 +59,13 @@ studentRoutes.get('/student/courses/:offeringId', ...studentOnly, async (c) => {
   const user = c.get('user')!
   return c.json({
     course: await getStudentCourse(user.institution.id, user.id, c.req.param('offeringId')),
+  })
+})
+
+studentRoutes.get('/student/materials/:id/download', ...studentOnly, async (c) => {
+  const user = c.get('user')!
+  return c.json({
+    download: await getStudentMaterialDownloadUrl(user.institution.id, user.id, c.req.param('id')),
   })
 })
 

@@ -9,6 +9,7 @@ import {
   userRoleSchema,
 } from '../enums'
 import { isoDateSchema, isoDateTimeSchema, uuidSchema } from '../primitives'
+import { COURSE_MATERIAL_MAX_BYTES, COURSE_MATERIAL_MIME_TYPES } from '../course-material'
 import { academicAtRiskStudentSchema, academicNotificationSchema } from './academic-portal'
 
 export const lecturerProfileSchema = z.object({
@@ -117,17 +118,25 @@ export const lecturerDashboardSchema = z.object({
   pendingActions: z.array(lecturerPendingActionSchema),
 })
 
+export const lecturerCourseMaterialSchema = z.object({
+  id: uuidSchema,
+  title: z.string(),
+  description: z.string().nullable(),
+  moduleName: z.string().nullable(),
+  externalUrl: z.string().nullable(),
+  fileKey: z.string().nullable(),
+  fileName: z.string().nullable(),
+  mimeType: z.string().nullable(),
+  fileSizeBytes: z.number().int().nonnegative().nullable(),
+  isPublished: z.boolean(),
+  publishedAt: isoDateTimeSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+})
+
 export const lecturerCourseDetailSchema = lecturerCourseRowSchema.extend({
   description: z.string().nullable(),
   students: z.array(lecturerCourseStudentSchema),
-  materials: z.array(
-    z.object({
-      id: uuidSchema,
-      title: z.string(),
-      description: z.string().nullable(),
-      moduleName: z.string().nullable(),
-    }),
-  ),
+  materials: z.array(lecturerCourseMaterialSchema),
   assessments: z.array(
     z.object({
       id: uuidSchema,
@@ -244,7 +253,33 @@ export const createLecturerMaterialRequestSchema = z.object({
   description: z.string().trim().max(2000).optional(),
   moduleName: z.string().trim().max(100).optional(),
   externalUrl: z.string().trim().max(500).optional(),
+  fileKey: z.string().trim().max(500).optional(),
+  fileName: z.string().trim().max(200).optional(),
+  mimeType: z.string().trim().max(120).optional(),
+  fileSizeBytes: z.number().int().positive().max(COURSE_MATERIAL_MAX_BYTES).optional(),
   publish: z.boolean().optional(),
+})
+
+export const updateLecturerMaterialRequestSchema = z.object({
+  title: z.string().trim().min(2).max(200).optional(),
+  description: z.string().trim().max(2000).optional(),
+  moduleName: z.string().trim().max(100).optional(),
+  externalUrl: z.string().trim().max(500).optional(),
+  fileKey: z.string().trim().max(500).optional(),
+  fileName: z.string().trim().max(200).optional(),
+  mimeType: z.string().trim().max(120).optional(),
+  fileSizeBytes: z.number().int().positive().max(COURSE_MATERIAL_MAX_BYTES).optional(),
+  clearFile: z.boolean().optional(),
+  publish: z.boolean().optional(),
+})
+
+export const reserveLecturerMaterialUploadRequestSchema = z.object({
+  offeringId: uuidSchema,
+  fileName: z.string().trim().min(1).max(200),
+  mimeType: z.string().trim().min(3).max(120).refine((value) => COURSE_MATERIAL_MIME_TYPES.has(value), {
+    message: 'Upload a PDF, Word document, or image file.',
+  }),
+  fileSizeBytes: z.number().int().positive().max(COURSE_MATERIAL_MAX_BYTES),
 })
 
 export const lecturerSubmissionRowSchema = z.object({
@@ -316,7 +351,10 @@ export type SaveLecturerResultsRequest = z.infer<typeof saveLecturerResultsReque
 export type LecturerAssessmentRow = z.infer<typeof lecturerAssessmentRowSchema>
 export type LecturerAssessmentDetail = z.infer<typeof lecturerAssessmentDetailSchema>
 export type CreateLecturerAssessmentRequest = z.infer<typeof createLecturerAssessmentRequestSchema>
+export type LecturerCourseMaterial = z.infer<typeof lecturerCourseMaterialSchema>
 export type CreateLecturerMaterialRequest = z.infer<typeof createLecturerMaterialRequestSchema>
+export type UpdateLecturerMaterialRequest = z.infer<typeof updateLecturerMaterialRequestSchema>
+export type ReserveLecturerMaterialUploadRequest = z.infer<typeof reserveLecturerMaterialUploadRequestSchema>
 export type SaveLecturerGradeRequest = z.infer<typeof saveLecturerGradeRequestSchema>
 export type LecturerAtRiskStudent = z.infer<typeof lecturerAtRiskStudentSchema>
 export type LecturerNotification = z.infer<typeof lecturerNotificationSchema>

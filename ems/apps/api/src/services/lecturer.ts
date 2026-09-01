@@ -10,6 +10,7 @@ import type {
   LecturerAttendanceSession,
   LecturerAtRiskStudent,
   LecturerCourseDetail,
+  LecturerCourseMaterial,
   LecturerCourseRow,
   LecturerDashboard,
   LecturerNotification,
@@ -18,10 +19,12 @@ import type {
   LecturerRoomOption,
   LecturerTimetableSlot,
   ResolveLecturerAtRiskRequest,
+  ReserveLecturerMaterialUploadRequest,
   SaveLecturerAttendanceRequest,
   SaveLecturerGradeRequest,
   SaveLecturerResultsRequest,
   SaveLecturerTimetableSlotRequest,
+  UpdateLecturerMaterialRequest,
   UpdateLecturerTimetableSlotRequest,
   UserRole,
 } from '@stackedu/shared'
@@ -29,6 +32,8 @@ import {
   ATTENDANCE_POLICY_SETTING_KEY,
   attendancePolicySchema,
   attendanceSessionStatus,
+  COURSE_MATERIAL_MAX_BYTES,
+  COURSE_MATERIAL_MIME_TYPES,
   DEFAULT_ATTENDANCE_POLICY,
   isAttendanceSessionEditable,
 } from '@stackedu/shared'
@@ -56,9 +61,22 @@ import {
   rooms,
   timetableSlots,
 } from '../db/institution/schema/teaching'
+import {
+  notifyAcademicAdminsOfResultSubmit,
+  notifyEnrolledStudentsOfAssessment,
+  notifyEnrolledStudentsOfMaterial,
+} from './role-notifications'
 import { writeAudit } from '../lib/audit'
 import { courseColor, formatClock } from '../lib/course-color'
 import { badRequest, forbidden, notFound } from '../lib/errors'
+import {
+  buildCourseMaterialFileKey,
+  createDownloadUrl,
+  createUploadTarget,
+  deleteStoredObject,
+  fileNameFromStorageKey,
+  type UploadTarget,
+} from '../lib/storage'
 import {
   currentSemester,
   firstName,
@@ -596,10 +614,17 @@ export async function getLecturerCourse(
       title: courseMaterials.title,
       description: courseMaterials.description,
       moduleName: courseMaterials.moduleName,
+      externalUrl: courseMaterials.externalUrl,
+      fileKey: courseMaterials.fileKey,
+      mimeType: courseMaterials.mimeType,
+      fileSizeBytes: courseMaterials.fileSizeBytes,
+      isPublished: courseMaterials.isPublished,
+      publishedAt: courseMaterials.publishedAt,
+      createdAt: courseMaterials.createdAt,
     })
     .from(courseMaterials)
     .where(eq(courseMaterials.courseOfferingId, offeringId))
-    .orderBy(courseMaterials.createdAt)
+    .orderBy(desc(courseMaterials.createdAt))
 
   const assessmentRows = await db
     .select({
@@ -629,7 +654,7 @@ export async function getLecturerCourse(
         riskLevel: riskByStudent.get(student.studentId) ?? null,
       }
     }),
-    materials: materialRows,
+    materials: materialRows.map(mapLecturerMaterial),
     assessments: assessmentRows.map((row) => ({
       id: row.id,
       title: row.title,
@@ -642,22 +667,131 @@ export async function getLecturerCourse(
   }
 }
 
+function courseMaterialKeyPrefix(institutionId: string, offeringId: string): string {
+  return `institutions/${institutionId}/offerings/${offeringId}/materials/`
+}
+
+function mapLecturerMaterial(row: {
+  id: string
+  title: string
+  description: string | null
+  moduleName: string | null
+  externalUrl?: string | null
+  fileKey?: string | null
+  mimeType?: string | null
+  fileSizeBytes?: number | null
+  isPublished: boolean
+  publishedAt: string | null
+  createdAt: string
+}): LecturerCourseMaterial {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    moduleName: row.moduleName,
+    externalUrl: row.externalUrl ?? null,
+    fileKey: row.fileKey ?? null,
+    fileName: row.fileKey ? fileNameFromStorageKey(row.fileKey) : null,
+    mimeType: row.mimeType ?? null,
+    fileSizeBytes: row.fileSizeBytes ?? null,
+    isPublished: row.isPublished,
+    publishedAt: row.publishedAt,
+    createdAt: row.createdAt,
+  }
+}
+
+function parseExternalUrl(value: string | undefined): string | null {
+  const externalUrl = value?.trim()
+  if (!externalUrl) return null
+  try {
+    new URL(externalUrl)
+  } catch {
+    throw badRequest('Enter a valid link URL or leave it blank.')
+  }
+  return externalUrl
+}
+
+function assertMaterialFileInput(input: {
+  fileKey?: string
+  mimeType?: string
+  fileSizeBytes?: number
+  institutionId: string
+  offeringId: string
+}): { fileKey: string; mimeType: string; fileSizeBytes: number } | null {
+  if (!input.fileKey) return null
+  const prefix = courseMaterialKeyPrefix(input.institutionId, input.offeringId)
+  if (!input.fileKey.startsWith(prefix)) throw badRequest('That upload is not valid for this course.')
+  if (!input.mimeType || !COURSE_MATERIAL_MIME_TYPES.has(input.mimeType)) {
+    throw badRequest('Upload a PDF, Word document, or image file.')
+  }
+  if (!input.fileSizeBytes || input.fileSizeBytes > COURSE_MATERIAL_MAX_BYTES) {
+    throw badRequest('The file is too large. Maximum size is 10 MB.')
+  }
+  return { fileKey: input.fileKey, mimeType: input.mimeType, fileSizeBytes: input.fileSizeBytes }
+}
+
+async function getAssignedMaterial(
+  db: InstitutionDb,
+  userId: string,
+  materialId: string,
+): Promise<{
+  id: string
+  offeringId: string
+  title: string
+  fileKey: string | null
+}> {
+  const [row] = await db
+    .select({
+      id: courseMaterials.id,
+      offeringId: courseMaterials.courseOfferingId,
+      title: courseMaterials.title,
+      fileKey: courseMaterials.fileKey,
+    })
+    .from(courseMaterials)
+    .where(eq(courseMaterials.id, materialId))
+    .limit(1)
+  if (!row) throw notFound('That course material')
+  await requireAssignedOffering(db, userId, row.offeringId)
+  return row
+}
+
+export async function reserveLecturerMaterialUpload(
+  institutionId: string,
+  userId: string,
+  input: ReserveLecturerMaterialUploadRequest,
+): Promise<{ fileKey: string } & UploadTarget> {
+  const { db } = await requireLecturer(institutionId, userId)
+  await requireAssignedOffering(db, userId, input.offeringId)
+
+  const fileKey = buildCourseMaterialFileKey({
+    institutionId,
+    offeringId: input.offeringId,
+    fileName: input.fileName,
+  })
+  const target = await createUploadTarget({
+    fileKey,
+    mimeType: input.mimeType,
+    fileSizeBytes: input.fileSizeBytes,
+  })
+  return { fileKey, ...target }
+}
+
 export async function createLecturerMaterial(
   institutionId: string,
   actor: { id: string; email: string; role: UserRole },
   input: CreateLecturerMaterialRequest,
-): Promise<LecturerCourseDetail['materials'][number]> {
+): Promise<LecturerCourseMaterial> {
   const { db } = await requireLecturer(institutionId, actor.id)
   await requireAssignedOffering(db, actor.id, input.offeringId)
 
-  const externalUrl = input.externalUrl?.trim()
-  if (externalUrl) {
-    try {
-      new URL(externalUrl)
-    } catch {
-      throw badRequest('Enter a valid link URL or leave it blank.')
-    }
-  }
+  const externalUrl = parseExternalUrl(input.externalUrl)
+  const file = assertMaterialFileInput({
+    fileKey: input.fileKey,
+    mimeType: input.mimeType,
+    fileSizeBytes: input.fileSizeBytes,
+    institutionId,
+    offeringId: input.offeringId,
+  })
 
   const publish = input.publish ?? true
   const now = new Date().toISOString()
@@ -668,7 +802,10 @@ export async function createLecturerMaterial(
       title: input.title,
       description: input.description ?? null,
       moduleName: input.moduleName ?? null,
-      externalUrl: externalUrl || null,
+      externalUrl,
+      fileKey: file?.fileKey ?? null,
+      mimeType: file?.mimeType ?? null,
+      fileSizeBytes: file?.fileSizeBytes ?? null,
       isPublished: publish,
       publishedAt: publish ? now : null,
       uploadedBy: actor.id,
@@ -678,7 +815,18 @@ export async function createLecturerMaterial(
       title: courseMaterials.title,
       description: courseMaterials.description,
       moduleName: courseMaterials.moduleName,
+      externalUrl: courseMaterials.externalUrl,
+      fileKey: courseMaterials.fileKey,
+      mimeType: courseMaterials.mimeType,
+      fileSizeBytes: courseMaterials.fileSizeBytes,
+      isPublished: courseMaterials.isPublished,
+      publishedAt: courseMaterials.publishedAt,
+      createdAt: courseMaterials.createdAt,
     })
+
+  if (publish) {
+    await notifyEnrolledStudentsOfMaterial(db, input.offeringId, created!.title, 'published')
+  }
 
   await writeAudit({
     institutionId,
@@ -691,7 +839,167 @@ export async function createLecturerMaterial(
     metadata: { title: input.title, offeringId: input.offeringId },
   })
 
-  return created!
+  return mapLecturerMaterial(created!)
+}
+
+export async function updateLecturerMaterial(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  materialId: string,
+  input: UpdateLecturerMaterialRequest,
+): Promise<LecturerCourseMaterial> {
+  const { db } = await requireLecturer(institutionId, actor.id)
+  const [existing] = await db
+    .select({
+      id: courseMaterials.id,
+      offeringId: courseMaterials.courseOfferingId,
+      title: courseMaterials.title,
+      fileKey: courseMaterials.fileKey,
+      isPublished: courseMaterials.isPublished,
+      publishedAt: courseMaterials.publishedAt,
+    })
+    .from(courseMaterials)
+    .where(eq(courseMaterials.id, materialId))
+    .limit(1)
+  if (!existing) throw notFound('That course material')
+  await requireAssignedOffering(db, actor.id, existing.offeringId)
+
+  const externalUrl = input.externalUrl !== undefined ? parseExternalUrl(input.externalUrl) : undefined
+  const nextFile = input.fileKey
+    ? assertMaterialFileInput({
+        fileKey: input.fileKey,
+        mimeType: input.mimeType,
+        fileSizeBytes: input.fileSizeBytes,
+        institutionId,
+        offeringId: existing.offeringId,
+      })
+    : null
+
+  const publish = input.publish
+  const now = new Date().toISOString()
+  const nextPublished = publish ?? existing.isPublished
+  const nextPublishedAt =
+    publish === true
+      ? existing.publishedAt ?? now
+      : publish === false
+        ? null
+        : existing.publishedAt
+
+  const [updated] = await db
+    .update(courseMaterials)
+    .set({
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.description !== undefined ? { description: input.description ?? null } : {}),
+      ...(input.moduleName !== undefined ? { moduleName: input.moduleName ?? null } : {}),
+      ...(externalUrl !== undefined ? { externalUrl } : {}),
+      ...(input.clearFile ? { fileKey: null, mimeType: null, fileSizeBytes: null } : {}),
+      ...(nextFile
+        ? {
+            fileKey: nextFile.fileKey,
+            mimeType: nextFile.mimeType,
+            fileSizeBytes: nextFile.fileSizeBytes,
+          }
+        : {}),
+      ...(publish !== undefined ? { isPublished: nextPublished, publishedAt: nextPublishedAt } : {}),
+    })
+    .where(eq(courseMaterials.id, materialId))
+    .returning({
+      id: courseMaterials.id,
+      title: courseMaterials.title,
+      description: courseMaterials.description,
+      moduleName: courseMaterials.moduleName,
+      externalUrl: courseMaterials.externalUrl,
+      fileKey: courseMaterials.fileKey,
+      mimeType: courseMaterials.mimeType,
+      fileSizeBytes: courseMaterials.fileSizeBytes,
+      isPublished: courseMaterials.isPublished,
+      publishedAt: courseMaterials.publishedAt,
+      createdAt: courseMaterials.createdAt,
+    })
+
+  if (existing.fileKey && (input.clearFile || (nextFile && nextFile.fileKey !== existing.fileKey))) {
+    await deleteStoredObject(existing.fileKey).catch(() => undefined)
+  }
+
+  if (updated!.isPublished) {
+    const becamePublished = publish === true && !existing.isPublished
+    const updatedPublished =
+      existing.isPublished
+      && (input.title !== undefined
+        || input.description !== undefined
+        || input.moduleName !== undefined
+        || input.externalUrl !== undefined
+        || input.clearFile
+        || Boolean(nextFile))
+    if (becamePublished || updatedPublished) {
+      await notifyEnrolledStudentsOfMaterial(
+        db,
+        existing.offeringId,
+        updated!.title,
+        becamePublished ? 'published' : 'updated',
+      )
+    }
+  }
+
+  await writeAudit({
+    institutionId,
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: 'materials.write',
+    targetType: 'course_material',
+    targetId: materialId,
+    metadata: { title: input.title ?? existing.title, offeringId: existing.offeringId },
+  })
+
+  return mapLecturerMaterial(updated!)
+}
+
+export async function deleteLecturerMaterial(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  materialId: string,
+): Promise<void> {
+  const { db } = await requireLecturer(institutionId, actor.id)
+  const existing = await getAssignedMaterial(db, actor.id, materialId)
+
+  await db.delete(courseMaterials).where(eq(courseMaterials.id, materialId))
+
+  if (existing.fileKey) {
+    await deleteStoredObject(existing.fileKey).catch(() => undefined)
+  }
+
+  await writeAudit({
+    institutionId,
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: 'materials.write',
+    targetType: 'course_material',
+    targetId: materialId,
+    metadata: { title: existing.title, offeringId: existing.offeringId },
+  })
+}
+
+export async function getLecturerMaterialDownloadUrl(
+  institutionId: string,
+  userId: string,
+  materialId: string,
+): Promise<{ url: string; expiresAt: string; fileName: string | null }> {
+  const { db } = await requireLecturer(institutionId, userId)
+  const [row] = await db
+    .select({
+      id: courseMaterials.id,
+      offeringId: courseMaterials.courseOfferingId,
+      fileKey: courseMaterials.fileKey,
+    })
+    .from(courseMaterials)
+    .where(eq(courseMaterials.id, materialId))
+    .limit(1)
+  if (!row?.fileKey) throw notFound('That file')
+  await requireAssignedOffering(db, userId, row.offeringId)
+  const download = await createDownloadUrl(row.fileKey)
+  return { ...download, fileName: fileNameFromStorageKey(row.fileKey) }
 }
 
 async function loadAttendanceSessions(
@@ -1162,21 +1470,7 @@ export async function submitLecturerResults(
     })
     .where(eq(resultBatches.id, current.batchId))
 
-  const admins = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.role, 'AcademicAdmin'), eq(users.isActive, true)))
-  if (admins.length > 0) {
-    await db.insert(notifications).values(
-      admins.map((admin) => ({
-        userId: admin.id,
-        title: `Results submitted: ${current.courseCode}`,
-        body: `${actor.email} submitted ${current.courseName} results for review.`,
-        category: 'Results',
-        actionUrl: '/academic/results',
-      })),
-    )
-  }
+  await notifyAcademicAdminsOfResultSubmit(db, current.courseCode, current.courseName, actor.email)
 
   await writeAudit({
     institutionId,
@@ -1304,6 +1598,10 @@ export async function createLecturerAssessment(
     targetType: 'assessment',
     targetId: created!.id,
   })
+
+  if (input.publish ?? true) {
+    await notifyEnrolledStudentsOfAssessment(db, input.offeringId, input.title)
+  }
 
   const list = await listLecturerAssessments(institutionId, actor.id, input.offeringId)
   const row = list.find((item) => item.id === created!.id)

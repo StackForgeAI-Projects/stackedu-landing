@@ -97,6 +97,9 @@ export const studentCourseDetailSchema = studentCourseSummarySchema.extend({
       title: z.string(),
       description: z.string().nullable(),
       moduleName: z.string().nullable(),
+      externalUrl: z.string().nullable(),
+      fileName: z.string().nullable(),
+      hasFile: z.boolean(),
     }),
   ),
   assessments: z.array(

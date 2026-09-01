@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import {
   createLecturerAssessmentRequestSchema,
   createLecturerMaterialRequestSchema,
+  reserveLecturerMaterialUploadRequestSchema,
+  updateLecturerMaterialRequestSchema,
   resolveLecturerAtRiskRequestSchema,
   saveLecturerAttendanceRequestSchema,
   saveLecturerGradeRequestSchema,
@@ -15,6 +17,8 @@ import type { RequestVariables } from '../middleware/request-context'
 import {
   createLecturerAssessment,
   createLecturerMaterial,
+  deleteLecturerMaterial,
+  getLecturerMaterialDownloadUrl,
   createLecturerTimetableSlot,
   deleteLecturerTimetableSlot,
   getLecturerAssessment,
@@ -39,6 +43,8 @@ import {
   deleteLecturerAttendanceSession,
   updateLecturerTimetableSlot,
   submitLecturerResults,
+  updateLecturerMaterial,
+  reserveLecturerMaterialUpload,
 } from '../services/lecturer'
 
 type Variables = RequestVariables & Partial<AuthVariables>
@@ -83,6 +89,40 @@ lecturerRoutes.post('/lecturer/materials', ...lecturerOnly, async (c) => {
   if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
   return c.json({
     material: await createLecturerMaterial(c.get('user')!.institution.id, actor(c), parsed.data),
+  })
+})
+
+lecturerRoutes.post('/lecturer/materials/upload-target', ...lecturerOnly, async (c) => {
+  const parsed = reserveLecturerMaterialUploadRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  return c.json({
+    upload: await reserveLecturerMaterialUpload(user.institution.id, user.id, parsed.data),
+  })
+})
+
+lecturerRoutes.patch('/lecturer/materials/:id', ...lecturerOnly, async (c) => {
+  const parsed = updateLecturerMaterialRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  return c.json({
+    material: await updateLecturerMaterial(
+      c.get('user')!.institution.id,
+      actor(c),
+      c.req.param('id'),
+      parsed.data,
+    ),
+  })
+})
+
+lecturerRoutes.delete('/lecturer/materials/:id', ...lecturerOnly, async (c) => {
+  await deleteLecturerMaterial(c.get('user')!.institution.id, actor(c), c.req.param('id'))
+  return c.body(null, 204)
+})
+
+lecturerRoutes.get('/lecturer/materials/:id/download', ...lecturerOnly, async (c) => {
+  const user = c.get('user')!
+  return c.json({
+    download: await getLecturerMaterialDownloadUrl(user.institution.id, user.id, c.req.param('id')),
   })
 })
 

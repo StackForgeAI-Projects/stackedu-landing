@@ -7,6 +7,7 @@ import type {
   LecturerAttendanceSession,
   LecturerAtRiskStudent,
   LecturerCourseDetail,
+  LecturerCourseMaterial,
   LecturerCourseRow,
   LecturerDashboard,
   LecturerNotification,
@@ -15,13 +16,16 @@ import type {
   LecturerRoomOption,
   LecturerTimetableSlot,
   ResolveLecturerAtRiskRequest,
+  ReserveLecturerMaterialUploadRequest,
   SaveLecturerAttendanceRequest,
   SaveLecturerGradeRequest,
   SaveLecturerResultsRequest,
   SaveLecturerTimetableSlotRequest,
+  UpdateLecturerMaterialRequest,
   UpdateLecturerTimetableSlotRequest,
 } from '@stackedu/shared'
-import { api } from './client'
+import { mimeTypeForMaterialFile } from '@stackedu/shared'
+import { api, ApiClientError } from './client'
 
 export const lecturerProfileQueryKey = ['lecturer', 'me'] as const
 export const lecturerDashboardQueryKey = ['lecturer', 'dashboard'] as const
@@ -61,12 +65,70 @@ export async function getLecturerCourse(offeringId: string): Promise<LecturerCou
 
 export async function createLecturerMaterial(
   input: CreateLecturerMaterialRequest,
-): Promise<LecturerCourseDetail['materials'][number]> {
-  const { material } = await api.post<{ material: LecturerCourseDetail['materials'][number] }>(
+): Promise<LecturerCourseMaterial> {
+  const { material } = await api.post<{ material: LecturerCourseMaterial }>(
     '/lecturer/materials',
     input,
   )
   return material
+}
+
+export async function updateLecturerMaterial(
+  materialId: string,
+  input: UpdateLecturerMaterialRequest,
+): Promise<LecturerCourseMaterial> {
+  const { material } = await api.patch<{ material: LecturerCourseMaterial }>(
+    `/lecturer/materials/${materialId}`,
+    input,
+  )
+  return material
+}
+
+export async function deleteLecturerMaterial(materialId: string): Promise<void> {
+  await api.delete(`/lecturer/materials/${materialId}`)
+}
+
+export async function getLecturerMaterialDownloadUrl(materialId: string): Promise<{
+  url: string
+  expiresAt: string
+  fileName: string | null
+}> {
+  const { download } = await api.get<{
+    download: { url: string; expiresAt: string; fileName: string | null }
+  }>(`/lecturer/materials/${materialId}/download`)
+  return download
+}
+
+export async function uploadLecturerMaterialFile(input: {
+  offeringId: string
+  file: File
+}): Promise<{ fileKey: string; mimeType: string; fileSizeBytes: number }> {
+  const mimeType = mimeTypeForMaterialFile(input.file)
+  const payload: ReserveLecturerMaterialUploadRequest = {
+    offeringId: input.offeringId,
+    fileName: input.file.name,
+    mimeType,
+    fileSizeBytes: input.file.size,
+  }
+  const { upload } = await api.post<{
+    upload: ReserveLecturerMaterialUploadRequest & {
+      fileKey: string
+      uploadUrl: string
+      uploadMethod: 'PUT'
+      headers: Record<string, string>
+    }
+  }>('/lecturer/materials/upload-target', payload)
+
+  const response = await fetch(upload.uploadUrl, {
+    method: upload.uploadMethod,
+    headers: upload.headers,
+    body: input.file,
+  })
+  if (!response.ok) {
+    throw new ApiClientError('INTERNAL_ERROR', response.status, 'We could not upload that file. Please try again.')
+  }
+
+  return { fileKey: upload.fileKey, mimeType, fileSizeBytes: input.file.size }
 }
 
 export async function listLecturerAttendance(offeringId?: string): Promise<LecturerAttendanceSession[]> {

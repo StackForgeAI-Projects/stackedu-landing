@@ -52,6 +52,17 @@ export async function getStudentCourse(offeringId: string): Promise<StudentCours
   return course
 }
 
+export async function getStudentMaterialDownloadUrl(materialId: string): Promise<{
+  url: string
+  expiresAt: string
+  fileName: string | null
+}> {
+  const { download } = await api.get<{
+    download: { url: string; expiresAt: string; fileName: string | null }
+  }>(`/student/materials/${materialId}/download`)
+  return download
+}
+
 export async function getStudentRegistration(): Promise<StudentRegistrationState> {
   const { registration } = await api.get<{ registration: StudentRegistrationState }>(
     '/student/registration',

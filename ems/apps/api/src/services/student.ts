@@ -54,6 +54,7 @@ import {
 } from '../db/institution/schema/teaching'
 import { courseColor, formatClock } from '../lib/course-color'
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
+import { createDownloadUrl, fileNameFromStorageKey } from '../lib/storage'
 import { isIntegrationEnabled } from '../lib/integrations'
 
 const MAX_CREDITS = 21
@@ -456,6 +457,8 @@ export async function getStudentCourse(
         title: courseMaterials.title,
         description: courseMaterials.description,
         moduleName: courseMaterials.moduleName,
+        externalUrl: courseMaterials.externalUrl,
+        fileKey: courseMaterials.fileKey,
       })
       .from(courseMaterials)
       .where(and(eq(courseMaterials.courseOfferingId, offeringId), eq(courseMaterials.isPublished, true))),
@@ -501,11 +504,55 @@ export async function getStudentCourse(
     status: row.status,
     description: row.description,
     semesterName: row.semesterName,
-    materials,
+    materials: materials.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      moduleName: item.moduleName,
+      externalUrl: item.externalUrl ?? null,
+      fileName: item.fileKey ? fileNameFromStorageKey(item.fileKey) : null,
+      hasFile: Boolean(item.fileKey),
+    })),
     assessments: openAssessments,
     attendance,
     attendanceRate: attendance.length === 0 ? null : Math.round((present / attendance.length) * 100),
   }
+}
+
+export async function getStudentMaterialDownloadUrl(
+  institutionId: string,
+  userId: string,
+  materialId: string,
+): Promise<{ url: string; expiresAt: string; fileName: string | null }> {
+  const profile = await getStudentProfile(institutionId, userId)
+  const db = await getInstitutionDb(institutionId)
+  const [row] = await db
+    .select({
+      id: courseMaterials.id,
+      offeringId: courseMaterials.courseOfferingId,
+      fileKey: courseMaterials.fileKey,
+      isPublished: courseMaterials.isPublished,
+    })
+    .from(courseMaterials)
+    .where(eq(courseMaterials.id, materialId))
+    .limit(1)
+  if (!row?.fileKey || !row.isPublished) throw notFound('That file')
+
+  const [registration] = await db
+    .select({ id: courseRegistrations.id })
+    .from(courseRegistrations)
+    .where(
+      and(
+        eq(courseRegistrations.studentId, profile.studentId),
+        eq(courseRegistrations.courseOfferingId, row.offeringId),
+        eq(courseRegistrations.status, 'Approved'),
+      ),
+    )
+    .limit(1)
+  if (!registration) throw forbidden('You are not enrolled in that course.')
+
+  const download = await createDownloadUrl(row.fileKey)
+  return { ...download, fileName: fileNameFromStorageKey(row.fileKey) }
 }
 
 export async function getRegistrationState(

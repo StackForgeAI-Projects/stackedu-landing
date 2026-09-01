@@ -284,6 +284,28 @@ export function buildInstitutionLogoKey(institutionId: string): string {
   return `institutions/${institutionId}/branding/logo`
 }
 
+export function buildCourseMaterialFileKey(input: {
+  institutionId: string
+  offeringId: string
+  fileName: string
+}): string {
+  const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80)
+  return [
+    'institutions',
+    input.institutionId,
+    'offerings',
+    input.offeringId,
+    'materials',
+    `${randomUUID()}-${safeName}`,
+  ].join('/')
+}
+
+export function fileNameFromStorageKey(fileKey: string): string {
+  const leaf = fileKey.split('/').pop() ?? fileKey
+  const dash = leaf.indexOf('-')
+  return dash >= 0 ? leaf.slice(dash + 1) : leaf
+}
+
 const LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'])
 
 export async function writeInstitutionLogo(input: {
