@@ -21,6 +21,7 @@ import {
   createAcademicCourse,
   createAcademicProgramme,
   deleteAcademicCalendarEvent,
+  deleteAcademicCourse,
   getAcademicDashboard,
   getAcademicProfile,
   getAcademicProgramme,
@@ -119,6 +120,12 @@ academicRoutes.patch('/academic/courses/:id', ...academicOnly, async (c) => {
   return c.json({
     course: await updateAcademicCourse(user.institution.id, actor(c), c.req.param('id'), parsed.data),
   })
+})
+
+academicRoutes.delete('/academic/courses/:id', ...academicOnly, async (c) => {
+  const user = c.get('user')!
+  await deleteAcademicCourse(user.institution.id, actor(c), c.req.param('id'))
+  return c.json({ ok: true })
 })
 
 academicRoutes.get('/academic/departments', ...academicOnly, async (c) => {

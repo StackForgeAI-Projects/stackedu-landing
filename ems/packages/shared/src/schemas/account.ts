@@ -11,6 +11,7 @@ export const accountProfileSchema = z.object({
   role: userRoleSchema,
   twoFactorEnabled: z.boolean(),
   emailVerifiedAt: isoDateTimeSchema.nullable(),
+  phoneVerifiedAt: isoDateTimeSchema.nullable(),
   institutionName: z.string(),
   institutionShortName: z.string(),
   studentNumber: z.string().nullable(),
@@ -37,6 +38,15 @@ export const updateAccountProfileRequestSchema = z.object({
     .max(200, 'Full name is too long.'),
   email: emailSchema,
   phone: z.union([z.null(), phoneInputSchema]).optional(),
+})
+
+export const requestPhoneVerificationRequestSchema = z.object({
+  phone: phoneSchema,
+})
+
+export const verifyPhoneUpdateRequestSchema = z.object({
+  phone: phoneSchema,
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit verification code.'),
 })
 
 export const changePasswordRequestSchema = z.object({
@@ -106,6 +116,8 @@ export const notificationPreferencesResponseSchema = z.object({
 
 export type AccountProfile = z.infer<typeof accountProfileSchema>
 export type UpdateAccountProfileRequest = z.infer<typeof updateAccountProfileRequestSchema>
+export type RequestPhoneVerificationRequest = z.infer<typeof requestPhoneVerificationRequestSchema>
+export type VerifyPhoneUpdateRequest = z.infer<typeof verifyPhoneUpdateRequestSchema>
 export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>
 export type UpdateAccountSecurityRequest = z.infer<typeof updateAccountSecurityRequestSchema>
 export type AccountNotification = z.infer<typeof accountNotificationSchema>

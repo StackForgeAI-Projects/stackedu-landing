@@ -2,7 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import type { AcademicCourseRow, CreateAcademicCourseRequest } from '@stackedu/shared'
-import { Pencil, Archive, Plus, Upload } from 'lucide-react'
+import { LECTURER_ASSIGNMENT_REQUIRES_SEMESTER } from '@stackedu/shared'
+import { Pencil, Archive, Plus, Trash2, Upload } from 'lucide-react'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet'
@@ -14,11 +15,14 @@ import {
   academicCoursesQueryKey,
   academicDepartmentsQueryKey,
   academicLecturersQueryKey,
+  academicSemestersQueryKey,
   bulkCreateAcademicCourses,
   createAcademicCourse,
+  deleteAcademicCourse,
   listAcademicCourses,
   listAcademicDepartments,
   listAcademicLecturers,
+  listAcademicSemesters,
   updateAcademicCourse,
 } from '@/lib/api/academic'
 import { apiErrorMessage } from '@/lib/api/client'
@@ -37,6 +41,7 @@ type CourseFormData = {
   type: 'Compulsory' | 'Elective'
   description: string
   prerequisites: string[]
+  semesterId: string
   lecturerId: string
   status: 'Active' | 'Inactive'
 }
@@ -50,6 +55,7 @@ function blankForm(): CourseFormData {
     type: 'Compulsory',
     description: '',
     prerequisites: [],
+    semesterId: '',
     lecturerId: '',
     status: 'Active',
   }
@@ -59,19 +65,26 @@ function yearOfStudyForType(type: 'Compulsory' | 'Elective'): number {
   return type === 'Compulsory' ? 1 : 2
 }
 
+function defaultSemesterId(semesters: { id: string; isCurrent: boolean }[]): string {
+  return semesters.find((semester) => semester.isCurrent)?.id ?? ''
+}
+
 function CoursesCataloguePage() {
   const queryClient = useQueryClient()
   const coursesQuery = useQuery({ queryKey: academicCoursesQueryKey, queryFn: listAcademicCourses })
   const lecturersQuery = useQuery({ queryKey: academicLecturersQueryKey, queryFn: listAcademicLecturers })
+  const semestersQuery = useQuery({ queryKey: academicSemestersQueryKey, queryFn: listAcademicSemesters })
   const departmentsQuery = useQuery({ queryKey: academicDepartmentsQueryKey, queryFn: listAcademicDepartments })
 
   const courses = coursesQuery.data ?? []
   const lecturers = lecturersQuery.data ?? []
+  const semesters = semestersQuery.data ?? []
   const departmentNames = (departmentsQuery.data ?? []).map((d) => d.name)
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<AcademicCourseRow | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<AcademicCourseRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AcademicCourseRow | null>(null)
   const [confirmSave, setConfirmSave] = useState(false)
   const [confirmImport, setConfirmImport] = useState(false)
   const [form, setForm] = useState<CourseFormData>(() => blankForm())
@@ -89,6 +102,7 @@ function CoursesCataloguePage() {
       const yearOfStudy = yearOfStudyForType(form.type)
       const prerequisiteCodes = form.prerequisites.filter(Boolean)
       const lecturerId = form.lecturerId || undefined
+      const semesterId = form.semesterId || undefined
 
       if (editing) {
         return updateAcademicCourse(editing.id, {
@@ -101,6 +115,7 @@ function CoursesCataloguePage() {
           isActive: form.status === 'Active',
           prerequisiteCodes,
           lecturerId: form.lecturerId || null,
+          semesterId,
         })
       }
 
@@ -113,6 +128,7 @@ function CoursesCataloguePage() {
         description: form.description.trim() || undefined,
         prerequisiteCodes: prerequisiteCodes.length > 0 ? prerequisiteCodes : undefined,
         lecturerId,
+        semesterId,
       })
     },
     onSuccess: async () => {
@@ -123,7 +139,10 @@ function CoursesCataloguePage() {
       await queryClient.invalidateQueries({ queryKey: academicCoursesQueryKey })
       await queryClient.invalidateQueries({ queryKey: academicDepartmentsQueryKey })
     },
-    onError: (err) => toast.error(apiErrorMessage(err, 'Could not save course.')),
+    onError: (err) => {
+      setConfirmSave(false)
+      toast.error(apiErrorMessage(err, 'Could not save course.'))
+    },
   })
 
   const archiveMutation = useMutation({
@@ -134,6 +153,16 @@ function CoursesCataloguePage() {
       await queryClient.invalidateQueries({ queryKey: academicCoursesQueryKey })
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Could not archive course.')),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (course: AcademicCourseRow) => deleteAcademicCourse(course.id),
+    onSuccess: async () => {
+      toast.success('Course deleted.')
+      setDeleteTarget(null)
+      await queryClient.invalidateQueries({ queryKey: academicCoursesQueryKey })
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not delete course.')),
   })
 
   const bulkImportMutation = useMutation({
@@ -184,7 +213,7 @@ function CoursesCataloguePage() {
 
   const openAdd = () => {
     setEditing(null)
-    setForm(blankForm())
+    setForm({ ...blankForm(), semesterId: defaultSemesterId(semesters) })
     setPrereqInput('')
     setImportFileName(null)
     setParsedImport([])
@@ -202,6 +231,7 @@ function CoursesCataloguePage() {
       type: c.type,
       description: c.description ?? '',
       prerequisites: c.prerequisites,
+      semesterId: defaultSemesterId(semesters),
       lecturerId: c.lecturerId ?? '',
       status: c.status === 'Active' ? 'Active' : 'Inactive',
     })
@@ -290,6 +320,11 @@ function CoursesCataloguePage() {
                       <Archive style={{ width: 12, height: 12 }} />
                     </button>
                   ) : null}
+                  {c.enrolled === 0 ? (
+                    <button type="button" onClick={() => setDeleteTarget(c)} title="Delete" className="flex items-center justify-center h-7 w-7 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--error)', cursor: 'pointer', background: 'transparent' }}>
+                      <Trash2 style={{ width: 12, height: 12 }} />
+                    </button>
+                  ) : null}
                 </div>
               ),
             },
@@ -316,6 +351,24 @@ function CoursesCataloguePage() {
       />
 
       <ConfirmAlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title={`Delete ${deleteTarget?.code}?`}
+        tone="destructive"
+        headlineLabel="Action"
+        headline="Delete course"
+        summary="This permanently removes the course from the catalogue."
+        notices={[
+          { icon: 'trash', label: 'The course record and any semester offerings with no enrolments will be removed.' },
+          { icon: 'info', label: 'Courses with enrolled students cannot be deleted — archive them instead.' },
+        ]}
+        confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+        confirmVariant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget) }}
+      />
+
+      <ConfirmAlertDialog
         open={confirmSave}
         onOpenChange={(open) => { if (!open) setConfirmSave(false) }}
         title={editing ? 'Save these course changes?' : 'Create this course?'}
@@ -325,9 +378,11 @@ function CoursesCataloguePage() {
         summary={`${form.code.trim()} ${form.name.trim()} will be saved in ${form.department.trim()}.`}
         notices={[
           { icon: 'info', label: 'The course will appear in the catalogue for this institution.' },
-          ...(form.lecturerId
-            ? [{ icon: 'user' as const, label: 'The assigned lecturer can then use this course in the current semester.' }]
-            : []),
+          ...(form.lecturerId && form.semesterId
+            ? [{ icon: 'user' as const, label: 'The assigned lecturer will be linked to this course for the selected semester.' }]
+            : form.lecturerId
+              ? [{ icon: 'info' as const, label: LECTURER_ASSIGNMENT_REQUIRES_SEMESTER }]
+              : []),
         ]}
         confirmLabel={saveMutation.isPending ? 'Saving…' : 'Confirm'}
         confirmVariant="brand"
@@ -504,6 +559,30 @@ function CoursesCataloguePage() {
                 </div>
               </FormField>
             ) : null}
+            <FormField label="Semester" className="mb-4">
+              <select
+                value={form.semesterId}
+                onChange={(e) => setForm((f) => ({ ...f, semesterId: e.target.value }))}
+                className="w-full text-sm rounded-lg px-3 h-9 outline-none"
+                style={inputStyle}
+              >
+                <option value="">Select semester</option>
+                {semesters.map((semester) => (
+                  <option key={semester.id} value={semester.id}>
+                    {semester.label}{semester.isCurrent ? ' (current)' : ''}
+                  </option>
+                ))}
+              </select>
+              {semesters.length === 0 ? (
+                <p className="t-caption mt-1.5" style={{ color: 'var(--muted-foreground)' }}>
+                  Add semesters in the academic calendar first. A semester is only required when assigning a lecturer.
+                </p>
+              ) : form.lecturerId && !form.semesterId ? (
+                <p className="t-caption mt-1.5" style={{ color: 'var(--warning)' }}>
+                  {LECTURER_ASSIGNMENT_REQUIRES_SEMESTER}
+                </p>
+              ) : null}
+            </FormField>
             <FormField label="Assigned Lecturer" className="mb-4">
               <select
                 value={form.lecturerId}
@@ -556,6 +635,10 @@ function CoursesCataloguePage() {
                   }
                   if (!form.department.trim()) {
                     toast.error('Department is required.')
+                    return
+                  }
+                  if (form.lecturerId && !form.semesterId) {
+                    toast.error(LECTURER_ASSIGNMENT_REQUIRES_SEMESTER)
                     return
                   }
                   setConfirmSave(true)

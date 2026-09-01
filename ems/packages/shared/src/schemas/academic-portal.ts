@@ -222,9 +222,18 @@ export const academicResultBatchSchema = z.object({
   results: z.array(academicResultStudentRowSchema),
 })
 
+/** Assigning a lecturer requires choosing a semester in the course form. */
+export const LECTURER_ASSIGNMENT_REQUIRES_SEMESTER =
+  'Select a semester when assigning a lecturer.'
+
+/** Hard delete is blocked once students are enrolled. */
+export const COURSE_DELETE_HAS_ENROLLMENTS =
+  'This course has enrolled students. Archive it instead of deleting it.'
+
 export const academicSemesterOptionSchema = z.object({
   id: uuidSchema,
   label: z.string(),
+  isCurrent: z.boolean(),
 })
 
 export const rejectResultBatchRequestSchema = z.object({
@@ -304,28 +313,50 @@ export const updateAcademicProgrammeRequestSchema = z.object({
   isActive: z.boolean().optional(),
 })
 
-export const createAcademicCourseRequestSchema = z.object({
-  code: z.string().trim().min(2).max(20),
-  name: z.string().trim().min(2).max(200),
-  departmentName: z.string().trim().min(2).max(200),
-  credits: z.number().int().min(1).max(30),
-  yearOfStudy: z.number().int().min(1).max(8).optional(),
-  description: z.string().trim().max(2000).optional(),
-  prerequisiteCodes: z.array(z.string().trim().min(2).max(20)).max(10).optional(),
-  lecturerId: uuidSchema.optional(),
-})
+export const createAcademicCourseRequestSchema = z
+  .object({
+    code: z.string().trim().min(2).max(20),
+    name: z.string().trim().min(2).max(200),
+    departmentName: z.string().trim().min(2).max(200),
+    credits: z.number().int().min(1).max(30),
+    yearOfStudy: z.number().int().min(1).max(8).optional(),
+    description: z.string().trim().max(2000).optional(),
+    prerequisiteCodes: z.array(z.string().trim().min(2).max(20)).max(10).optional(),
+    lecturerId: uuidSchema.optional(),
+    semesterId: uuidSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.lecturerId && !data.semesterId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: LECTURER_ASSIGNMENT_REQUIRES_SEMESTER,
+        path: ['semesterId'],
+      })
+    }
+  })
 
-export const updateAcademicCourseRequestSchema = z.object({
-  code: z.string().trim().min(2).max(20).optional(),
-  name: z.string().trim().min(2).max(200).optional(),
-  departmentName: z.string().trim().min(2).max(200).optional(),
-  credits: z.number().int().min(1).max(30).optional(),
-  yearOfStudy: z.number().int().min(1).max(8).nullable().optional(),
-  description: z.string().trim().max(2000).nullable().optional(),
-  isActive: z.boolean().optional(),
-  prerequisiteCodes: z.array(z.string().trim().min(2).max(20)).max(10).optional(),
-  lecturerId: uuidSchema.nullable().optional(),
-})
+export const updateAcademicCourseRequestSchema = z
+  .object({
+    code: z.string().trim().min(2).max(20).optional(),
+    name: z.string().trim().min(2).max(200).optional(),
+    departmentName: z.string().trim().min(2).max(200).optional(),
+    credits: z.number().int().min(1).max(30).optional(),
+    yearOfStudy: z.number().int().min(1).max(8).nullable().optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+    isActive: z.boolean().optional(),
+    prerequisiteCodes: z.array(z.string().trim().min(2).max(20)).max(10).optional(),
+    lecturerId: uuidSchema.nullable().optional(),
+    semesterId: uuidSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.lecturerId && !data.semesterId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: LECTURER_ASSIGNMENT_REQUIRES_SEMESTER,
+        path: ['semesterId'],
+      })
+    }
+  })
 
 export const createAcademicCalendarEventRequestSchema = z.object({
   title: z.string().trim().min(2).max(200),

@@ -26,6 +26,18 @@ export async function updateAccountProfile(input: UpdateAccountProfileRequest) {
   return api.patch<{ profile: AccountProfile; user: SessionUser }>('/account/profile', input)
 }
 
+export async function requestStudentPhoneVerification(phone: string) {
+  return api.post<{ ok: boolean }>('/account/phone/verify-request', { phone })
+}
+
+export async function verifyStudentPhoneUpdate(phone: string, code: string) {
+  return api.post<{ profile: AccountProfile; user: SessionUser }>('/account/phone/verify', { phone, code })
+}
+
+export async function resendStudentPhoneVerification(phone: string) {
+  return api.post<{ ok: boolean }>('/account/phone/resend', { phone })
+}
+
 export async function changeAccountPassword(input: ChangePasswordRequest) {
   return api.post<{ ok: boolean }>('/account/password', input)
 }

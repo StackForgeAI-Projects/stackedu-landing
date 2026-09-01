@@ -9,16 +9,21 @@ import type {
   UpdateAccountProfileRequest,
   UpdateAccountSecurityRequest,
 } from '@stackedu/shared'
-import { splitFullName, titleAndFirstName } from '@stackedu/shared'
+import { splitFullName, titleAndFirstName, STUDENT_IDENTITY_CONTACT_MESSAGE } from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions, userDirectory } from '../db/platform/schema'
 import { notifications } from '../db/institution/schema/communication'
 import { users, sessions } from '../db/institution/schema/people'
 import { studentProfiles, students } from '../db/institution/schema/students'
 import { faculties, departments, programmes } from '../db/institution/schema/academic'
-import { badRequest, conflict, notFound } from '../lib/errors'
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { createTotpSecret, totpQrDataUrl, totpUri, verifyTotpCode } from '../lib/totp'
+import {
+  issuePhoneVerification,
+  resendPhoneVerification,
+  verifyPhoneUpdate,
+} from './verification'
 
 function splitName(fullName: string): { firstName: string; lastName: string } {
   return splitFullName(fullName)
@@ -35,6 +40,7 @@ export async function getAccountProfile(institutionId: string, userId: string): 
       role: users.role,
       twoFactorEnabled: users.twoFactorEnabled,
       emailVerifiedAt: users.emailVerifiedAt,
+      phoneVerifiedAt: users.phoneVerifiedAt,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -72,6 +78,7 @@ export async function getAccountProfile(institutionId: string, userId: string): 
     role: user.role,
     twoFactorEnabled: user.twoFactorEnabled,
     emailVerifiedAt: user.emailVerifiedAt,
+    phoneVerifiedAt: user.phoneVerifiedAt,
     institutionName: institution?.name ?? 'Institution',
     institutionShortName: institution?.shortName ?? 'INS',
     studentNumber: student?.studentNumber ?? null,
@@ -87,6 +94,10 @@ export async function updateAccountProfile(
   user: SessionUser,
   input: UpdateAccountProfileRequest,
 ): Promise<AccountProfile> {
+  if (user.role === 'Student') {
+    throw badRequest(`Students can only update their phone number. ${STUDENT_IDENTITY_CONTACT_MESSAGE}`)
+  }
+
   const db = await getInstitutionDb(institutionId)
   const email = input.email.trim().toLowerCase()
   const phone = input.phone === undefined ? undefined : input.phone
@@ -307,6 +318,56 @@ export async function updateAccountNotificationPreferences(
     .returning({ notificationPreferences: users.notificationPreferences })
   if (!updated) throw notFound('That account')
   return updated.notificationPreferences ?? stored
+}
+
+export async function requestStudentPhoneVerification(
+  institutionId: string,
+  userId: string,
+  phone: string,
+): Promise<void> {
+  const profile = await getAccountProfile(institutionId, userId)
+  if (profile.role !== 'Student') throw forbidden('Only students use phone verification for profile updates.')
+
+  const normalised = phone.trim().replace(/[\s-]/g, '')
+  if (normalised === profile.phone) {
+    throw badRequest('That is already your phone number.')
+  }
+
+  await issuePhoneVerification({ institutionId, userId, phone: normalised })
+}
+
+export async function verifyStudentPhoneUpdate(
+  institutionId: string,
+  userId: string,
+  input: { phone: string; code: string },
+): Promise<AccountProfile> {
+  const profile = await getAccountProfile(institutionId, userId)
+  if (profile.role !== 'Student') throw forbidden('Only students use phone verification for profile updates.')
+
+  const normalised = input.phone.trim().replace(/[\s-]/g, '')
+  await verifyPhoneUpdate({
+    institutionId,
+    userId,
+    phone: normalised,
+    code: input.code,
+  })
+
+  return getAccountProfile(institutionId, userId)
+}
+
+export async function resendStudentPhoneVerification(
+  institutionId: string,
+  userId: string,
+  phone: string,
+): Promise<void> {
+  const profile = await getAccountProfile(institutionId, userId)
+  if (profile.role !== 'Student') throw forbidden('Only students use phone verification for profile updates.')
+
+  await resendPhoneVerification({
+    institutionId,
+    userId,
+    phone: phone.trim().replace(/[\s-]/g, ''),
+  })
 }
 
 export function sessionUserFrom(profile: AccountProfile, institution: SessionUser['institution']): SessionUser {

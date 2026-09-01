@@ -2,6 +2,9 @@
  * User-facing validation copy — one place so alerts name the field or issue.
  */
 
+/** Shown when a student tries to edit name or email — only ICT can change those fields. */
+export const STUDENT_IDENTITY_CONTACT_MESSAGE = 'Contact ICT to change your name and email.'
+
 export const FIELD_LABELS: Record<string, string> = {
   fullName: 'Full name',
   firstName: 'First name',

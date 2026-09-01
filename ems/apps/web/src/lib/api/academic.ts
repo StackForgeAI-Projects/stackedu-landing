@@ -197,6 +197,10 @@ export async function updateAcademicCourse(id: string, input: UpdateAcademicCour
   return course
 }
 
+export async function deleteAcademicCourse(id: string): Promise<void> {
+  await api.delete(`/academic/courses/${id}`)
+}
+
 export async function createAcademicCalendarEvent(input: CreateAcademicCalendarEventRequest): Promise<AcademicCalendarEvent> {
   const { event } = await api.post<{ event: AcademicCalendarEvent }>('/academic/calendar', input)
   return event

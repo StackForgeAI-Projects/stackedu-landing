@@ -16,6 +16,7 @@ function StudentProfilePage() {
     <StudentShell pageTitle="My Profile">
       <AccountProfileView
         breadcrumb="Student"
+        lockIdentityFields
         subtitle={data?.programmeName ? `${data.programmeName}${data.yearOfStudy ? ` · Year ${data.yearOfStudy}` : ''}` : 'Student'}
         extraFields={[
           { icon: IdCard, label: 'Student ID', value: data?.studentNumber ?? '—', mono: true },

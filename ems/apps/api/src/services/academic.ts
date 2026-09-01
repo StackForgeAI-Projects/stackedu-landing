@@ -28,7 +28,7 @@ import type {
   UpdateAcademicProgrammeRequest,
   UserRole,
 } from '@stackedu/shared'
-import { formatAppDateDdMmYyyy } from '@stackedu/shared'
+import { formatAppDateDdMmYyyy, COURSE_DELETE_HAS_ENROLLMENTS, LECTURER_ASSIGNMENT_REQUIRES_SEMESTER } from '@stackedu/shared'
 import { getInstitutionDb, getPlatformDb } from '../db/connection'
 import { institutions } from '../db/platform/schema'
 import { applications } from '../db/institution/schema/admissions'
@@ -52,6 +52,7 @@ import {
   attendanceRecords,
   attendanceSessions,
   courseOfferings,
+  courseRegistrations,
   lecturerAssignments,
   rooms,
   timetableSlots,
@@ -928,6 +929,7 @@ export async function listAcademicSemesters(
       id: semesters.id,
       name: semesters.name,
       yearName: academicYears.name,
+      isCurrent: semesters.isCurrent,
     })
     .from(semesters)
     .innerJoin(academicYears, eq(academicYears.id, semesters.academicYearId))
@@ -936,6 +938,7 @@ export async function listAcademicSemesters(
   return rows.map((row) => ({
     id: row.id,
     label: `${row.name} · ${row.yearName}`,
+    isCurrent: row.isCurrent,
   }))
 }
 
@@ -1465,40 +1468,51 @@ export async function resolveDepartmentId(
   return created!.id
 }
 
-async function ensureCurrentOffering(
+async function assertSemesterExists(
   db: Awaited<ReturnType<typeof getInstitutionDb>>,
-  institutionId: string,
-  courseId: string,
-): Promise<string | null> {
-  const semester = await currentSemester(institutionId)
-  if (!semester) return null
+  semesterId: string,
+): Promise<void> {
+  const [row] = await db
+    .select({ id: semesters.id })
+    .from(semesters)
+    .where(eq(semesters.id, semesterId))
+    .limit(1)
+  if (!row) throw badRequest('Choose a valid semester.')
+}
 
+async function ensureOffering(
+  db: Awaited<ReturnType<typeof getInstitutionDb>>,
+  courseId: string,
+  semesterId: string,
+): Promise<string> {
   const [existing] = await db
     .select({ id: courseOfferings.id })
     .from(courseOfferings)
-    .where(and(eq(courseOfferings.courseId, courseId), eq(courseOfferings.semesterId, semester.id)))
+    .where(and(eq(courseOfferings.courseId, courseId), eq(courseOfferings.semesterId, semesterId)))
     .limit(1)
   if (existing) return existing.id
 
   const [created] = await db
     .insert(courseOfferings)
-    .values({ courseId, semesterId: semester.id, section: 'A' })
+    .values({ courseId, semesterId, section: 'A' })
     .returning({ id: courseOfferings.id })
-  return created?.id ?? null
+  return created!.id
 }
 
 async function assignLeadLecturer(
   db: Awaited<ReturnType<typeof getInstitutionDb>>,
-  institutionId: string,
   courseId: string,
   lecturerId: string | null,
   assignedBy: string,
+  semesterId?: string,
 ): Promise<void> {
-  const offeringId = await ensureCurrentOffering(db, institutionId, courseId)
-  if (!offeringId) {
-    if (lecturerId) throw badRequest('There is no current semester to assign a lecturer to.')
-    return
+  if (lecturerId && !semesterId) {
+    throw badRequest(LECTURER_ASSIGNMENT_REQUIRES_SEMESTER)
   }
+  if (!semesterId) return
+
+  await assertSemesterExists(db, semesterId)
+  const offeringId = await ensureOffering(db, courseId, semesterId)
 
   await db
     .delete(lecturerAssignments)
@@ -1639,37 +1653,41 @@ export async function createAcademicCourse(
     .limit(1)
   if (duplicate) throw conflict(`A course with code ${code} already exists.`)
 
-  const [created] = await db
-    .insert(courses)
-    .values({
-      departmentId,
-      code,
-      name: input.name.trim(),
-      description: input.description ?? null,
-      credits: input.credits,
-      yearOfStudy: input.yearOfStudy ?? 1,
-      isActive: true,
-    })
-    .returning({ id: courses.id })
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(courses)
+      .values({
+        departmentId,
+        code,
+        name: input.name.trim(),
+        description: input.description ?? null,
+        credits: input.credits,
+        yearOfStudy: input.yearOfStudy ?? 1,
+        isActive: true,
+      })
+      .returning({ id: courses.id })
 
-  if (input.prerequisiteCodes?.length) {
-    const prereqCodes = input.prerequisiteCodes.map(normalizeCourseCode)
-    const prereqRows = await db
-      .select({ id: courses.id })
-      .from(courses)
-      .where(inArray(courses.code, prereqCodes))
-    for (const prereq of prereqRows) {
-      await db.insert(coursePrerequisites).values({
-        courseId: created!.id,
-        prerequisiteCourseId: prereq.id,
-        isMandatory: true,
-      }).onConflictDoNothing()
+    if (input.prerequisiteCodes?.length) {
+      const prereqCodes = input.prerequisiteCodes.map(normalizeCourseCode)
+      const prereqRows = await tx
+        .select({ id: courses.id })
+        .from(courses)
+        .where(inArray(courses.code, prereqCodes))
+      for (const prereq of prereqRows) {
+        await tx.insert(coursePrerequisites).values({
+          courseId: row!.id,
+          prerequisiteCourseId: prereq.id,
+          isMandatory: true,
+        }).onConflictDoNothing()
+      }
     }
-  }
 
-  if (input.lecturerId) {
-    await assignLeadLecturer(db, institutionId, created!.id, input.lecturerId, actor.id)
-  }
+    if (input.lecturerId) {
+      await assignLeadLecturer(tx, row!.id, input.lecturerId, actor.id, input.semesterId)
+    }
+
+    return row!
+  })
 
   await writeAudit({
     institutionId,
@@ -1678,12 +1696,12 @@ export async function createAcademicCourse(
     actorRole: actor.role,
     action: 'course.create',
     targetType: 'course',
-    targetId: created!.id,
+    targetId: created.id,
     metadata: { code, name: input.name },
   })
 
   const rows = await listAcademicCourses(institutionId)
-  return rows.find((row) => row.id === created!.id)!
+  return rows.find((row) => row.id === created.id)!
 }
 
 export async function updateAcademicCourse(
@@ -1749,7 +1767,7 @@ export async function updateAcademicCourse(
   }
 
   if (input.lecturerId !== undefined) {
-    await assignLeadLecturer(db, institutionId, courseId, input.lecturerId, actor.id)
+    await assignLeadLecturer(db, courseId, input.lecturerId, actor.id, input.semesterId)
   }
 
   await writeAudit({
@@ -1768,6 +1786,44 @@ export async function updateAcademicCourse(
 
   const rows = await listAcademicCourses(institutionId)
   return rows.find((row) => row.id === courseId)!
+}
+
+export async function deleteAcademicCourse(
+  institutionId: string,
+  actor: { id: string; email: string; role: UserRole },
+  courseId: string,
+): Promise<void> {
+  const db = await getInstitutionDb(institutionId)
+  const [existing] = await db
+    .select({ id: courses.id, code: courses.code, name: courses.name })
+    .from(courses)
+    .where(eq(courses.id, courseId))
+    .limit(1)
+  if (!existing) throw notFound('That course')
+
+  const [enrolled] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(courseRegistrations)
+    .innerJoin(courseOfferings, eq(courseOfferings.id, courseRegistrations.courseOfferingId))
+    .where(eq(courseOfferings.courseId, courseId))
+
+  if ((enrolled?.count ?? 0) > 0) {
+    throw badRequest(COURSE_DELETE_HAS_ENROLLMENTS)
+  }
+
+  await db.delete(courseOfferings).where(eq(courseOfferings.courseId, courseId))
+  await db.delete(courses).where(eq(courses.id, courseId))
+
+  await writeAudit({
+    institutionId,
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: 'course.delete',
+    targetType: 'course',
+    targetId: courseId,
+    metadata: { code: existing.code, name: existing.name },
+  })
 }
 
 export async function createAcademicCalendarEvent(

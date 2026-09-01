@@ -3,9 +3,11 @@ import {
   changePasswordRequestSchema,
   disableTwoFactorRequestSchema,
   enableTwoFactorRequestSchema,
+  requestPhoneVerificationRequestSchema,
   updateAccountProfileRequestSchema,
   updateAccountSecurityRequestSchema,
   updateNotificationPreferencesRequestSchema,
+  verifyPhoneUpdateRequestSchema,
   verifyTwoFactorRequestSchema,
 } from '@stackedu/shared'
 import { validationFailed } from '../lib/errors'
@@ -24,6 +26,9 @@ import {
   updateAccountNotificationPreferences,
   updateAccountProfile,
   updateAccountSecurity,
+  requestStudentPhoneVerification,
+  resendStudentPhoneVerification,
+  verifyStudentPhoneUpdate,
 } from '../services/account'
 
 type Variables = RequestVariables & Partial<AuthVariables>
@@ -45,6 +50,30 @@ accountRoutes.patch('/account/profile', requireAuth, async (c) => {
   const user = c.get('user')!
   const profile = await updateAccountProfile(user.institution.id, user, parsed.data)
   return c.json({ profile, user: sessionUserFrom(profile, user.institution) })
+})
+
+accountRoutes.post('/account/phone/verify-request', requireAuth, async (c) => {
+  const parsed = requestPhoneVerificationRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  await requestStudentPhoneVerification(user.institution.id, user.id, parsed.data.phone)
+  return c.json({ ok: true })
+})
+
+accountRoutes.post('/account/phone/verify', requireAuth, async (c) => {
+  const parsed = verifyPhoneUpdateRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  const profile = await verifyStudentPhoneUpdate(user.institution.id, user.id, parsed.data)
+  return c.json({ profile, user: sessionUserFrom(profile, user.institution) })
+})
+
+accountRoutes.post('/account/phone/resend', requireAuth, async (c) => {
+  const parsed = requestPhoneVerificationRequestSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) throw validationFailed(fieldErrors(parsed.error))
+  const user = c.get('user')!
+  await resendStudentPhoneVerification(user.institution.id, user.id, parsed.data.phone)
+  return c.json({ ok: true })
 })
 
 accountRoutes.post('/account/password', requireAuth, async (c) => {
