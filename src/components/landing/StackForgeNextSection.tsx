@@ -51,9 +51,9 @@ export function StackForgeNextSection() {
                 loading="lazy"
                 decoding="async"
               />
-              <div className="absolute inset-x-0 bottom-0 p-6">
-                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white/90 px-4 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur-md">
-                  <Sparkles className="size-4 text-primary" />
+              <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
+                <div className="inline-flex max-w-full items-center gap-1.5 sm:gap-2 rounded-full border border-border bg-white/90 px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold leading-none text-ink shadow-soft backdrop-blur-md max-sm:whitespace-nowrap">
+                  <Sparkles className="size-3.5 shrink-0 text-primary sm:size-4" />
                   {t.stackForgeNext.badge}
                 </div>
               </div>

@@ -58,35 +58,35 @@ export function TestimonialsCarousel() {
               </blockquote>
             </div>
 
-            <div className="mt-10 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="grid place-items-center size-12 shrink-0 rounded-full bg-primary-bright text-ink font-bold">
+            <div className="mt-10 flex items-end justify-between gap-3 sm:items-center sm:gap-4">
+              <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+                <div className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-bright text-sm font-bold text-ink sm:size-12">
                   {item.tag}
                 </div>
                 <div className="min-w-0">
-                  <div className="font-bold truncate">{item.n}</div>
-                  <div className="text-xs text-white/60 eyebrow tracking-widest truncate">
+                  <div className="text-sm font-bold leading-snug sm:text-base">{item.n}</div>
+                  <div className="eyebrow text-[10px] leading-snug tracking-widest text-white/60 sm:text-xs">
                     {item.r}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => go(-1)}
                   aria-label="Previous testimonial"
-                  className="grid place-items-center size-11 rounded-full border border-white/15 text-white hover:bg-primary-bright hover:text-ink hover:border-primary-bright transition-all"
+                  className="grid size-8 place-items-center rounded-full border border-white/15 text-white transition-all hover:border-primary-bright hover:bg-primary-bright hover:text-ink sm:size-11"
                 >
-                  <ChevronLeft className="size-5" />
+                  <ChevronLeft className="size-4 sm:size-5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => go(1)}
                   aria-label="Next testimonial"
-                  className="grid place-items-center size-11 rounded-full border border-white/15 text-white hover:bg-primary-bright hover:text-ink hover:border-primary-bright transition-all"
+                  className="grid size-8 place-items-center rounded-full border border-white/15 text-white transition-all hover:border-primary-bright hover:bg-primary-bright hover:text-ink sm:size-11"
                 >
-                  <ChevronRight className="size-5" />
+                  <ChevronRight className="size-4 sm:size-5" />
                 </button>
               </div>
             </div>
