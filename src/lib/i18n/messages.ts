@@ -341,7 +341,7 @@ const en = {
     privacyPolicy: "Privacy Policy",
     termsAndConditions: "Terms and Conditions",
     rights: "© 2026 StackEDU · A StackForgeAI product. All rights reserved.",
-    madeWith: "Made with ♥ in Kigali, Rwanda",
+    madeWith: "Built for Africa",
   },
 };
 
@@ -688,7 +688,7 @@ const fr = {
     privacyPolicy: "Politique de confidentialité",
     termsAndConditions: "Conditions générales",
     rights: "© 2026 StackEDU · Un produit StackForgeAI. Tous droits réservés.",
-    madeWith: "Fait avec ♥ à Kigali, Rwanda",
+    madeWith: "Conçu pour l'Afrique",
   },
 };
 
@@ -1035,7 +1035,7 @@ const rw = {
     privacyPolicy: "Politiki y'ibanga",
     termsAndConditions: "Amategeko n'amabwiriza",
     rights: "© 2026 StackEDU · Igicuruzwa cya StackForgeAI. Uburenganzira bwose burabitswe.",
-    madeWith: "Byakozwe n'♥ i Kigali, Rwanda",
+    madeWith: "Yubatswe ku bw'Afrika",
   },
 };
 

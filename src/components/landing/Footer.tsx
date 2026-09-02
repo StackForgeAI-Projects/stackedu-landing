@@ -76,10 +76,7 @@ export function Footer() {
             <a href="/terms" className="hover:text-primary-bright transition-colors">
               {t.footer.termsAndConditions}
             </a>
-            <span className="inline-flex items-center gap-1.5">
-              {t.footer.madeWith}
-              <span className="eyebrow tracking-widest text-white/40">RW</span>
-            </span>
+            <span className="text-white/40">{t.footer.madeWith}</span>
           </div>
         </div>
       </div>

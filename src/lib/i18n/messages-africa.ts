@@ -206,7 +206,7 @@ export const africaMessagesEn: AfricaOverrides = {
   footer: {
     blurb:
       "The unified operating system for Africa's tertiary institutions. Built by StackForgeAI.",
-    madeWith: "Made with ♥ for Africa · HQ in Kigali, Rwanda",
+    madeWith: "Built for Africa",
   },
 };
 
@@ -281,7 +281,7 @@ export const africaMessagesFr: AfricaOverrides = {
   footer: {
     blurb:
       "Le système d'exploitation unifié pour les institutions tertiaires d'Afrique. Conçu par StackForgeAI.",
-    madeWith: "Fait avec ♥ pour l'Afrique · Siège à Kigali, Rwanda",
+    madeWith: "Conçu pour l'Afrique",
   },
 };
 
@@ -344,7 +344,7 @@ export const africaMessagesRw: AfricaOverrides = {
   footer: {
     blurb:
       "Sisiteme y'ubuyobozi y'uburezi bwo hejuru mu Afrika. Yubatswe na StackForgeAI.",
-    madeWith: "Byakozwe n'♥ ku bw'Afrika · HQ i Kigali, Rwanda",
+    madeWith: "Yubatswe ku bw'Afrika",
   },
 };
 
